@@ -1,0 +1,371 @@
+/**
+ * OfficeScene
+ *
+ * The core gameplay screen. Hosts:
+ *   - TopBarHUD (fixed top, includes speed controls)
+ *   - LeftSidebar (fixed left nav)
+ *   - LiveActivityPanel (fixed right)
+ *   - World view (office floor, desks, employee entities) — always visible
+ *   - Modal popups for Projects / Staff / Hiring (float over the world)
+ *   - Toast notifications layer
+ */
+import { Container, Graphics } from 'pixi.js';
+
+import { BaseScene } from './BaseScene.js';
+
+import { TopBarHUD, TOP_BAR_HEIGHT } from '../ui/TopBarHUD.js';
+import { LeftSidebar, LEFT_SIDEBAR_WIDTH } from '../ui/LeftSidebar.js';
+import { LiveActivityPanel, RIGHT_SIDEBAR_WIDTH } from '../ui/LiveActivityPanel.js';
+import { Modal } from '../ui/Modal.js';
+import { Toast } from '../ui/Toast.js';
+
+import { ProjectsPanel } from '../ui/panels/ProjectsPanel.js';
+import { EmployeesPanel } from '../ui/panels/EmployeesPanel.js';
+import { HiringPanel } from '../ui/panels/HiringPanel.js';
+
+import { DeskEntity, DESK_W, DESK_H } from '../entities/DeskEntity.js';
+import { EmployeeEntity } from '../entities/EmployeeEntity.js';
+
+const TILE = 64;
+const FLOOR_COLOR = 0x0f172a;
+const GRID_COLOR = 0x141e35;
+const DESK_COLS = 4;
+const DESK_PAD_X = 32;
+const DESK_PAD_Y = 28;
+
+const PANEL_TITLES = {
+  projects: 'Projects',
+  employees: 'Staff',
+  hiring: 'Hiring',
+};
+
+export class OfficeScene extends BaseScene {
+  constructor(game) {
+    super(game);
+
+    // Layered containers.
+    this._world = new Container();
+    this._world.label = 'world';
+
+    this._modalLayer = new Container();
+    this._modalLayer.label = 'modal';
+
+    this._hudLayer = new Container();
+    this._hudLayer.label = 'hud';
+
+    this._toastLayer = new Container();
+    this._toastLayer.label = 'toasts';
+
+    // World graphics.
+    this._floor = new Graphics();
+    this._grid = new Graphics();
+
+    // Office desk/employee entities.
+    /** @type {DeskEntity[]} */
+    this._desks = [];
+    /** @type {EmployeeEntity[]} */
+    this._employeeEntities = [];
+
+    // HUD widgets.
+    this._topBar = new TopBarHUD(game);
+    this._leftSidebar = new LeftSidebar((id) => this._navigate(id));
+    this._activityPanel = new LiveActivityPanel(game);
+
+    // Modal popup (shared, reused for all panel types).
+    this._modal = new Modal(() => this._onModalClosed());
+
+    // Active nav view id ('office' | 'projects' | 'employees' | 'hiring').
+    this._activeView = 'office';
+
+    // Toasts.
+    /** @type {Toast[]} */
+    this._toasts = [];
+
+    // HUD refresh accumulator.
+    this._hudRefreshAcc = 0;
+  }
+
+  async preload() {}
+
+  async enter() {
+    this.root.addChild(this._world);
+    this._world.addChild(this._floor);
+    this._world.addChild(this._grid);
+
+    // Modal layer sits between world and HUD so HUD elements stay interactive.
+    this.root.addChild(this._modalLayer);
+    this._modalLayer.addChild(this._modal);
+
+    this.root.addChild(this._hudLayer);
+    this.root.addChild(this._toastLayer);
+
+    // HUD.
+    this._hudLayer.addChild(this._topBar);
+    this._hudLayer.addChild(this._leftSidebar);
+    this._hudLayer.addChild(this._activityPanel);
+
+    // Scroll wheel forwarded to modal.
+    this.root.eventMode = 'static';
+    this._onWheel = (e) => this._handleWheel(e);
+    this.game.app.canvas.addEventListener('wheel', this._onWheel, { passive: true });
+
+    // Subscribe to events.
+    this.listen('day:began', () => this._onDayBegan());
+    this.listen('employee:hired', () => this._rebuildOffice());
+    this.listen('employee:fired', () => this._rebuildOffice());
+    this.listen('project:completed', () => {
+      if (this._activeView === 'projects') this._modal.refresh();
+    });
+    this.listen('project:accepted', () => {
+      if (this._activeView === 'projects') this._modal.refresh();
+    });
+    this.listen('notification:add', ({ text, type }) => {
+      this._spawnToast(text, type);
+      this._activityPanel.refresh(true);
+    });
+    this.listen('simulation:reset', () => {
+      this._rebuildOffice();
+      this._navigate('office');
+    });
+  }
+
+  update(dt) {
+    // Keep speed-button highlight in sync with current game speed.
+    this._topBar.update();
+
+    // Entities.
+    const company = this.game.sim?.company;
+    if (company) {
+      const speed = this.game.sim.time.gameSpeed;
+      const working = speed > 0;
+
+      this._employeeEntities.forEach((ee, idx) => {
+        const emp = company.employees[idx];
+        if (!emp) return;
+        const state = working
+          ? emp.activeProjectId !== null
+            ? 'typing'
+            : 'idle'
+          : 'idle';
+        ee.setState(state);
+        ee.update(dt);
+      });
+
+      // Update desk active glow.
+      this._desks.forEach((desk, idx) => {
+        const emp = company.employees[idx];
+        const active = working && emp?.activeProjectId !== null;
+        desk.setActive(active ?? false);
+      });
+    }
+
+    // HUD refresh (every 0.2s is plenty).
+    this._hudRefreshAcc += dt;
+    if (this._hudRefreshAcc >= 0.2) {
+      this._hudRefreshAcc = 0;
+      this._topBar.refresh();
+      this._activityPanel.refresh();
+      this._modal.refresh();
+    }
+
+    // Toasts.
+    this._tickToasts(dt);
+  }
+
+  resize(width, height) {
+    this._drawFloor(width, height);
+    this._drawGrid(width, height);
+    this._positionDesks(width, height);
+
+    this._topBar.resize(width);
+    this._leftSidebar.resize(width, height);
+    this._activityPanel.resize(width, height);
+    this._modal.resize(width, height);
+    this._repositionToasts(width);
+
+    // First-time initialisation guard.
+    if (!this._initialized) {
+      this._topBar.init(width);
+      this._leftSidebar.init(height);
+      this._activityPanel.init(width, height);
+      this._initialized = true;
+      this._rebuildOffice();
+    }
+  }
+
+  async exit() {
+    if (this._onWheel) {
+      this.game.app.canvas.removeEventListener('wheel', this._onWheel);
+      this._onWheel = null;
+    }
+    this._desks = [];
+    this._employeeEntities = [];
+    this._toasts = [];
+    this._initialized = false;
+    this._activeView = 'office';
+  }
+
+  // -----------------------------------------------------------------------
+  // Navigation
+  // -----------------------------------------------------------------------
+
+  _navigate(viewId) {
+    if (viewId === 'office') {
+      this._activeView = 'office';
+      this._leftSidebar.setActive('office');
+      this._modal.close();
+      return;
+    }
+
+    // If the same panel is already open, close it (toggle).
+    if (viewId === this._activeView && this._modal.visible) {
+      this._navigate('office');
+      return;
+    }
+
+    this._activeView = viewId;
+    this._leftSidebar.setActive(viewId);
+
+    const { width, height } = this.game.screen;
+    let panel;
+    if (viewId === 'projects') {
+      panel = new ProjectsPanel(this.game);
+    } else if (viewId === 'employees') {
+      panel = new EmployeesPanel(this.game);
+    } else if (viewId === 'hiring') {
+      panel = new HiringPanel(this.game);
+    } else {
+      return;
+    }
+
+    this._modal.open(PANEL_TITLES[viewId], panel, width, height);
+  }
+
+  /** Called by Modal when it closes itself (X button or backdrop click). */
+  _onModalClosed() {
+    this._activeView = 'office';
+    this._leftSidebar.setActive('office');
+  }
+
+  // -----------------------------------------------------------------------
+  // Office rendering
+  // -----------------------------------------------------------------------
+
+  _drawFloor(width, height) {
+    this._floor.clear().rect(0, 0, width, height).fill({ color: FLOOR_COLOR });
+  }
+
+  _drawGrid(width, height) {
+    this._grid.clear();
+    const cols = Math.ceil(width / TILE) + 1;
+    const rows = Math.ceil(height / TILE) + 1;
+    for (let i = 0; i <= cols; i++) {
+      const x = i * TILE;
+      this._grid.moveTo(x, 0).lineTo(x, rows * TILE);
+    }
+    for (let j = 0; j <= rows; j++) {
+      const y = j * TILE;
+      this._grid.moveTo(0, y).lineTo(cols * TILE, y);
+    }
+    this._grid.stroke({ color: GRID_COLOR, width: 1 });
+  }
+
+  _rebuildOffice() {
+    // Destroy old entities.
+    for (const d of this._desks) d.destroy();
+    for (const e of this._employeeEntities) e.destroy();
+    this._desks = [];
+    this._employeeEntities = [];
+
+    const company = this.game.sim?.company;
+    if (!company) return;
+
+    const { desks } = company.office;
+    const employees = company.employees;
+
+    const cols = DESK_COLS;
+    const offsetX = LEFT_SIDEBAR_WIDTH + 32;
+    const offsetY = TOP_BAR_HEIGHT + 80;
+
+    for (let i = 0; i < desks; i++) {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const x = offsetX + col * (DESK_W + DESK_PAD_X);
+      const y = offsetY + row * (DESK_H + DESK_PAD_Y + 30);
+
+      const emp = employees[i] ?? null;
+      const desk = new DeskEntity(x, y, emp !== null);
+      this._desks.push(desk);
+      this._world.addChild(desk.view);
+
+      if (emp) {
+        const ee = new EmployeeEntity(
+          x + DESK_W / 2 - 12,
+          y - 20,
+          emp.name,
+        );
+        this._employeeEntities.push(ee);
+        this._world.addChild(ee.view);
+      }
+    }
+  }
+
+  _positionDesks(width, height) {
+    void width;
+    void height;
+  }
+
+  // -----------------------------------------------------------------------
+  // End of day
+  // -----------------------------------------------------------------------
+
+  _onDayBegan() {
+    this._topBar.refresh();
+    this._modal.refresh();
+  }
+
+  // -----------------------------------------------------------------------
+  // Toasts
+  // -----------------------------------------------------------------------
+
+  _spawnToast(message, type) {
+    const toast = new Toast(message, type);
+    this._toasts.push(toast);
+    this._toastLayer.addChild(toast);
+    this._repositionToasts(this.game.screen.width);
+  }
+
+  _tickToasts(dt) {
+    for (const t of this._toasts) t.update(dt);
+
+    const dismissed = this._toasts.filter((t) => t.dismissed);
+    for (const t of dismissed) {
+      this._toastLayer.removeChild(t);
+      t.destroy();
+    }
+    this._toasts = this._toasts.filter((t) => !t.dismissed);
+    if (dismissed.length > 0) {
+      this._repositionToasts(this.game.screen.width);
+    }
+  }
+
+  _repositionToasts(screenWidth) {
+    const TOAST_W = 340;
+    const GAP = 6;
+    const RIGHT_MARGIN = RIGHT_SIDEBAR_WIDTH + 8;
+    const startX = screenWidth - TOAST_W - RIGHT_MARGIN;
+    let y = TOP_BAR_HEIGHT + 8;
+    for (const t of this._toasts) {
+      t.position.set(startX, y);
+      y += 54 + GAP;
+    }
+  }
+
+  // -----------------------------------------------------------------------
+  // Scroll
+  // -----------------------------------------------------------------------
+
+  _handleWheel(e) {
+    this._modal.handleWheel(e.deltaY);
+  }
+}

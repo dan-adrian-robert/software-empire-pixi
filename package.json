@@ -1,0 +1,28 @@
+{
+  "name": "software-empire",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Software Empire - a 2D management/tycoon simulation game built with PixiJS.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint \"src/**/*.js\"",
+    "lint:fix": "eslint \"src/**/*.js\" --fix",
+    "format": "prettier --write \"src/**/*.{js,json,css,html}\" \"*.{js,json,html,md}\"",
+    "format:check": "prettier --check \"src/**/*.{js,json,css,html}\" \"*.{js,json,html,md}\""
+  },
+  "dependencies": {
+    "pixi.js": "^8.6.6"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "eslint": "^9.17.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-prettier": "^5.2.1",
+    "globals": "^15.14.0",
+    "prettier": "^3.4.2",
+    "vite": "^6.0.7"
+  }
+}
