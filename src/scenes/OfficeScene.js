@@ -27,6 +27,7 @@ import { HiringPanel } from '../ui/panels/HiringPanel.js';
 
 import { DeskEntity, DESK_W, DESK_H } from '../entities/DeskEntity.js';
 import { EmployeeEntity } from '../entities/EmployeeEntity.js';
+import { BuyDeskEntity } from '../entities/BuyDeskEntity.js';
 
 const TILE = 64;
 const FLOOR_COLOR = 0x0f172a;
@@ -70,6 +71,8 @@ export class OfficeScene extends BaseScene {
     this._desks = [];
     /** @type {EmployeeEntity[]} */
     this._employeeEntities = [];
+    /** @type {BuyDeskEntity|null} */
+    this._buyDeskEntity = null;
 
     // HUD widgets.
     this._topBar = new TopBarHUD(game);
@@ -139,6 +142,7 @@ export class OfficeScene extends BaseScene {
     this.listen('day:began', () => this._onDayBegan());
     this.listen('employee:hired', () => this._rebuildOffice());
     this.listen('employee:fired', () => this._rebuildOffice());
+    this.listen('desk:bought', () => this._rebuildOffice());
     this.listen('project:completed', () => {
       if (this._activeView === 'projects') this._modal.refresh();
     });
@@ -194,6 +198,7 @@ export class OfficeScene extends BaseScene {
       this._modal.refresh();
       this._statsPopup.refresh(this.game.sim?.company);
       this._schedulePopup.refresh(this.game.sim?.company);
+      this._refreshBuyDesk();
     }
 
     // Toasts.
@@ -232,6 +237,7 @@ export class OfficeScene extends BaseScene {
     }
     this._desks = [];
     this._employeeEntities = [];
+    this._buyDeskEntity = null;
     this._toasts = [];
     this._initialized = false;
     this._activeView = 'office';
@@ -367,8 +373,10 @@ export class OfficeScene extends BaseScene {
     // Destroy old entities.
     for (const d of this._desks) d.destroy();
     for (const e of this._employeeEntities) e.destroy();
+    this._buyDeskEntity?.destroy();
     this._desks = [];
     this._employeeEntities = [];
+    this._buyDeskEntity = null;
 
     const company = this.game.sim?.company;
     if (!company) return;
@@ -380,36 +388,51 @@ export class OfficeScene extends BaseScene {
     const offsetX = LEFT_SIDEBAR_WIDTH + 32;
     const offsetY = TOP_BAR_HEIGHT + 80;
 
-    for (let i = 0; i < desks; i++) {
-      const col = i % cols;
-      const row = Math.floor(i / cols);
-      const x = offsetX + col * (DESK_W + DESK_PAD_X);
-      const y = offsetY + row * (DESK_H + DESK_PAD_Y + 30);
+    const deskPos = (i) => ({
+      x: offsetX + (i % cols) * (DESK_W + DESK_PAD_X),
+      y: offsetY + Math.floor(i / cols) * (DESK_H + DESK_PAD_Y + 30),
+    });
 
+    // Existing desks
+    for (let i = 0; i < desks; i++) {
+      const { x, y } = deskPos(i);
       const emp = employees[i] ?? null;
       const desk = new DeskEntity(x, y, emp !== null);
       this._desks.push(desk);
       this._world.addChild(desk.view);
 
       if (emp) {
-        const ee = new EmployeeEntity(
-          x + DESK_W / 2 - 12,
-          y - 20,
-          emp.name,
-        );
-        // Pass desk world position as popup anchor (right edge of desk).
-        const deskX = x + DESK_W + 10;
-        const deskY = y - 20;
-        ee.setOnClick(() => this._onEmployeeClick(emp, deskX, deskY));
+        const ee = new EmployeeEntity(x + DESK_W / 2 - 12, y - 20, emp.name);
+        const popupX = x + DESK_W + 10;
+        ee.setOnClick(() => this._onEmployeeClick(emp, popupX, y - 20));
         this._employeeEntities.push(ee);
         this._world.addChild(ee.view);
       }
     }
+
+    // Buy-desk slot (always one, right after the last desk)
+    const { x: bx, y: by } = deskPos(desks);
+    const canAfford = company.money >= 1000;
+    this._buyDeskEntity = new BuyDeskEntity(bx, by, canAfford, () => {
+      this.game.sim.buyDesk();
+    });
+    this._world.addChild(this._buyDeskEntity.view);
   }
 
   _positionDesks(width, height) {
     void width;
     void height;
+  }
+
+  /** Rebuild the buy-desk slot if affordability changed since last check. */
+  _refreshBuyDesk() {
+    const company = this.game.sim?.company;
+    if (!company || !this._buyDeskEntity) return;
+    const canAfford = company.money >= 1000;
+    // Only rebuild if affordability changed to avoid thrashing.
+    if (this._buyDeskEntity._canAfford !== canAfford) {
+      this._rebuildOffice();
+    }
   }
 
   // -----------------------------------------------------------------------

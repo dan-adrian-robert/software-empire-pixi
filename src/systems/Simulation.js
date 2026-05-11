@@ -126,6 +126,20 @@ export class Simulation {
     this.time.gameSpeed = speed;
   }
 
+  /** Purchase one additional desk slot for a flat fee. */
+  buyDesk() {
+    const PRICE = 1000;
+    if (!this.company) return;
+    if (this.company.money < PRICE) {
+      this.bus.emit('notification:add', { text: 'Not enough money for a new desk.', type: 'warning' });
+      return;
+    }
+    this.company.money -= PRICE;
+    this.company.office.desks += 1;
+    this.bus.emit('notification:add', { text: 'New desk added! (+1 slot)', type: 'success' });
+    this.bus.emit('desk:bought', { company: this.company });
+  }
+
   /**
    * Update the company's work schedule.
    * @param {number} startHour  Hour the work day starts (6–16).
