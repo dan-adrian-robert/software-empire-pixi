@@ -17,6 +17,8 @@ import { TopBarHUD, TOP_BAR_HEIGHT } from '../ui/TopBarHUD.js';
 import { LeftSidebar, LEFT_SIDEBAR_WIDTH } from '../ui/LeftSidebar.js';
 import { LiveActivityPanel, RIGHT_SIDEBAR_WIDTH } from '../ui/LiveActivityPanel.js';
 import { Modal } from '../ui/Modal.js';
+import { EmployeeStatsPopup } from '../ui/EmployeeStatsPopup.js';
+import { SchedulePopup } from '../ui/SchedulePopup.js';
 import { Toast } from '../ui/Toast.js';
 
 import { ProjectsPanel } from '../ui/panels/ProjectsPanel.js';
@@ -47,6 +49,9 @@ export class OfficeScene extends BaseScene {
     this._world = new Container();
     this._world.label = 'world';
 
+    this._popupLayer = new Container();
+    this._popupLayer.label = 'popup';
+
     this._modalLayer = new Container();
     this._modalLayer.label = 'modal';
 
@@ -74,6 +79,14 @@ export class OfficeScene extends BaseScene {
     // Modal popup (shared, reused for all panel types).
     this._modal = new Modal(() => this._onModalClosed());
 
+    // Employee stats popup (click on world employee to open).
+    this._statsPopup = new EmployeeStatsPopup();
+
+    // Work schedule popup (toggled via Schedule sidebar button).
+    this._schedulePopup = new SchedulePopup((startHour, workHours) => {
+      this.game.sim.setSchedule(startHour, workHours);
+    });
+
     // Active nav view id ('office' | 'projects' | 'employees' | 'hiring').
     this._activeView = 'office';
 
@@ -92,6 +105,11 @@ export class OfficeScene extends BaseScene {
     this._world.addChild(this._floor);
     this._world.addChild(this._grid);
 
+    // Popup layer (employee stats + schedule) — above world, below modal and HUD.
+    this.root.addChild(this._popupLayer);
+    this._popupLayer.addChild(this._schedulePopup);
+    this._popupLayer.addChild(this._statsPopup);
+
     // Modal layer sits between world and HUD so HUD elements stay interactive.
     this.root.addChild(this._modalLayer);
     this._modalLayer.addChild(this._modal);
@@ -103,6 +121,14 @@ export class OfficeScene extends BaseScene {
     this._hudLayer.addChild(this._topBar);
     this._hudLayer.addChild(this._leftSidebar);
     this._hudLayer.addChild(this._activityPanel);
+
+    // World background click closes any open floating popup.
+    // Employee entities and the schedule popup stop propagation so they don't trigger this.
+    this._world.eventMode = 'static';
+    this._world.on('pointerdown', () => {
+      this._closeStatsPopup();
+      this._closeSchedulePopup();
+    });
 
     // Scroll wheel forwarded to modal.
     this.root.eventMode = 'static';
@@ -166,6 +192,8 @@ export class OfficeScene extends BaseScene {
       this._topBar.refresh();
       this._activityPanel.refresh();
       this._modal.refresh();
+      this._statsPopup.refresh(this.game.sim?.company);
+      this._schedulePopup.refresh(this.game.sim?.company);
     }
 
     // Toasts.
@@ -181,6 +209,10 @@ export class OfficeScene extends BaseScene {
     this._leftSidebar.resize(width, height);
     this._activityPanel.resize(width, height);
     this._modal.resize(width, height);
+    this._statsPopup.resize(width, height);
+    if (this._schedulePopup.visible) {
+      this._schedulePopup.open(this.game.sim?.company, width, height);
+    }
     this._repositionToasts(width);
 
     // First-time initialisation guard.
@@ -203,13 +235,72 @@ export class OfficeScene extends BaseScene {
     this._toasts = [];
     this._initialized = false;
     this._activeView = 'office';
+    this._statsPopup.close();
+    this._schedulePopup.close();
   }
 
   // -----------------------------------------------------------------------
   // Navigation
   // -----------------------------------------------------------------------
 
+  _closeSchedulePopup() {
+    if (!this._schedulePopup.visible) return;
+    this._schedulePopup.close();
+    this._leftSidebar.setActive(this._activeView);
+  }
+
+  _closeStatsPopup() {
+    if (!this._statsPopup.visible) return;
+    const prev = this._statsPopup.currentEmp;
+    this._statsPopup.close();
+    // Deselect the previously selected entity.
+    const idx = this.game.sim?.company?.employees.indexOf(prev) ?? -1;
+    if (idx !== -1) this._employeeEntities[idx]?.setSelected(false);
+  }
+
+  _onEmployeeClick(emp, deskX, deskY) {
+    const company = this.game.sim?.company;
+    if (!company) return;
+
+    // Deselect previous
+    const prevEmp = this._statsPopup.currentEmp;
+    if (prevEmp) {
+      const prevIdx = company.employees.indexOf(prevEmp);
+      if (prevIdx !== -1) this._employeeEntities[prevIdx]?.setSelected(false);
+    }
+
+    // Toggle off if same employee clicked again
+    if (prevEmp === emp) {
+      this._statsPopup.close();
+      return;
+    }
+
+    // Select new
+    const idx = company.employees.indexOf(emp);
+    if (idx !== -1) this._employeeEntities[idx]?.setSelected(true);
+
+    const { width, height } = this.game.screen;
+    this._statsPopup.open(emp, company, deskX, deskY, width, height);
+  }
+
+  _toggleSchedule() {
+    const { width, height } = this.game.screen;
+    if (this._schedulePopup.visible) {
+      this._closeSchedulePopup();
+    } else {
+      this._schedulePopup.open(this.game.sim?.company, width, height);
+      this._leftSidebar.setActive('schedule');
+    }
+  }
+
   _navigate(viewId) {
+    this._closeStatsPopup();
+    if (viewId === 'schedule') {
+      this._toggleSchedule();
+      return;
+    }
+    // Opening a main modal closes the schedule popup.
+    if (viewId !== 'office') this._schedulePopup.close();
     if (viewId === 'office') {
       this._activeView = 'office';
       this._leftSidebar.setActive('office');
@@ -245,6 +336,8 @@ export class OfficeScene extends BaseScene {
   _onModalClosed() {
     this._activeView = 'office';
     this._leftSidebar.setActive('office');
+    // Restore schedule button highlight if popup is still open.
+    if (this._schedulePopup.visible) this._leftSidebar.setActive('schedule');
   }
 
   // -----------------------------------------------------------------------
@@ -304,6 +397,10 @@ export class OfficeScene extends BaseScene {
           y - 20,
           emp.name,
         );
+        // Pass desk world position as popup anchor (right edge of desk).
+        const deskX = x + DESK_W + 10;
+        const deskY = y - 20;
+        ee.setOnClick(() => this._onEmployeeClick(emp, deskX, deskY));
         this._employeeEntities.push(ee);
         this._world.addChild(ee.view);
       }
@@ -322,6 +419,7 @@ export class OfficeScene extends BaseScene {
   _onDayBegan() {
     this._topBar.refresh();
     this._modal.refresh();
+    this._statsPopup.close();
   }
 
   // -----------------------------------------------------------------------

@@ -126,6 +126,18 @@ export class Simulation {
     this.time.gameSpeed = speed;
   }
 
+  /**
+   * Update the company's work schedule.
+   * @param {number} startHour  Hour the work day starts (6–16).
+   * @param {number} workHours  Duration: 8 | 10 | 12 | 14.
+   */
+  setSchedule(startHour, workHours) {
+    if (!this.company) return;
+    const clamped = Math.max(6, Math.min(24 - workHours, startHour));
+    this.company.schedule.startHour = clamped;
+    this.company.schedule.workHours = workHours;
+  }
+
   // -----------------------------------------------------------------------
   // Internal
   // -----------------------------------------------------------------------

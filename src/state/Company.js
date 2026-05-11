@@ -60,6 +60,16 @@ export function createCompany() {
     /** Running income banked from completed projects during current day (paid at day end). */
     pendingPayout: 0,
 
+    /**
+     * Work-day schedule. Controls in-game clock display and productivity.
+     * startHour: 6–16 (hour the day begins, 24h clock)
+     * workHours: 8 | 10 | 12 | 14
+     */
+    schedule: {
+      startHour: 8,
+      workHours: 8,
+    },
+
     /** Cumulative totals for statistics. */
     stats: {
       totalRevenue: 0,

@@ -85,10 +85,13 @@ export class TopBarHUD extends Container {
     const moneyColor =
       money < 500 ? TEXT_WARN : money <= 0 ? TEXT_RED : TEXT_BRIGHT;
 
+    const timeStr = this.game.sim?.time.getCurrentTimeString(company.schedule) ?? '';
+
     this._set('name', company.name, TEXT_BRIGHT);
     this._set('money', `$${money.toLocaleString()}`, moneyColor);
     this._set('pl', `-$${salaries.toLocaleString()}/day`, profitColor);
     this._set('day', `Day ${company.day}`, TEXT_BRIGHT);
+    this._set('time', timeStr, TEXT_DIM);
     this._set(
       'projects',
       `Projects: ${company.activeProjects.length}/${company.maxActiveProjects}`,
@@ -121,7 +124,7 @@ export class TopBarHUD extends Container {
   }
 
   _buildFields() {
-    const labels = ['name', 'money', 'pl', 'day', 'projects', 'employees'];
+    const labels = ['name', 'money', 'pl', 'day', 'time', 'projects', 'employees'];
     for (const key of labels) {
       const t = new Text({
         text: '',
@@ -145,13 +148,14 @@ export class TopBarHUD extends Container {
     const W = this._width;
     const positions = [
       16,
-      Math.floor(W * 0.18),
-      Math.floor(W * 0.29),
-      Math.floor(W * 0.40),
-      Math.floor(W * 0.52),
-      Math.floor(W * 0.63),
+      Math.floor(W * 0.16),
+      Math.floor(W * 0.26),
+      Math.floor(W * 0.37),
+      Math.floor(W * 0.46),
+      Math.floor(W * 0.57),
+      Math.floor(W * 0.67),
     ];
-    const keys = ['name', 'money', 'pl', 'day', 'projects', 'employees'];
+    const keys = ['name', 'money', 'pl', 'day', 'time', 'projects', 'employees'];
     keys.forEach((k, i) => {
       const t = this._fields.get(k);
       if (t) t.x = positions[i];

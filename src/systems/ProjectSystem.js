@@ -62,7 +62,8 @@ export class ProjectSystem {
         );
         if (!req) continue;
 
-        const pointsPerDay = totalMatchedLevels * POINTS_PER_LEVEL;
+        const productivityMult = (company.schedule?.workHours ?? 8) / 8;
+        const pointsPerDay = totalMatchedLevels * POINTS_PER_LEVEL * productivityMult;
         const contribution = pointsPerDay * frameFraction * (sk.level / totalMatchedLevels);
         req.current = Math.min(req.points, req.current + contribution);
       }
