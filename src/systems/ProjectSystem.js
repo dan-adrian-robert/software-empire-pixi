@@ -13,8 +13,11 @@
  *      matching skills in that project.
  *
  * Per-frame budget:
- *   pointsPerDay = sum(skillLevel) * POINTS_PER_LEVEL
+ *   pointsPerDay    = sum(skillLevel) * POINTS_PER_LEVEL
  *   pointsThisFrame = pointsPerDay * (dt * speed / DAY_DURATION_SECONDS)
+ *
+ * The work schedule (startHour / workHours) is a cosmetic setting that only
+ * affects the in-game clock display.  It does NOT change points output per day.
  */
 import { GameConfig } from '../config.js';
 import { matchingSkills } from '../state/Employee.js';
@@ -62,8 +65,7 @@ export class ProjectSystem {
         );
         if (!req) continue;
 
-        const productivityMult = (company.schedule?.workHours ?? 8) / 8;
-        const pointsPerDay = totalMatchedLevels * POINTS_PER_LEVEL * productivityMult;
+        const pointsPerDay = totalMatchedLevels * POINTS_PER_LEVEL;
         const contribution = pointsPerDay * frameFraction * (sk.level / totalMatchedLevels);
         req.current = Math.min(req.points, req.current + contribution);
       }

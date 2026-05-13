@@ -4,7 +4,7 @@
  * The core gameplay screen. Hosts:
  *   - TopBarHUD (fixed top, includes speed controls)
  *   - LeftSidebar (fixed left nav)
- *   - LiveActivityPanel (fixed right)
+ *   - RightWidgetBar (fixed right, toggleable Activity + Projects widgets)
  *   - World view (office floor, desks, employee entities) — always visible
  *   - Modal popups for Projects / Staff / Hiring (float over the world)
  *   - Toast notifications layer
@@ -15,7 +15,7 @@ import { BaseScene } from './BaseScene.js';
 
 import { TopBarHUD, TOP_BAR_HEIGHT } from '../ui/TopBarHUD.js';
 import { LeftSidebar, LEFT_SIDEBAR_WIDTH } from '../ui/LeftSidebar.js';
-import { LiveActivityPanel, RIGHT_SIDEBAR_WIDTH } from '../ui/LiveActivityPanel.js';
+import { RightWidgetBar, RIGHT_SIDEBAR_WIDTH } from '../ui/RightWidgetBar.js';
 import { Modal } from '../ui/Modal.js';
 import { EmployeeStatsPopup } from '../ui/EmployeeStatsPopup.js';
 import { SchedulePopup } from '../ui/SchedulePopup.js';
@@ -79,7 +79,7 @@ export class OfficeScene extends BaseScene {
     // HUD widgets.
     this._topBar = new TopBarHUD(game);
     this._leftSidebar = new LeftSidebar((id) => this._navigate(id));
-    this._activityPanel = new LiveActivityPanel(game);
+    this._widgetBar = new RightWidgetBar(game);
 
     // Modal popup (shared, reused for all panel types).
     this._modal = new Modal(() => this._onModalClosed());
@@ -125,7 +125,7 @@ export class OfficeScene extends BaseScene {
     // HUD.
     this._hudLayer.addChild(this._topBar);
     this._hudLayer.addChild(this._leftSidebar);
-    this._hudLayer.addChild(this._activityPanel);
+    this._hudLayer.addChild(this._widgetBar);
 
     // World background click closes any open floating popup.
     // Employee entities and the schedule popup stop propagation so they don't trigger this.
@@ -147,13 +147,15 @@ export class OfficeScene extends BaseScene {
     this.listen('desk:bought', () => this._rebuildOffice());
     this.listen('project:completed', () => {
       if (this._activeView === 'projects') this._modal.refresh();
+      this._widgetBar.refresh(true);
     });
     this.listen('project:accepted', () => {
       if (this._activeView === 'projects') this._modal.refresh();
+      this._widgetBar.refresh(true);
     });
     this.listen('notification:add', ({ text, type }) => {
       this._spawnToast(text, type);
-      this._activityPanel.refresh(true);
+      this._widgetBar.refresh(true);
     });
     this.listen('research:unlocked', () => {
       if (this._activeView === 'research') this._modal.refresh();
@@ -200,7 +202,7 @@ export class OfficeScene extends BaseScene {
     if (this._hudRefreshAcc >= 0.2) {
       this._hudRefreshAcc = 0;
       this._topBar.refresh();
-      this._activityPanel.refresh();
+      this._widgetBar.refresh();
       this._modal.refresh();
       this._statsPopup.refresh(this.game.sim?.company);
       this._schedulePopup.refresh(this.game.sim?.company);
@@ -218,7 +220,7 @@ export class OfficeScene extends BaseScene {
 
     this._topBar.resize(width);
     this._leftSidebar.resize(width, height);
-    this._activityPanel.resize(width, height);
+    this._widgetBar.resize(width, height);
     this._modal.resize(width, height);
     this._statsPopup.resize(width, height);
     if (this._schedulePopup.visible) {
@@ -230,7 +232,7 @@ export class OfficeScene extends BaseScene {
     if (!this._initialized) {
       this._topBar.init(width);
       this._leftSidebar.init(height);
-      this._activityPanel.init(width, height);
+      this._widgetBar.init(width, height);
       this._initialized = true;
       this._rebuildOffice();
     }

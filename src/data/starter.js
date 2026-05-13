@@ -15,7 +15,7 @@ export const STARTER_EMPLOYEES = [
   {
     name: 'Alex Morgan',
     skills: [
-      { skill: SKILLS.BASIC_CODING, level: 8 },
+      { skill: SKILLS.FRONTEND_DEVELOPMENT, level: 8 },
       { skill: SKILLS.BACKEND_DEVELOPMENT, level: 3 },
     ],
     salary: 120,
@@ -24,7 +24,7 @@ export const STARTER_EMPLOYEES = [
     name: 'Riley Chen',
     skills: [
       { skill: SKILLS.MOBILE_DEVELOPMENT, level: 7 },
-      { skill: SKILLS.BASIC_CODING, level: 4 },
+      { skill: SKILLS.FRONTEND_DEVELOPMENT, level: 4 },
     ],
     salary: 110,
   },
@@ -36,7 +36,7 @@ export const STARTER_CANDIDATES = [
     name: 'Jordan Patel',
     skills: [
       { skill: SKILLS.BACKEND_DEVELOPMENT, level: 6 },
-      { skill: SKILLS.DATABASE_MANAGEMENT, level: 5 },
+      { skill: SKILLS.DEVOPS, level: 5 },
     ],
     salary: 150,
   },
@@ -44,7 +44,7 @@ export const STARTER_CANDIDATES = [
     name: 'Sam Williams',
     skills: [
       { skill: SKILLS.BACKEND_DEVELOPMENT, level: 7 },
-      { skill: SKILLS.BASIC_CODING, level: 4 },
+      { skill: SKILLS.FRONTEND_DEVELOPMENT, level: 4 },
     ],
     salary: 100,
   },
@@ -52,14 +52,14 @@ export const STARTER_CANDIDATES = [
     name: 'Casey Lee',
     skills: [
       { skill: SKILLS.MOBILE_DEVELOPMENT, level: 8 },
-      { skill: SKILLS.DATABASE_MANAGEMENT, level: 5 },
+      { skill: SKILLS.DEVOPS, level: 5 },
     ],
     salary: 170,
   },
   {
     name: 'Morgan Garcia',
     skills: [
-      { skill: SKILLS.PROJECT_MANAGEMENT, level: 6 },
+      { skill: SKILLS.DEVOPS, level: 6 },
       { skill: SKILLS.BACKEND_DEVELOPMENT, level: 5 },
     ],
     salary: 130,

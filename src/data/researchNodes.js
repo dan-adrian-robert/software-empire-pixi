@@ -4,6 +4,36 @@
  * that must be unlocked before this node becomes available.
  */
 export const RESEARCH_NODES = [
+  // ---- Skill unlocks ----
+  {
+    id: 'skill_frontend_dev',
+    name: 'Frontend Development',
+    icon: '🖥️',
+    cost: 40,
+    dependencies: [],
+  },
+  {
+    id: 'skill_backend_dev',
+    name: 'Backend Development',
+    icon: '🔧',
+    cost: 90,
+    dependencies: ['skill_frontend_dev'],
+  },
+  {
+    id: 'skill_mobile_dev',
+    name: 'Mobile Development',
+    icon: '📱',
+    cost: 90,
+    dependencies: ['skill_frontend_dev'],
+  },
+  {
+    id: 'skill_devops',
+    name: 'DevOps',
+    icon: '🛠️',
+    cost: 160,
+    dependencies: ['skill_backend_dev'],
+  },
+  // ---- General research ----
   {
     id: 'agile_workflow',
     name: 'Agile Workflow',
