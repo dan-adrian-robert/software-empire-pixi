@@ -24,6 +24,7 @@ import { Toast } from '../ui/Toast.js';
 import { ProjectsPanel } from '../ui/panels/ProjectsPanel.js';
 import { EmployeesPanel } from '../ui/panels/EmployeesPanel.js';
 import { HiringPanel } from '../ui/panels/HiringPanel.js';
+import { ResearchPanel } from '../ui/panels/ResearchPanel.js';
 
 import { DeskEntity, DESK_W, DESK_H } from '../entities/DeskEntity.js';
 import { EmployeeEntity } from '../entities/EmployeeEntity.js';
@@ -40,6 +41,7 @@ const PANEL_TITLES = {
   projects: 'Projects',
   employees: 'Staff',
   hiring: 'Hiring',
+  research: 'Research Tree',
 };
 
 export class OfficeScene extends BaseScene {
@@ -152,6 +154,10 @@ export class OfficeScene extends BaseScene {
     this.listen('notification:add', ({ text, type }) => {
       this._spawnToast(text, type);
       this._activityPanel.refresh(true);
+    });
+    this.listen('research:unlocked', () => {
+      if (this._activeView === 'research') this._modal.refresh();
+      this._topBar.refresh();
     });
     this.listen('simulation:reset', () => {
       this._rebuildOffice();
@@ -331,6 +337,8 @@ export class OfficeScene extends BaseScene {
       panel = new EmployeesPanel(this.game);
     } else if (viewId === 'hiring') {
       panel = new HiringPanel(this.game);
+    } else if (viewId === 'research') {
+      panel = new ResearchPanel(this.game);
     } else {
       return;
     }

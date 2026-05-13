@@ -40,6 +40,11 @@ export class EconomySystem {
       company.pendingPayout = 0;
     }
 
+    // Generate R&D points.
+    if (company.rdPointsPerDay > 0) {
+      company.rdPoints += company.rdPointsPerDay;
+    }
+
     // Move completed projects out of active list.
     const justCompleted = company.activeProjects.filter((p) => p.isCompleted);
     for (const p of justCompleted) {

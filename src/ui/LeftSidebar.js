@@ -25,6 +25,7 @@ const NAV_ITEMS = [
   { id: 'projects', emoji: '📋', label: 'Projects' },
   { id: 'employees', emoji: '👥', label: 'Staff' },
   { id: 'hiring', emoji: '➕', label: 'Hire' },
+  { id: 'research', emoji: '🔬', label: 'Research' },
   { id: 'schedule', emoji: '🕐', label: 'Schedule' },
 ];
 

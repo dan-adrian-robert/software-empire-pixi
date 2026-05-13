@@ -13,6 +13,7 @@
 import { createCompany } from '../state/Company.js';
 import { createProject } from '../state/Project.js';
 import { PROJECT_TEMPLATES } from '../data/projectTemplates.js';
+import { RESEARCH_NODES } from '../data/researchNodes.js';
 import { GameConfig } from '../config.js';
 
 import { TimeSystem } from './TimeSystem.js';
@@ -138,6 +139,30 @@ export class Simulation {
     this.company.office.desks += 1;
     this.bus.emit('notification:add', { text: 'New desk added! (+1 slot)', type: 'success' });
     this.bus.emit('desk:bought', { company: this.company });
+  }
+
+  /**
+   * Attempt to unlock a research node.
+   * Fails silently if deps not met, already unlocked, or insufficient R&D points.
+   * @param {string} nodeId
+   * @returns {boolean} true if the node was successfully unlocked
+   */
+  unlockResearch(nodeId) {
+    const node = RESEARCH_NODES.find((n) => n.id === nodeId);
+    if (!node) return false;
+    const { company } = this;
+    const allUnlocked = new Set(company.unlockedResearch);
+    if (allUnlocked.has(nodeId)) return false;
+    if (!node.dependencies.every((d) => allUnlocked.has(d))) return false;
+    if (company.rdPoints < node.cost) return false;
+    company.rdPoints -= node.cost;
+    company.unlockedResearch.push(nodeId);
+    this.bus.emit('notification:add', {
+      text: `Research unlocked: ${node.name}`,
+      type: 'success',
+    });
+    this.bus.emit('research:unlocked', { nodeId, company });
+    return true;
   }
 
   /**

@@ -15,6 +15,7 @@ const TEXT_BRIGHT = 0xe6e8ef;
 const TEXT_GREEN = 0x4ade80;
 const TEXT_RED = 0xf87171;
 const TEXT_WARN = 0xfbbf24;
+const TEXT_CYAN = 0x38bdf8;
 
 // Speed button styling
 const BTN_W = 54;
@@ -102,6 +103,7 @@ export class TopBarHUD extends Container {
       `Staff: ${usedDesks(company)}/${company.office.desks}`,
       TEXT_DIM,
     );
+    this._set('rdPoints', `⚗ ${Math.floor(company.rdPoints)} R&D`, TEXT_CYAN);
   }
 
   /** Called each frame to keep speed button highlight in sync. */
@@ -124,7 +126,7 @@ export class TopBarHUD extends Container {
   }
 
   _buildFields() {
-    const labels = ['name', 'money', 'pl', 'day', 'time', 'projects', 'employees'];
+    const labels = ['name', 'money', 'pl', 'day', 'time', 'projects', 'employees', 'rdPoints'];
     for (const key of labels) {
       const t = new Text({
         text: '',
@@ -148,14 +150,15 @@ export class TopBarHUD extends Container {
     const W = this._width;
     const positions = [
       16,
-      Math.floor(W * 0.16),
-      Math.floor(W * 0.26),
-      Math.floor(W * 0.37),
-      Math.floor(W * 0.46),
-      Math.floor(W * 0.57),
-      Math.floor(W * 0.67),
+      Math.floor(W * 0.14),
+      Math.floor(W * 0.24),
+      Math.floor(W * 0.34),
+      Math.floor(W * 0.43),
+      Math.floor(W * 0.53),
+      Math.floor(W * 0.62),
+      Math.floor(W * 0.72),
     ];
-    const keys = ['name', 'money', 'pl', 'day', 'time', 'projects', 'employees'];
+    const keys = ['name', 'money', 'pl', 'day', 'time', 'projects', 'employees', 'rdPoints'];
     keys.forEach((k, i) => {
       const t = this._fields.get(k);
       if (t) t.x = positions[i];

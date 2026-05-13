@@ -60,6 +60,16 @@ export function createCompany() {
     /** Running income banked from completed projects during current day (paid at day end). */
     pendingPayout: 0,
 
+    /** Accumulated R&D points (spent on research tree nodes). */
+    rdPoints: 5000,
+
+    /** R&D points generated each end-of-day. */
+    rdPointsPerDay: 10,
+
+    /** IDs of research nodes that have been unlocked. */
+    /** @type {string[]} */
+    unlockedResearch: [],
+
     /**
      * Work-day schedule. Controls in-game clock display and productivity.
      * startHour: 6–16 (hour the day begins, 24h clock)
