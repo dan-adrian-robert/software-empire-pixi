@@ -14,6 +14,7 @@ import { createCompany } from '../state/Company.js';
 import { createProject } from '../state/Project.js';
 import { PROJECT_TEMPLATES } from '../data/projectTemplates.js';
 import { RESEARCH_NODES } from '../data/researchNodes.js';
+import { SKILL_RESEARCH_NODE } from '../data/skills.js';
 import { GameConfig } from '../config.js';
 
 import { TimeSystem } from './TimeSystem.js';
@@ -115,6 +116,23 @@ export class Simulation {
     this.hiring.fire(this.company, employee);
   }
 
+  /** Collect the payout for a finished project and move it to completed. */
+  finishProject(project) {
+    const { company } = this;
+    project.isReadyToFinish = false;
+    project.isCompleted = true;
+    company.money += project.payout;
+    company.stats.totalRevenue += project.payout;
+    company.stats.projectsCompleted += 1;
+    company.activeProjects = company.activeProjects.filter((p) => p.id !== project.id);
+    company.completedProjects.push(project);
+    this.bus.emit('notification:add', {
+      text: `Collected $${project.payout.toLocaleString()} for ${project.name}!`,
+      type: 'success',
+    });
+    this.bus.emit('project:completed', { project, company });
+  }
+
   /** Fast-forward to end of day. */
   endDay() {
     this.time.fastForward(this.company);
@@ -195,7 +213,11 @@ export class Simulation {
       (t) =>
         t.tier <= maxTier &&
         !company.activeProjects.some((p) => p.templateId === t.id) &&
-        !company.completedProjects.some((p) => p.templateId === t.id),
+        !company.completedProjects.some((p) => p.templateId === t.id) &&
+        t.requirements.every((req) => {
+          const node = SKILL_RESEARCH_NODE[req.skill];
+          return !node || company.unlockedResearch.includes(node);
+        }),
     );
 
     // Shuffle and pick a full pool's worth of projects.

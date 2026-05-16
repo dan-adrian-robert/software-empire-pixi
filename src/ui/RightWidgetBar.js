@@ -113,7 +113,7 @@ export class RightWidgetBar extends Container {
     const projects = this.game.sim?.company.activeProjects ?? [];
 
     const projectsKey = projects
-      .map(p => p.requirements.map(r => Math.floor(r.current)).join(','))
+      .map(p => `${p.id}:${p.isReadyToFinish ? 'ready' : p.requirements.map(r => Math.floor(r.current)).join(',')}`)
       .join('|');
 
     const unchanged =
@@ -302,7 +302,7 @@ export class RightWidgetBar extends Container {
    */
   _buildProjectCard(project, startY, cardW) {
     const reqCount = project.requirements.length;
-    const cardH    = 44 + reqCount * 22;
+    const cardH    = 44 + reqCount * 22 + (project.isReadyToFinish ? 32 : 0);
 
     const bg = new Graphics()
       .roundRect(0, 0, cardW, cardH, PROJ_CARD_RADIUS)
@@ -390,6 +390,43 @@ export class RightWidgetBar extends Container {
       this._content.addChild(ptText);
 
       reqY += 20;
+    }
+
+    // Collect button for ready-to-finish projects
+    if (project.isReadyToFinish) {
+      const btnLabel = `Collect $${project.payout.toLocaleString()}`;
+      const btnW = cardW - 16;
+      const btnH = 22;
+
+      const btnBg = new Graphics()
+        .roundRect(0, 0, btnW, btnH, 4)
+        .fill({ color: 0x0a2a14 })
+        .stroke({ color: 0x4ade80, width: 1, alpha: 0.8 });
+      btnBg.position.set(PROJ_PADDING + 8, reqY + 2);
+      btnBg.eventMode = 'static';
+      btnBg.cursor = 'pointer';
+
+      const btnText = new Text({
+        text: btnLabel,
+        style: {
+          fill:       0x4ade80,
+          fontFamily: 'Inter, system-ui, sans-serif',
+          fontSize:   11,
+          fontWeight: '700',
+        },
+      });
+      btnText.anchor.set(0.5, 0.5);
+      btnText.position.set(btnW / 2, btnH / 2);
+      btnBg.addChild(btnText);
+
+      btnBg.on('pointerup', () => {
+        this.game.sim.finishProject(project);
+        this.refresh(true);
+      });
+      btnBg.on('pointerover', () => { btnBg.alpha = 0.8; });
+      btnBg.on('pointerout',  () => { btnBg.alpha = 1; });
+
+      this._content.addChild(btnBg);
     }
 
     return startY + cardH;

@@ -23,6 +23,7 @@ const BTN_H = 34;
 const BTN_R = 6;
 const BTN_GAP = 6;
 const BTN_RIGHT_MARGIN = 14;
+const START_BTN_W = 100;
 const BTN_NORMAL = 0x1c2740;
 const BTN_ACTIVE = 0x2a4a8a;
 const BTN_HOVER = 0x253352;
@@ -59,6 +60,9 @@ export class TopBarHUD extends Container {
 
     /** @type {Array<{speed: number, container: Container, bg: Graphics, label: Text, bgNormal: number, bgHover: number}>} */
     this._speedBtns = [];
+
+    /** @type {Container|null} */
+    this._startDayBtn = null;
   }
 
   /** Call once after adding to scene to do initial draw. */
@@ -67,6 +71,7 @@ export class TopBarHUD extends Container {
     this._drawBg();
     this._buildFields();
     this._buildSpeedButtons();
+    this._buildStartDayButton();
     this.refresh();
   }
 
@@ -118,6 +123,7 @@ export class TopBarHUD extends Container {
   /** Called each frame to keep speed button highlight in sync. */
   update() {
     this._updateActiveButton();
+    this._updateStartDayButton();
   }
 
   // -----------------------------------------------------------------------
@@ -215,6 +221,60 @@ export class TopBarHUD extends Container {
       entry.container.position.set(x, y);
       x += BTN_W + BTN_GAP;
     }
+    // Reposition the Start Day button too
+    if (this._startDayBtn) {
+      const speedBlockX = this._width - BTN_RIGHT_MARGIN - totalW;
+      this._startDayBtn.x = speedBlockX - START_BTN_W - BTN_GAP;
+      this._startDayBtn.y = y;
+    }
+  }
+
+  _buildStartDayButton() {
+    const container = new Container();
+    container.eventMode = 'static';
+    container.cursor = 'pointer';
+
+    const bg = new Graphics()
+      .roundRect(0, 0, START_BTN_W, BTN_H, BTN_R)
+      .fill({ color: 0x0a2a14 })
+      .stroke({ color: 0x4ade80, width: 1 });
+
+    const label = new Text({
+      text: '▶ Start Day',
+      style: {
+        fill:       0x4ade80,
+        fontFamily: 'Inter, system-ui, sans-serif',
+        fontSize:   13,
+        fontWeight: '700',
+      },
+    });
+    label.anchor.set(0.5);
+    label.position.set(START_BTN_W / 2, BTN_H / 2);
+
+    container.addChild(bg);
+    container.addChild(label);
+
+    container.on('pointerup', () => {
+      this.game.sim.setSpeed(1);
+      this._updateActiveButton();
+    });
+    container.on('pointerover', () => { bg.alpha = 0.8; });
+    container.on('pointerout',  () => { bg.alpha = 1; });
+
+    this._startDayBtn = container;
+    this.addChild(container);
+
+    // Position will be set in _repositionSpeedButtons
+    this._repositionSpeedButtons();
+    this._updateStartDayButton();
+  }
+
+  _updateStartDayButton() {
+    if (!this._startDayBtn) return;
+    const time = this.game.sim?.time;
+    if (!time) return;
+    const showBtn = time.dayProgress === 0 && time.gameSpeed === 0;
+    this._startDayBtn.visible = showBtn;
   }
 
   _makeButton(label, onClick) {

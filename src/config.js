@@ -54,8 +54,9 @@ export const GameConfig = Object.freeze({
     // Real seconds it takes to simulate one in-game day at 1x speed.
     DAY_DURATION_SECONDS: 180,
 
-    // Points generated per skill level per day.
-    POINTS_PER_LEVEL: 10,
+    // Story points per skill level per 15-minute WORK clock period.
+    // Index 0 unused (no level-0 skill). Levels 1–10 map to the values below.
+    SKILL_SP_TABLE: Object.freeze([0, 1, 2, 4, 6, 9, 12, 16, 21, 28, 36]),
 
     // Available speed multipliers; 0 = paused.
     SPEED_PRESETS: Object.freeze([0, 1, 2, 4, 8]),

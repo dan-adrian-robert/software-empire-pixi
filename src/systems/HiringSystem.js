@@ -12,6 +12,7 @@ import { GameConfig } from '../config.js';
 import { generateRandomCandidate } from '../state/Candidate.js';
 import { createEmployee } from '../state/Employee.js';
 import { freeDesks } from '../state/Company.js';
+import { getUnlockedSkills } from '../data/skills.js';
 
 export class HiringSystem {
   /** @param {import('../utils/EventBus.js').EventBus} bus */
@@ -26,8 +27,9 @@ export class HiringSystem {
   refreshCandidates(company) {
     const tier = company.office.tierIndex + 1; // 1-based tier
     const count = GameConfig.gameplay.CANDIDATE_POOL_SIZE;
+    const allowedSkills = getUnlockedSkills(company.unlockedResearch);
     company.candidates = Array.from({ length: count }, () =>
-      generateRandomCandidate(tier),
+      generateRandomCandidate(tier, Math.random, allowedSkills),
     );
   }
 

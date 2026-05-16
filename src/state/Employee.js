@@ -28,6 +28,10 @@ export function createEmployee({ name, skills, salary }) {
     activeProjectId: null,
     /** Current schedule state — one of SCHEDULE_CYCLE entries. */
     scheduleState: 'WORK',
+    /** Points buffered during the current WORK period, keyed by projectId → skill → points. */
+    workBuffer: {},
+    /** Running sum of all buffered points this WORK period. */
+    workPeriodTotal: 0,
   };
 }
 

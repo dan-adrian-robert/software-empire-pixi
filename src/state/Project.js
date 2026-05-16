@@ -27,7 +27,9 @@ export function createProject(template) {
     })),
     /** Whether the player has accepted this project as active. */
     isActive: false,
-    /** Set to true when all requirements are met. */
+    /** Set to true when all requirements are met — awaiting player collection. */
+    isReadyToFinish: false,
+    /** Set to true once the player has collected the payout. */
     isCompleted: false,
   };
 }

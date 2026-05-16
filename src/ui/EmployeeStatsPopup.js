@@ -17,6 +17,7 @@ import {
   SKILL_COLORS,
   MAX_SKILL_LEVEL,
 } from '../data/skills.js';
+import { SCHEDULE_CYCLE } from '../state/Employee.js';
 
 const POPUP_W = 268;
 const P = 14;                  // inner padding
@@ -40,9 +41,12 @@ const SKILL_ROW_H = 20;
 
 const ALL_SKILLS = Object.values(SKILLS);
 
-// Fixed card height: top-pad + name-row + gap + status-row + gap + divider + gap + skills + bottom-pad
+const SCHEDULE_ICONS = { WORK: '💻', BREAK: '☕', TALK: '💬' };
+const SCHEDULE_H = 1 + 8 + 12 + 4 + 20; // divider + gap + label + gap + icon row
+
+// Fixed card height: top-pad + name-row + gap + status-row + gap + divider + gap + skills + schedule + bottom-pad
 const HEADER_H = P + 20 + 6 + 16 + 8;          // 64
-const POPUP_H = HEADER_H + 1 + 8 + ALL_SKILLS.length * SKILL_ROW_H + P;
+const POPUP_H = HEADER_H + 1 + 8 + ALL_SKILLS.length * SKILL_ROW_H + SCHEDULE_H + P;
 
 export class EmployeeStatsPopup extends Container {
   constructor() {
@@ -180,6 +184,64 @@ export class EmployeeStatsPopup extends Container {
       this._content.addChild(row);
       y += SKILL_ROW_H;
     }
+
+    // ── Schedule ─────────────────────────────────────────
+    const div2 = new Graphics()
+      .moveTo(8, y)
+      .lineTo(POPUP_W - 8, y)
+      .stroke({ color: DIVIDER, width: 1 });
+    this._content.addChild(div2);
+    y += 8;
+
+    const schedLabel = new Text({
+      text: 'SCHEDULE',
+      style: {
+        fill: TEXT_DIM,
+        fontFamily: 'Inter, system-ui, sans-serif',
+        fontSize: 9,
+        fontWeight: '700',
+      },
+    });
+    schedLabel.position.set(P, y);
+    this._content.addChild(schedLabel);
+    y += 16;
+
+    const schedRow = this._makeScheduleRow();
+    schedRow.position.set(P, y);
+    this._content.addChild(schedRow);
+  }
+
+  _makeScheduleRow() {
+    const row = new Container();
+    let x = 0;
+    SCHEDULE_CYCLE.forEach((state, i) => {
+      if (i > 0) {
+        const arrow = new Text({
+          text: '→',
+          style: { fill: TEXT_DIM, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 10 },
+        });
+        arrow.anchor.set(0, 0.5);
+        arrow.position.set(x, 9);
+        row.addChild(arrow);
+        x += 14;
+      }
+      const cell = new Container();
+      const icon = new Text({ text: SCHEDULE_ICONS[state] ?? '', style: { fontSize: 13 } });
+      icon.anchor.set(0, 0.5);
+      icon.position.set(0, 9);
+      cell.addChild(icon);
+      const lbl = new Text({
+        text: state[0] + state.slice(1).toLowerCase(),
+        style: { fill: TEXT_DIM, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 9 },
+      });
+      lbl.anchor.set(0.5, 0);
+      lbl.position.set(9, 18);
+      cell.addChild(lbl);
+      cell.position.set(x, 0);
+      row.addChild(cell);
+      x += 38;
+    });
+    return row;
   }
 
   _makeSkillRow(skillKey, level, color) {

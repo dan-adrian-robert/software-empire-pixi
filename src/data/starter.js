@@ -30,38 +30,26 @@ export const STARTER_EMPLOYEES = [
   },
 ];
 
-/** Four pre-built candidates available at the start. */
+/** Four pre-built candidates available at the start (frontend-only, matching initial research). */
 export const STARTER_CANDIDATES = [
   {
     name: 'Jordan Patel',
-    skills: [
-      { skill: SKILLS.BACKEND_DEVELOPMENT, level: 6 },
-      { skill: SKILLS.DEVOPS, level: 5 },
-    ],
-    salary: 150,
+    skills: [{ skill: SKILLS.FRONTEND_DEVELOPMENT, level: 3 }],
+    salary: 80,
   },
   {
     name: 'Sam Williams',
-    skills: [
-      { skill: SKILLS.BACKEND_DEVELOPMENT, level: 7 },
-      { skill: SKILLS.FRONTEND_DEVELOPMENT, level: 4 },
-    ],
-    salary: 100,
+    skills: [{ skill: SKILLS.FRONTEND_DEVELOPMENT, level: 2 }],
+    salary: 60,
   },
   {
     name: 'Casey Lee',
-    skills: [
-      { skill: SKILLS.MOBILE_DEVELOPMENT, level: 8 },
-      { skill: SKILLS.DEVOPS, level: 5 },
-    ],
-    salary: 170,
+    skills: [{ skill: SKILLS.FRONTEND_DEVELOPMENT, level: 4 }],
+    salary: 100,
   },
   {
     name: 'Morgan Garcia',
-    skills: [
-      { skill: SKILLS.DEVOPS, level: 6 },
-      { skill: SKILLS.BACKEND_DEVELOPMENT, level: 5 },
-    ],
-    salary: 130,
+    skills: [{ skill: SKILLS.FRONTEND_DEVELOPMENT, level: 2 }],
+    salary: 60,
   },
 ];

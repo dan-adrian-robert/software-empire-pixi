@@ -16,6 +16,7 @@ import {
   MAX_SKILL_LEVEL,
 } from '../../data/skills.js';
 import { freeDesks } from '../../state/Company.js';
+import { SCHEDULE_CYCLE } from '../../state/Employee.js';
 
 const CARD_BG = 0x131929;
 const CARD_BORDER = 0x1e3050;
@@ -41,11 +42,14 @@ const LABEL_GAP = 12;
 
 const ALL_SKILLS = Object.values(SKILLS);
 
+const SCHEDULE_ICONS = { WORK: '💻', BREAK: '☕', TALK: '💬' };
+const SCHED_SECTION_H = 12 + 4 + 20; // label + gap + icon row
+
 const NAME_H = 20;
 const HEADER_H = 12 + NAME_H + 10;           // top-pad + name + gap
 const DIVIDER_H = 1;
 const SKILLS_H = ALL_SKILLS.length * SKILL_ROW_H;
-const FOOTER_H = 10 + DIVIDER_H + 8 + 28 + 10;
+const FOOTER_H = 10 + DIVIDER_H + 8 + SCHED_SECTION_H + 10 + 28 + 10;
 const CARD_H = HEADER_H + DIVIDER_H + 8 + SKILLS_H + FOOTER_H;
 
 export class HiringPanel extends Container {
@@ -188,6 +192,24 @@ export class HiringPanel extends Container {
       .stroke({ color: DIVIDER_COLOR, width: 1 });
     this._scroll.addChild(div2);
 
+    // ── Schedule ─────────────────────────────────────────
+    const schedLabelY = divY2 + 8;
+    const schedLabelText = new Text({
+      text: 'SCHEDULE',
+      style: {
+        fill: TEXT_DIM,
+        fontFamily: 'Inter, system-ui, sans-serif',
+        fontSize: 9,
+        fontWeight: '700',
+      },
+    });
+    schedLabelText.position.set(PADDING + INNER, schedLabelY);
+    this._scroll.addChild(schedLabelText);
+
+    const schedRow = this._makeScheduleRow(canHire);
+    schedRow.position.set(PADDING + INNER, schedLabelY + 16);
+    this._scroll.addChild(schedRow);
+
     // ── Hire button (bottom-right) ───────────────────────
     const hireBtn = this._makeButton(
       canHire ? 'Hire' : 'No Desk',
@@ -205,7 +227,7 @@ export class HiringPanel extends Container {
         this.refresh();
       },
     );
-    hireBtn.position.set(PADDING + cardW - INNER - 80, divY2 + 8);
+    hireBtn.position.set(PADDING + cardW - INNER - 80, divY2 + 8 + SCHED_SECTION_H + 10);
     this._scroll.addChild(hireBtn);
   }
 
@@ -258,6 +280,40 @@ export class HiringPanel extends Container {
       row.addChild(numText);
     }
 
+    return row;
+  }
+
+  _makeScheduleRow(active) {
+    const row = new Container();
+    const color = active ? TEXT_DIM : TEXT_DIM;
+    let x = 0;
+    SCHEDULE_CYCLE.forEach((state, i) => {
+      if (i > 0) {
+        const arrow = new Text({
+          text: '→',
+          style: { fill: color, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 10 },
+        });
+        arrow.anchor.set(0, 0.5);
+        arrow.position.set(x, 9);
+        row.addChild(arrow);
+        x += 16;
+      }
+      const cell = new Container();
+      const icon = new Text({ text: SCHEDULE_ICONS[state] ?? '', style: { fontSize: 13 } });
+      icon.anchor.set(0, 0.5);
+      icon.position.set(0, 9);
+      cell.addChild(icon);
+      const lbl = new Text({
+        text: state[0] + state.slice(1).toLowerCase(),
+        style: { fill: color, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 9 },
+      });
+      lbl.anchor.set(0.5, 0);
+      lbl.position.set(9, 18);
+      cell.addChild(lbl);
+      cell.position.set(x, 0);
+      row.addChild(cell);
+      x += 42;
+    });
     return row;
   }
 

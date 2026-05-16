@@ -13,6 +13,8 @@
 import { Entity } from './Entity.js';
 import { Graphics, Rectangle, Text } from 'pixi.js';
 
+const POINTS_LABEL_START_Y = 70; // below body, floats upward during fade
+
 const PERSON_W = 48;
 const PERSON_H = 60;
 
@@ -22,7 +24,7 @@ const NAME_OFFSET_Y = PERSON_H + 88; // ≈ below desk bottom
 
 const BODY_COLOR = 0x4a5a7a;
 
-const SCHEDULE_ICONS = { WORK: '💼', BREAK: '☕', TALK: '💬' };
+const SCHEDULE_ICONS = { WORK: '💻', BREAK: '☕', TALK: '💬' };
 
 export class EmployeeEntity extends Entity {
   /**
@@ -63,6 +65,9 @@ export class EmployeeEntity extends Entity {
     });
     this._nameLabel.anchor.set(0.5, 0);
     this._nameLabel.position.set(PERSON_W / 2, NAME_OFFSET_Y);
+
+    /** @type {Text|null} Floating "+N pts" label shown at end of WORK period. */
+    this._pointsLabel = null;
 
     this.view.addChild(this._body);
     this.view.addChild(this._hands);
@@ -117,7 +122,43 @@ export class EmployeeEntity extends Entity {
     this._stateIcon.text = icon;
   }
 
-  update(_dt) {}
+  /**
+   * Show a floating "+N pts" label that fades out over ~1 second.
+   * @param {number} points
+   */
+  showPoints(points) {
+    // Remove any existing label still animating.
+    if (this._pointsLabel) {
+      this.view.removeChild(this._pointsLabel);
+      this._pointsLabel = null;
+    }
+
+    const label = new Text({
+      text: `+${Math.round(points)} pts`,
+      style: {
+        fill:       0x4ade80,
+        fontFamily: 'Inter, system-ui, sans-serif',
+        fontSize:   13,
+        fontWeight: '700',
+      },
+    });
+    label.anchor.set(0.5, 0);
+    label.position.set(PERSON_W / 2, POINTS_LABEL_START_Y);
+    label.alpha = 1;
+    this.view.addChild(label);
+    this._pointsLabel = label;
+  }
+
+  update(dt) {
+    if (this._pointsLabel) {
+      this._pointsLabel.alpha -= dt / 2;
+      this._pointsLabel.y    -= dt * 20;
+      if (this._pointsLabel.alpha <= 0) {
+        this.view.removeChild(this._pointsLabel);
+        this._pointsLabel = null;
+      }
+    }
+  }
 
   // -------------------------------------------------------------------------
 

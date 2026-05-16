@@ -121,7 +121,7 @@ export class ProjectsPanel extends Container {
     const company = this.game.sim.company;
 
     const reqCount = project.requirements.length;
-    const cardH = 64 + reqCount * 24 + (isActive ? 0 : 36);
+    const cardH = 64 + reqCount * 24 + (isActive && !project.isReadyToFinish ? 0 : 36);
 
     const bg = new Graphics()
       .roundRect(0, 0, cardW, cardH, CARD_RADIUS)
@@ -217,6 +217,22 @@ export class ProjectsPanel extends Container {
       reqY += 20;
     }
 
+    // Collect button for finished active projects.
+    if (isActive && project.isReadyToFinish) {
+      const btnY = reqY - startY + 8;
+      const collectBtn = this._makeButton(
+        `Collect $${project.payout.toLocaleString()}`,
+        0x0a2a14, 0x4ade80,
+        () => {
+          this.game.sim.finishProject(project);
+          this.refresh();
+        },
+        120,
+      );
+      collectBtn.position.set(startX + cardW - 130, startY + btnY);
+      this._scroll.addChild(collectBtn);
+    }
+
     // Buttons for available projects.
     if (!isActive) {
       const canAccept = company.activeProjects.length < company.maxActiveProjects;
@@ -246,13 +262,13 @@ export class ProjectsPanel extends Container {
     return cardH;
   }
 
-  _makeButton(label, bgColor, textColor, onClick) {
+  _makeButton(label, bgColor, textColor, onClick, width = 72) {
     const container = new Container();
     container.eventMode = 'static';
     container.cursor = 'pointer';
 
     const bg = new Graphics()
-      .roundRect(0, 0, 72, 26, 5)
+      .roundRect(0, 0, width, 26, 5)
       .fill({ color: bgColor })
       .stroke({ color: textColor, width: 1, alpha: 0.5 });
     container.addChild(bg);
@@ -267,7 +283,7 @@ export class ProjectsPanel extends Container {
       },
     });
     text.anchor.set(0.5);
-    text.position.set(36, 13);
+    text.position.set(width / 2, 13);
     container.addChild(text);
 
     container.on('pointerup', onClick);

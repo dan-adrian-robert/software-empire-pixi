@@ -32,6 +32,32 @@ export const SKILL_LABELS_SHORT = Object.freeze({
  */
 export const MAX_SKILL_LEVEL = 10;
 
+/**
+ * Maps each skill ID to the research node that must be unlocked before
+ * that skill can be used in projects or hired for.
+ */
+export const SKILL_RESEARCH_NODE = Object.freeze({
+  [SKILLS.FRONTEND_DEVELOPMENT]: 'skill_frontend_dev',
+  [SKILLS.BACKEND_DEVELOPMENT]:  'skill_backend_dev',
+  [SKILLS.MOBILE_DEVELOPMENT]:   'skill_mobile_dev',
+  [SKILLS.DEVOPS]:               'skill_devops',
+});
+
+/**
+ * Returns the set of skill IDs that are currently unlocked based on
+ * the company's unlockedResearch array.
+ * @param {string[]} unlockedResearch
+ * @returns {Set<string>}
+ */
+export function getUnlockedSkills(unlockedResearch) {
+  const set = new Set(unlockedResearch);
+  return new Set(
+    Object.entries(SKILL_RESEARCH_NODE)
+      .filter(([, node]) => set.has(node))
+      .map(([skill]) => skill),
+  );
+}
+
 /** Accent color per skill for progress bars and badges. */
 export const SKILL_COLORS = Object.freeze({
   [SKILLS.FRONTEND_DEVELOPMENT]: 0x4a9eff,

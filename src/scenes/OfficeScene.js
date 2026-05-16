@@ -102,6 +102,9 @@ export class OfficeScene extends BaseScene {
 
     // HUD refresh accumulator.
     this._hudRefreshAcc = 0;
+
+    // Last known 15-minute slot index — used to detect WORK period end.
+    this._prevSlot = -1;
   }
 
   async preload() {}
@@ -185,6 +188,18 @@ export class OfficeScene extends BaseScene {
       const scheduleState = SCHEDULE_CYCLE[slot % SCHEDULE_CYCLE.length];
       company.employees.forEach((emp) => { emp.scheduleState = scheduleState; });
 
+      // Detect WORK period end: slot changed and the outgoing slot was WORK.
+      if (slot !== this._prevSlot && this._prevSlot >= 0) {
+        const prevState = SCHEDULE_CYCLE[this._prevSlot % SCHEDULE_CYCLE.length];
+        if (prevState === 'WORK') {
+          const totals = this.game.sim.projects.flushWorkPeriod(company);
+          totals.forEach((pts, empIdx) => {
+            if (pts > 0) this._employeeEntities[empIdx]?.showPoints(pts);
+          });
+        }
+      }
+      this._prevSlot = slot;
+
       this._employeeEntities.forEach((ee, idx) => {
         const emp = company.employees[idx];
         if (!emp) return;
@@ -258,6 +273,7 @@ export class OfficeScene extends BaseScene {
     this._toasts = [];
     this._initialized = false;
     this._activeView = 'office';
+    this._prevSlot = -1;
     this._statsPopup.close();
     this._schedulePopup.close();
   }
@@ -429,12 +445,14 @@ export class OfficeScene extends BaseScene {
       }
     }
 
-    // Buy-desk slot (always one, right after the last desk)
+    // Buy-desk slot — only shown when every existing desk is occupied.
+    const hasEmptyDesk = employees.length < desks;
     const { x: bx, y: by } = deskPos(desks);
     const canAfford = company.money >= 1000;
     this._buyDeskEntity = new BuyDeskEntity(bx, by, canAfford, () => {
       this.game.sim.buyDesk();
     });
+    this._buyDeskEntity.view.visible = !hasEmptyDesk;
     this._world.addChild(this._buyDeskEntity.view);
   }
 
@@ -443,15 +461,18 @@ export class OfficeScene extends BaseScene {
     void height;
   }
 
-  /** Rebuild the buy-desk slot if affordability changed since last check. */
+  /** Update the buy-desk slot visibility/affordability without rebuilding the whole office. */
   _refreshBuyDesk() {
     const company = this.game.sim?.company;
     if (!company || !this._buyDeskEntity) return;
     const canAfford = company.money >= 1000;
-    // Only rebuild if affordability changed to avoid thrashing.
+    const hasEmptyDesk = company.employees.length < company.office.desks;
+    // Rebuild only when affordability changes (visibility is updated cheaply below).
     if (this._buyDeskEntity._canAfford !== canAfford) {
       this._rebuildOffice();
+      return;
     }
+    this._buyDeskEntity.view.visible = !hasEmptyDesk;
   }
 
   // -----------------------------------------------------------------------
@@ -459,6 +480,7 @@ export class OfficeScene extends BaseScene {
   // -----------------------------------------------------------------------
 
   _onDayBegan() {
+    this._prevSlot = -1;
     this._topBar.refresh();
     this._modal.refresh();
     this._statsPopup.close();

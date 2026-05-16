@@ -17,6 +17,7 @@ import {
   STARTER_CANDIDATES,
 } from '../data/starter.js';
 import { PROJECT_TEMPLATES } from '../data/projectTemplates.js';
+import { SKILL_RESEARCH_NODE, getUnlockedSkills } from '../data/skills.js';
 
 /**
  * Create a fresh Company from the starter seed.
@@ -24,10 +25,18 @@ import { PROJECT_TEMPLATES } from '../data/projectTemplates.js';
  */
 export function createCompany() {
   const employees = STARTER_EMPLOYEES.map((e) => createEmployee(e));
-  const candidates = STARTER_CANDIDATES.map((c) => createCandidate(c));
 
-  // Pick 3 tier-1 starter projects as "available"
-  const starterTemplates = PROJECT_TEMPLATES.filter((t) => t.tier === 1).slice(0, 3);
+  // Only include starter candidates whose skills are all within the initial research unlock.
+  const starterAllowedSkills = getUnlockedSkills(['skill_frontend_dev']);
+  const candidates = STARTER_CANDIDATES
+    .filter((c) => c.skills.every((s) => starterAllowedSkills.has(s.skill)))
+    .map((c) => createCandidate(c));
+
+  // Pick up to 3 tier-1 projects that only require the pre-unlocked frontend skill.
+  const starterUnlocked = new Set(['skill_frontend_dev']);
+  const starterTemplates = PROJECT_TEMPLATES.filter(
+    (t) => t.tier === 1 && t.requirements.every((r) => starterUnlocked.has(SKILL_RESEARCH_NODE[r.skill])),
+  ).slice(0, 3);
   const availableProjects = starterTemplates.map((t) => createProject(t));
 
   return {
@@ -68,7 +77,7 @@ export function createCompany() {
 
     /** IDs of research nodes that have been unlocked. */
     /** @type {string[]} */
-    unlockedResearch: [],
+    unlockedResearch: ['skill_frontend_dev'],
 
     /**
      * Work-day schedule. Controls in-game clock display and productivity.
