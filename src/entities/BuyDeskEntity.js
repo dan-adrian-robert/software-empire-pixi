@@ -9,8 +9,8 @@ import { Container, Graphics, Text } from 'pixi.js';
 
 export const DESK_PRICE = 1000;
 
-const W = 80;   // matches DESK_W
-const H = 50;   // matches DESK_H
+const W = 160;  // matches DESK_W
+const H = 100;  // matches DESK_H
 
 // ── Can afford ──────────────────────────────────────
 const BG_CAN      = 0x0f1a2e;
@@ -50,13 +50,13 @@ export class BuyDeskEntity {
       text: '+',
       style: {
         fontFamily: 'Inter, system-ui, sans-serif',
-        fontSize: 18,
+        fontSize: 36,
         fontWeight: '700',
         fill: canAfford ? ICON_CAN : ICON_CANT,
       },
     });
     this._plus.anchor.set(0.5);
-    this._plus.position.set(W / 2, H / 2 + 2);
+    this._plus.position.set(W / 2, H / 2 + 4);
     this.view.addChild(this._plus);
 
     // Price label
@@ -105,15 +105,15 @@ export class BuyDeskEntity {
     // Desk outline — uses dashed appearance via three short segments on each side
     this._bg
       .clear()
-      .roundRect(0, 8, W, H - 8, 4)
+      .roundRect(0, 16, W, H - 16, 8)
       .fill({ color: bg })
-      .stroke({ color: border, width: 1.5, alpha: canAfford ? 0.8 : 0.35 });
+      .stroke({ color: border, width: 3, alpha: canAfford ? 0.8 : 0.35 });
 
     // Circle icon
     this._icon
       .clear()
-      .circle(W / 2, H / 2 + 2, 13)
+      .circle(W / 2, H / 2 + 4, 26)
       .fill({ color: hover ? 0x1a3060 : 0x0b1120 })
-      .stroke({ color: icon, width: hover ? 2 : 1.5 });
+      .stroke({ color: icon, width: hover ? 4 : 3 });
   }
 }

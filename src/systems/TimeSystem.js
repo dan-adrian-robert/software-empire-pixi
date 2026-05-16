@@ -72,7 +72,8 @@ export class TimeSystem {
   getCurrentTimeString(schedule) {
     const totalHour = schedule.startHour + this.dayProgress * schedule.workHours;
     const h24 = Math.floor(totalHour) % 24;
-    const m = Math.floor((totalHour % 1) * 60);
+    const rawMinutes = (totalHour % 1) * 60;
+    const m = Math.floor(rawMinutes / 15) * 15; // snap to :00 :15 :30 :45
     const period = h24 >= 12 ? 'PM' : 'AM';
     const h12 = h24 === 0 ? 12 : h24 > 12 ? h24 - 12 : h24;
     return `${h12}:${String(m).padStart(2, '0')} ${period}`;

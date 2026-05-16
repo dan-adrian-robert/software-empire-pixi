@@ -2,35 +2,25 @@
  * EmployeeEntity
  *
  * Visual representation of an employee sitting at a desk.
- * Has simple state-driven "animations" (idle / typing / coffee).
  *
  * States:
- *   idle    - grey body
- *   typing  - blue body, blinking "..." bubble above head
- *   coffee  - orange indicator
+ *   idle   - grey body
+ *   typing - blue body
  *
- * The name label is rendered BELOW the desk (offset ~72px below entity origin).
+ * The name label is rendered BELOW the desk (offset ~148px below entity origin).
  * Call `setOnClick(cb)` to make the entity interactive.
  */
 import { Entity } from './Entity.js';
 import { Graphics, Rectangle, Text } from 'pixi.js';
 
-const PERSON_W = 24;
-const PERSON_H = 30;
+const PERSON_W = 48;
+const PERSON_H = 60;
 
 // How far below the entity origin the desk bottom edge sits.
-// Entity is spawned 20px above the desk (y - 20), and DESK_H = 50.
-const NAME_OFFSET_Y = PERSON_H + 44; // ≈ below desk bottom
+// Entity is spawned 40px above the desk (y - 40), and DESK_H = 100.
+const NAME_OFFSET_Y = PERSON_H + 88; // ≈ below desk bottom
 
-const STATE_COLORS = {
-  idle: 0x4a5a7a,
-  typing: 0x4a9eff,
-  coffee: 0xf97316,
-};
-
-const TYPING_INTERVAL = 0.3;
-const COFFEE_CHANCE = 0.004;
-const COFFEE_DURATION = 3;
+const BODY_COLOR = 0x4a5a7a;
 
 export class EmployeeEntity extends Entity {
   /**
@@ -43,14 +33,11 @@ export class EmployeeEntity extends Entity {
     this._placeholder.clear();
 
     this._state = 'idle';
-    this._stateTimer = 0;
-    this._typingAcc = 0;
-    this._showTick = false;
     this._name = name;
 
+    this._hands = new Graphics();
     this._body = new Graphics();
     this._head = new Graphics();
-    this._indicator = new Graphics();
 
     // Name label — centered below the desk
     this._nameLabel = new Text({
@@ -65,12 +52,12 @@ export class EmployeeEntity extends Entity {
     this._nameLabel.position.set(PERSON_W / 2, NAME_OFFSET_Y);
 
     this.view.addChild(this._body);
+    this.view.addChild(this._hands);
     this.view.addChild(this._head);
-    this.view.addChild(this._indicator);
     this.view.addChild(this._nameLabel);
 
     // Expand hit area to make the character easier to click.
-    this.view.hitArea = new Rectangle(-8, -8, PERSON_W + 16, PERSON_H + 16);
+    this.view.hitArea = new Rectangle(-16, -16, PERSON_W + 32, PERSON_H + 32);
 
     this._draw();
   }
@@ -104,72 +91,49 @@ export class EmployeeEntity extends Entity {
 
   // -------------------------------------------------------------------------
 
-  /** @param {'idle'|'typing'|'coffee'} state */
+  /** @param {'idle'|'typing'} state */
   setState(state) {
     if (this._state === state) return;
     this._state = state;
-    this._stateTimer = 0;
-    this._typingAcc = 0;
     this._draw();
   }
 
-  update(dt) {
-    this._stateTimer += dt;
-
-    if (this._state === 'typing') {
-      if (Math.random() < COFFEE_CHANCE) {
-        this.setState('coffee');
-        return;
-      }
-      this._typingAcc += dt;
-      if (this._typingAcc >= TYPING_INTERVAL) {
-        this._typingAcc = 0;
-        this._showTick = !this._showTick;
-        this._drawIndicator();
-      }
-    } else if (this._state === 'coffee') {
-      if (this._stateTimer >= COFFEE_DURATION) {
-        this.setState('typing');
-      }
-    }
-  }
+  update(_dt) {}
 
   // -------------------------------------------------------------------------
 
   _draw() {
-    const color = STATE_COLORS[this._state] ?? STATE_COLORS.idle;
-
     this._body
       .clear()
-      .roundRect(3, 14, PERSON_W - 6, PERSON_H - 14, 3)
-      .fill({ color });
+      .roundRect(6, 28, PERSON_W - 12, PERSON_H - 28, 6)
+      .fill({ color: BODY_COLOR });
 
     this._head
       .clear()
-      .circle(PERSON_W / 2, 8, 8)
+      .circle(PERSON_W / 2, 16, 16)
       .fill({ color: 0xc8a882 })
-      .stroke({ color: 0x8a6852, width: 1 });
+      .stroke({ color: 0x8a6852, width: 2 });
 
-    this._drawIndicator();
+    this._drawHands();
   }
 
-  _drawIndicator() {
-    this._indicator.clear();
+  _drawHands() {
+    const color  = 0xc8a882;
+    const HAND_R = 9;
+    const baseY  = 59;
 
-    if (this._state === 'typing' && this._showTick) {
-      this._indicator
-        .rect(PERSON_W / 2 - 6, -20, 12, 8)
-        .fill({ color: 0x1e3a6e })
-        .stroke({ color: 0x4a7aff, width: 1 });
-      for (let i = 0; i < 3; i++) {
-        this._indicator
-          .circle(PERSON_W / 2 - 4 + i * 4, -16, 1.5)
-          .fill({ color: 0x4a9eff });
-      }
-    } else if (this._state === 'coffee') {
-      this._indicator
-        .circle(PERSON_W / 2, -14, 7)
-        .fill({ color: 0xf97316, alpha: 0.9 });
-    }
+    this._hands.clear();
+
+    // Left hand
+    this._hands
+      .moveTo(6 + HAND_R, baseY)
+      .arc(6, baseY, HAND_R, 0, Math.PI, true)
+      .fill({ color });
+
+    // Right hand
+    this._hands
+      .moveTo(PERSON_W - 6 + HAND_R, baseY)
+      .arc(PERSON_W - 6, baseY, HAND_R, 0, Math.PI, true)
+      .fill({ color });
   }
 }

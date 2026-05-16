@@ -412,7 +412,7 @@ export class OfficeScene extends BaseScene {
       this._world.addChild(desk.view);
 
       if (emp) {
-        const ee = new EmployeeEntity(x + DESK_W / 2 - 12, y - 20, emp.name);
+        const ee = new EmployeeEntity(x + DESK_W / 2 - 24, y - 40, emp.name);
         const popupX = x + DESK_W + 10;
         ee.setOnClick(() => this._onEmployeeClick(emp, popupX, y - 20));
         this._employeeEntities.push(ee);

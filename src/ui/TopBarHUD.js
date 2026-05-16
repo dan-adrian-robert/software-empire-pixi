@@ -54,6 +54,9 @@ export class TopBarHUD extends Container {
     this._fields = new Map();
     this._width = 0;
 
+    this._clockBar = new Graphics();
+    this.addChild(this._clockBar);
+
     /** @type {Array<{speed: number, container: Container, bg: Graphics, label: Text, bgNormal: number, bgHover: number}>} */
     this._speedBtns = [];
   }
@@ -104,6 +107,12 @@ export class TopBarHUD extends Container {
       TEXT_DIM,
     );
     this._set('rdPoints', `⚗ ${Math.floor(company.rdPoints)} R&D`, TEXT_CYAN);
+
+    // 15-minute progress bar under the clock
+    const dayProgress = this.game.sim.time.dayProgress;
+    const totalMinutes = dayProgress * company.schedule.workHours * 60;
+    const barFill = (totalMinutes % 15) / 15;
+    this._drawClockBar(barFill);
   }
 
   /** Called each frame to keep speed button highlight in sync. */
@@ -163,6 +172,24 @@ export class TopBarHUD extends Container {
       const t = this._fields.get(k);
       if (t) t.x = positions[i];
     });
+    this._repositionClockBar();
+  }
+
+  _repositionClockBar() {
+    const timeX = Math.floor(this._width * 0.43);
+    this._clockBar.x = timeX;
+    this._clockBar.y = H - 7;
+  }
+
+  _drawClockBar(fill) {
+    const BAR_W = 64;
+    const BAR_H = 3;
+    const BAR_R = 1.5;
+    this._clockBar.clear()
+      .roundRect(0, 0, BAR_W, BAR_H, BAR_R)
+      .fill({ color: 0x1e2d47 })
+      .roundRect(0, 0, Math.max(BAR_R * 2, BAR_W * fill), BAR_H, BAR_R)
+      .fill({ color: 0x38bdf8 });
   }
 
   _buildSpeedButtons() {
