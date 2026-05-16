@@ -7,6 +7,9 @@
 
 let _nextId = 1;
 
+/** Repeating 15-minute schedule cycle for every employee. */
+export const SCHEDULE_CYCLE = ['WORK', 'BREAK', 'WORK', 'TALK'];
+
 /**
  * @param {object} opts
  * @param {string} opts.name
@@ -23,6 +26,8 @@ export function createEmployee({ name, skills, salary }) {
     salary,
     /** Id of the active project this employee is contributing to, or null. */
     activeProjectId: null,
+    /** Current schedule state — one of SCHEDULE_CYCLE entries. */
+    scheduleState: 'WORK',
   };
 }
 

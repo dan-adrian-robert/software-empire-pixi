@@ -39,6 +39,7 @@ export class BuyDeskEntity {
   constructor(x, y, canAfford, onClick) {
     this.view = new Container();
     this.view.position.set(x, y);
+    this._canAfford = canAfford;
 
     this._bg = new Graphics();
     this._icon = new Graphics();

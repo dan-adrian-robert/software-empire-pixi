@@ -29,6 +29,7 @@ import { ResearchPanel } from '../ui/panels/ResearchPanel.js';
 import { DeskEntity, DESK_W, DESK_H } from '../entities/DeskEntity.js';
 import { EmployeeEntity } from '../entities/EmployeeEntity.js';
 import { BuyDeskEntity } from '../entities/BuyDeskEntity.js';
+import { SCHEDULE_CYCLE } from '../state/Employee.js';
 
 const TILE = 64;
 const FLOOR_COLOR = 0x0f172a;
@@ -177,6 +178,13 @@ export class OfficeScene extends BaseScene {
       const speed = this.game.sim.time.gameSpeed;
       const working = speed > 0;
 
+      // Compute current schedule state from the 15-min clock slot.
+      const { dayProgress } = this.game.sim.time;
+      const totalMinutes = dayProgress * company.schedule.workHours * 60;
+      const slot = Math.floor(totalMinutes / 15);
+      const scheduleState = SCHEDULE_CYCLE[slot % SCHEDULE_CYCLE.length];
+      company.employees.forEach((emp) => { emp.scheduleState = scheduleState; });
+
       this._employeeEntities.forEach((ee, idx) => {
         const emp = company.employees[idx];
         if (!emp) return;
@@ -186,6 +194,7 @@ export class OfficeScene extends BaseScene {
             : 'idle'
           : 'idle';
         ee.setState(state);
+        ee.setScheduleState(emp.scheduleState);
         ee.update(dt);
       });
 

@@ -41,6 +41,12 @@ export class ProjectSystem {
     const frameFraction = (dt * speed) / DAY_DURATION_SECONDS;
 
     for (const employee of company.employees) {
+      // Only WORK state employees contribute to projects.
+      if (employee.scheduleState !== 'WORK') {
+        employee.activeProjectId = null;
+        continue;
+      }
+
       // Find projects that this employee can contribute to.
       const eligible = company.activeProjects.filter(
         (p) => !p.isCompleted && matchingSkills(employee, p).length > 0,

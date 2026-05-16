@@ -22,6 +22,8 @@ const NAME_OFFSET_Y = PERSON_H + 88; // ≈ below desk bottom
 
 const BODY_COLOR = 0x4a5a7a;
 
+const SCHEDULE_ICONS = { WORK: '💼', BREAK: '☕', TALK: '💬' };
+
 export class EmployeeEntity extends Entity {
   /**
    * @param {number} x
@@ -39,6 +41,17 @@ export class EmployeeEntity extends Entity {
     this._body = new Graphics();
     this._head = new Graphics();
 
+    // Schedule state icon — shown above the head
+    this._stateIcon = new Text({
+      text: SCHEDULE_ICONS.WORK,
+      style: {
+        fontFamily: 'Inter, system-ui, sans-serif',
+        fontSize: 21,
+      },
+    });
+    this._stateIcon.anchor.set(0.5, 1);
+    this._stateIcon.position.set(PERSON_W / 2, -4);
+
     // Name label — centered below the desk
     this._nameLabel = new Text({
       text: name.split(' ')[0] ?? '',
@@ -54,6 +67,7 @@ export class EmployeeEntity extends Entity {
     this.view.addChild(this._body);
     this.view.addChild(this._hands);
     this.view.addChild(this._head);
+    this.view.addChild(this._stateIcon);
     this.view.addChild(this._nameLabel);
 
     // Expand hit area to make the character easier to click.
@@ -93,9 +107,14 @@ export class EmployeeEntity extends Entity {
 
   /** @param {'idle'|'typing'} state */
   setState(state) {
-    if (this._state === state) return;
     this._state = state;
-    this._draw();
+  }
+
+  /** @param {'WORK'|'BREAK'|'TALK'} state */
+  setScheduleState(state) {
+    const icon = SCHEDULE_ICONS[state] ?? '';
+    if (this._stateIcon.text === icon) return;
+    this._stateIcon.text = icon;
   }
 
   update(_dt) {}
