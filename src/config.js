@@ -78,5 +78,9 @@ export const GameConfig = Object.freeze({
 
     // Number of past activity entries kept in the live panel.
     ACTIVITY_LOG_MAX: 20,
+
+    // Productivity engine: per-employee base productivity trait range.
+    BASE_PRODUCTIVITY_MIN: 0.85,
+    BASE_PRODUCTIVITY_MAX: 1.05,
   }),
 });

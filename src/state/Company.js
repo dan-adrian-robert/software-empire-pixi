@@ -95,6 +95,13 @@ export function createCompany() {
       totalSalariesPaid: 0,
       projectsCompleted: 0,
     },
+
+    /**
+     * Current daily weather state. Set by ProductivitySystem.rollDailyWeather()
+     * at the start of each new day. Null until the first roll.
+     * @type {import('../data/weatherTypes.js').WeatherType | null}
+     */
+    currentWeather: null,
   };
 }
 

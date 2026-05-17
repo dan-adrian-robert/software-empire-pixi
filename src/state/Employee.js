@@ -4,6 +4,7 @@
  * An employee is a plain data object. All mutation happens through
  * functions exported here so logic stays testable and traceable.
  */
+import { GameConfig } from '../config.js';
 
 let _nextId = 1;
 
@@ -18,12 +19,15 @@ export const SCHEDULE_CYCLE = ['WORK', 'BREAK', 'WORK', 'TALK'];
  * @returns {Employee}
  */
 export function createEmployee({ name, skills, salary }) {
+  const { BASE_PRODUCTIVITY_MIN, BASE_PRODUCTIVITY_MAX } = GameConfig.gameplay;
   return {
     id: _nextId++,
     name,
     /** @type {Array<{skill: string, level: number}>} */
     skills: skills.slice(0, 2),
     salary,
+    /** Innate productivity multiplier [0.85, 1.05], rolled once on creation. */
+    baseProductivity: BASE_PRODUCTIVITY_MIN + Math.random() * (BASE_PRODUCTIVITY_MAX - BASE_PRODUCTIVITY_MIN),
     /** Id of the active project this employee is contributing to, or null. */
     activeProjectId: null,
     /** Manually pinned project id, or null for automatic greedy assignment. */

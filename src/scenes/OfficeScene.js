@@ -19,6 +19,7 @@ import { RightWidgetBar, RIGHT_SIDEBAR_WIDTH } from '../ui/RightWidgetBar.js';
 import { Modal } from '../ui/Modal.js';
 import { EmployeeStatsPopup } from '../ui/EmployeeStatsPopup.js';
 import { SchedulePopup } from '../ui/SchedulePopup.js';
+import { WeatherPopup } from '../ui/WeatherPopup.js';
 import { Toast } from '../ui/Toast.js';
 
 import { ProjectsPanel } from '../ui/panels/ProjectsPanel.js';
@@ -95,6 +96,9 @@ export class OfficeScene extends BaseScene {
       this.game.sim.setSchedule(startHour, workHours);
     });
 
+    // Weather info popup (click on weather chip in top bar row 2).
+    this._weatherPopup = new WeatherPopup();
+
     // Active nav view id ('office' | 'projects' | 'employees' | 'hiring').
     this._activeView = 'office';
 
@@ -116,10 +120,11 @@ export class OfficeScene extends BaseScene {
     this._world.addChild(this._floor);
     this._world.addChild(this._grid);
 
-    // Popup layer (employee stats + schedule) — above world, below modal and HUD.
+    // Popup layer (employee stats + schedule + weather) — above world, below modal and HUD.
     this.root.addChild(this._popupLayer);
     this._popupLayer.addChild(this._schedulePopup);
     this._popupLayer.addChild(this._statsPopup);
+    this._popupLayer.addChild(this._weatherPopup);
 
     // Modal layer sits between world and HUD so HUD elements stay interactive.
     this.root.addChild(this._modalLayer);
@@ -139,6 +144,7 @@ export class OfficeScene extends BaseScene {
     this._world.on('pointerdown', () => {
       this._closeStatsPopup();
       this._closeSchedulePopup();
+      this._weatherPopup.close();
     });
 
     // Scroll wheel forwarded to modal.
@@ -211,6 +217,7 @@ export class OfficeScene extends BaseScene {
             : 'idle'
           : 'idle';
         ee.setState(state);
+        ee.setHasProject(emp.pinnedProjectId !== null);
         ee.setScheduleState(emp.scheduleState);
         ee.update(dt);
       });
@@ -232,6 +239,7 @@ export class OfficeScene extends BaseScene {
       this._modal.refresh();
       this._statsPopup.refresh(this.game.sim?.company);
       this._schedulePopup.refresh(this.game.sim?.company);
+      this._weatherPopup.refresh(this.game.sim?.company);
       this._refreshBuyDesk();
     }
 
@@ -249,6 +257,7 @@ export class OfficeScene extends BaseScene {
     this._widgetBar.resize(width, height);
     this._modal.resize(width, height);
     this._statsPopup.resize(width, height);
+    this._weatherPopup.resize(width, height);
     if (this._schedulePopup.visible) {
       this._schedulePopup.open(this.game.sim?.company, width, height);
     }
@@ -257,6 +266,7 @@ export class OfficeScene extends BaseScene {
     // First-time initialisation guard.
     if (!this._initialized) {
       this._topBar.init(width);
+      this._topBar.setWeatherClickHandler((ax, ay) => this._toggleWeatherPopup(ax, ay));
       this._leftSidebar.init(height);
       this._widgetBar.init(width, height);
       this._initialized = true;
@@ -278,6 +288,7 @@ export class OfficeScene extends BaseScene {
     this._prevSlot = -1;
     this._statsPopup.close();
     this._schedulePopup.close();
+    this._weatherPopup.close();
   }
 
   // -----------------------------------------------------------------------
@@ -288,6 +299,15 @@ export class OfficeScene extends BaseScene {
     if (!this._schedulePopup.visible) return;
     this._schedulePopup.close();
     this._leftSidebar.setActive(this._activeView);
+  }
+
+  _toggleWeatherPopup(anchorX, anchorY) {
+    if (this._weatherPopup.visible) {
+      this._weatherPopup.close();
+      return;
+    }
+    const { width, height } = this.game.screen;
+    this._weatherPopup.open(this.game.sim?.company, anchorX, anchorY, width, height);
   }
 
   _closeStatsPopup() {
@@ -488,6 +508,7 @@ export class OfficeScene extends BaseScene {
     this._topBar.refresh();
     this._modal.refresh();
     this._statsPopup.close();
+    this._weatherPopup.close();
   }
 
   // -----------------------------------------------------------------------

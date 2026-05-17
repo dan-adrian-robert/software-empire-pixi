@@ -4,17 +4,16 @@
  * Each frame (when the day is running) distributes employee contribution
  * points to active project requirements.
  *
- * Assignment algorithm (simple greedy):
- *   1. For each employee find all active projects that have open requirements
- *      matching the employee's skills.
- *   2. Pick the project with the most remaining work that the employee can
- *      contribute to (keeps employees focused on different projects).
- *   3. Each matching skill contributes independently based on SKILL_SP_TABLE.
+ * Assignment rules:
+ *   - An employee only contributes if the player has explicitly pinned them
+ *     to a project via pinnedProjectId. Unassigned employees are idle.
+ *   - The pin is dropped if the project is complete/ready or the employee
+ *     has no matching skill for it.
  *
  * Per-frame budget (per skill):
  *   spPerPeriod     = SKILL_SP_TABLE[skill.level]
  *   workPeriodSec   = DAY_DURATION_SECONDS * 15 / (workHours * 60)
- *   contribution    = spPerPeriod * (dt * speed / workPeriodSec)
+ *   contribution    = spPerPeriod * (dt * speed / workPeriodSec) * totalProductivity
  *
  * Points are buffered during the WORK period and flushed to the project
  * when the period ends (see flushWorkPeriod).
@@ -33,8 +32,9 @@ export class ProjectSystem {
    * @param {number} dt       Real seconds.
    * @param {number} speed    Current game speed multiplier.
    * @param {import('../state/Company.js').Company} company
+   * @param {import('./ProductivitySystem.js').ProductivitySystem} productivity
    */
-  update(dt, speed, company) {
+  update(dt, speed, company, productivity) {
     if (speed === 0 || company.activeProjects.length === 0) return;
 
     const { SKILL_SP_TABLE, DAY_DURATION_SECONDS } = GameConfig.gameplay;
@@ -48,38 +48,28 @@ export class ProjectSystem {
         continue;
       }
 
-      let project = null;
-
-      if (employee.pinnedProjectId !== null) {
-        // Manual pin: try to use the pinned project if still eligible.
-        const pinned = company.activeProjects.find(
-          (p) => p.id === employee.pinnedProjectId && !p.isCompleted && !p.isReadyToFinish,
-        );
-        if (pinned && matchingSkills(employee, pinned).length > 0) {
-          project = pinned;
-        } else {
-          employee.activeProjectId = null;
-          continue;
-        }
-      } else {
-        // Auto greedy: find projects that this employee can contribute to.
-        const eligible = company.activeProjects.filter(
-          (p) => !p.isCompleted && !p.isReadyToFinish && matchingSkills(employee, p).length > 0,
-        );
-
-        if (eligible.length === 0) {
-          employee.activeProjectId = null;
-          continue;
-        }
-
-        // Pick the project with the most remaining work (descending).
-        eligible.sort((a, b) => this._remainingWork(b) - this._remainingWork(a));
-        project = eligible[0];
+      // Employees only work when explicitly assigned by the player.
+      if (employee.pinnedProjectId === null) {
+        employee.activeProjectId = null;
+        continue;
       }
+
+      const pinned = company.activeProjects.find(
+        (p) => p.id === employee.pinnedProjectId && !p.isCompleted && !p.isReadyToFinish,
+      );
+
+      // Drop the pin if the project is gone, finished, or skills no longer match.
+      if (!pinned || matchingSkills(employee, pinned).length === 0) {
+        employee.activeProjectId = null;
+        continue;
+      }
+
+      const project = pinned;
 
       employee.activeProjectId = project.id;
 
       const matched = matchingSkills(employee, project);
+      const totalProd = productivity ? productivity.getTotalProductivity(employee, company) : 1;
 
       for (const sk of matched) {
         const req = project.requirements.find(
@@ -87,7 +77,7 @@ export class ProjectSystem {
         );
         if (!req) continue;
 
-        const contribution = SKILL_SP_TABLE[sk.level] * workPeriodFraction;
+        const contribution = SKILL_SP_TABLE[sk.level] * workPeriodFraction * totalProd;
 
         // Buffer the contribution instead of writing directly to the project.
         const buf = employee.workBuffer;

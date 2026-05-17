@@ -25,6 +25,7 @@ const NAME_OFFSET_Y = PERSON_H + 88; // ≈ below desk bottom
 const BODY_COLOR = 0x4a5a7a;
 
 const SCHEDULE_ICONS = { WORK: '💻', BREAK: '☕', TALK: '💬' };
+const WARNING_ICON = '⚠️';
 
 export class EmployeeEntity extends Entity {
   /**
@@ -38,6 +39,8 @@ export class EmployeeEntity extends Entity {
 
     this._state = 'idle';
     this._name = name;
+    this._hasProject = false;
+    this._scheduleState = 'WORK';
 
     this._hands = new Graphics();
     this._body = new Graphics();
@@ -117,7 +120,25 @@ export class EmployeeEntity extends Entity {
 
   /** @param {'WORK'|'BREAK'|'TALK'} state */
   setScheduleState(state) {
-    const icon = SCHEDULE_ICONS[state] ?? '';
+    this._scheduleState = state;
+    this._updateStateIcon();
+  }
+
+  /**
+   * When false, a warning sign is shown above the employee's head
+   * instead of the normal schedule icon.
+   * @param {boolean} hasProject
+   */
+  setHasProject(hasProject) {
+    if (this._hasProject === hasProject) return;
+    this._hasProject = hasProject;
+    this._updateStateIcon();
+  }
+
+  _updateStateIcon() {
+    const icon = this._hasProject
+      ? (SCHEDULE_ICONS[this._scheduleState] ?? '')
+      : WARNING_ICON;
     if (this._stateIcon.text === icon) return;
     this._stateIcon.text = icon;
   }

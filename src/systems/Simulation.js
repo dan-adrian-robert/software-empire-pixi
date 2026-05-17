@@ -22,6 +22,7 @@ import { ProjectSystem } from './ProjectSystem.js';
 import { EconomySystem } from './EconomySystem.js';
 import { HiringSystem } from './HiringSystem.js';
 import { NotificationSystem } from './NotificationSystem.js';
+import { ProductivitySystem } from './ProductivitySystem.js';
 
 export class Simulation {
   /** @param {import('../utils/EventBus.js').EventBus} bus */
@@ -33,6 +34,7 @@ export class Simulation {
     this.economy = new EconomySystem(bus);
     this.hiring = new HiringSystem(bus);
     this.notifications = new NotificationSystem(bus);
+    this.productivity = new ProductivitySystem();
 
     /** @type {import('../state/Company.js').Company} */
     this.company = null;
@@ -47,15 +49,17 @@ export class Simulation {
     this.notifications.destroy();
 
     this.company = createCompany();
+    this.productivity.rollDailyWeather(this.company);
 
     // Re-initialise systems.
     this.time = new TimeSystem(this.bus);
     this.notifications = new NotificationSystem(this.bus);
     this.notifications.init();
 
-    // Wire end-of-day: economy runs first, then hiring refreshes candidates
-    // and project pool, then time advances the day counter.
+    // Wire end-of-day: roll weather first so the new day starts with fresh
+    // conditions, then economy, project pool refresh, hiring, and clock advance.
     this._endDayOff = this.bus.on('day:ended', ({ company }) => {
+      this.productivity.rollDailyWeather(company);
       this.economy.runEndOfDay(company);
       this._refreshProjectPool(company);
       this.hiring.refreshCandidates(company);
@@ -69,7 +73,7 @@ export class Simulation {
   update(dt) {
     if (!this.company) return;
     const speed = this.time.gameSpeed;
-    this.projects.update(dt, speed, this.company);
+    this.projects.update(dt, speed, this.company, this.productivity);
     this.time.update(dt, this.company);
   }
 
@@ -126,6 +130,14 @@ export class Simulation {
     company.stats.projectsCompleted += 1;
     company.activeProjects = company.activeProjects.filter((p) => p.id !== project.id);
     company.completedProjects.push(project);
+
+    // Release all employees that were pinned to this project.
+    for (const emp of company.employees) {
+      if (emp.pinnedProjectId === project.id) {
+        emp.pinnedProjectId = null;
+        emp.activeProjectId = null;
+      }
+    }
     this.bus.emit('notification:add', {
       text: `Collected $${project.payout.toLocaleString()} for ${project.name}!`,
       type: 'success',

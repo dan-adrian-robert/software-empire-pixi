@@ -10,7 +10,7 @@
  *   popup.resize(screenW, screenH)          – keeps backdrop in sync on resize
  *   popup.refresh(company)                  – re-draw content while open
  */
-import { Container, Graphics, Rectangle, Text } from 'pixi.js';
+import { Container, Graphics, Text } from 'pixi.js';
 import {
   SKILLS,
   SKILL_LABELS_SHORT,
@@ -42,11 +42,12 @@ const SKILL_ROW_H = 20;
 const ALL_SKILLS = Object.values(SKILLS);
 
 const SCHEDULE_ICONS = { WORK: '💻', BREAK: '☕', TALK: '💬' };
-const SCHEDULE_H = 1 + 8 + 12 + 4 + 20; // divider + gap + label + gap + icon row
 
-// Fixed card height: top-pad + name-row + gap + status-row + gap + divider + gap + skills + schedule + bottom-pad
-const HEADER_H = P + 20 + 6 + 16 + 8;          // 64
-const POPUP_H = HEADER_H + 1 + 8 + ALL_SKILLS.length * SKILL_ROW_H + SCHEDULE_H + P;
+// Warning colours (shown when employee has no project assignment)
+const WARN_BG     = 0x1a1000;
+const WARN_BORDER = 0xfbbf24;
+const WARN_TEXT   = 0xfbbf24;
+const WARN_DIM    = 0x8a7040;
 
 export class EmployeeStatsPopup extends Container {
   constructor() {
@@ -55,6 +56,7 @@ export class EmployeeStatsPopup extends Container {
     this._emp = null;
     this._screenW = 0;
     this._screenH = 0;
+    this._popupH = 300;
 
     this._winBg = new Graphics();
     this._content = new Container();
@@ -72,8 +74,9 @@ export class EmployeeStatsPopup extends Container {
     this._screenW = screenW;
     this._screenH = screenH;
 
-    this._placeWindow(anchorX, anchorY, screenW, screenH);
+    // Draw first so _popupH is set before placement.
     this._draw(emp, company);
+    this._placeWindow(anchorX, anchorY, screenW, screenH);
     this.visible = true;
   }
 
@@ -102,20 +105,16 @@ export class EmployeeStatsPopup extends Container {
     if (x + POPUP_W > screenW - 8) x = anchorX - POPUP_W - 8;
     x = Math.max(8, x);
 
+    // Use the last computed content height (set at end of _draw).
+    const h = this._popupH ?? 300;
     let y = anchorY;
-    if (y + POPUP_H > screenH - 8) y = screenH - POPUP_H - 8;
+    if (y + h > screenH - 8) y = screenH - h - 8;
     y = Math.max(8, y);
 
     this.position.set(x, y);
   }
 
   _draw(emp, company) {
-    this._winBg
-      .clear()
-      .roundRect(0, 0, POPUP_W, POPUP_H, 8)
-      .fill({ color: BG })
-      .stroke({ color: BORDER, width: 1.5 });
-
     this._content.removeChildren();
 
     let y = P;
@@ -185,7 +184,7 @@ export class EmployeeStatsPopup extends Container {
       y += SKILL_ROW_H;
     }
 
-    // ── Schedule ─────────────────────────────────────────
+    // ── Bottom section: warning OR schedule ──────────────
     const div2 = new Graphics()
       .moveTo(8, y)
       .lineTo(POPUP_W - 8, y)
@@ -193,22 +192,67 @@ export class EmployeeStatsPopup extends Container {
     this._content.addChild(div2);
     y += 8;
 
-    const schedLabel = new Text({
-      text: 'SCHEDULE',
-      style: {
-        fill: TEXT_DIM,
-        fontFamily: 'Inter, system-ui, sans-serif',
-        fontSize: 9,
-        fontWeight: '700',
-      },
-    });
-    schedLabel.position.set(P, y);
-    this._content.addChild(schedLabel);
-    y += 16;
+    if (emp.pinnedProjectId === null) {
+      // ── Unassigned warning ──────────────────────────────
+      const boxH = 52;
+      const warnBox = new Graphics()
+        .roundRect(P, y, POPUP_W - P * 2, boxH, 6)
+        .fill({ color: WARN_BG })
+        .stroke({ color: WARN_BORDER, width: 1 });
+      this._content.addChild(warnBox);
 
-    const schedRow = this._makeScheduleRow();
-    schedRow.position.set(P, y);
-    this._content.addChild(schedRow);
+      const warnIcon = new Text({
+        text: '⚠ Not assigned to a project',
+        style: {
+          fill:       WARN_TEXT,
+          fontFamily: 'Inter, system-ui, sans-serif',
+          fontSize:   12,
+          fontWeight: '700',
+        },
+      });
+      warnIcon.position.set(P + 10, y + 10);
+      this._content.addChild(warnIcon);
+
+      const warnSub = new Text({
+        text: 'Assign via the Assignments panel\nto start producing story points.',
+        style: {
+          fill:       WARN_DIM,
+          fontFamily: 'Inter, system-ui, sans-serif',
+          fontSize:   10,
+        },
+      });
+      warnSub.position.set(P + 10, y + 28);
+      this._content.addChild(warnSub);
+
+      y += boxH + P;
+    } else {
+      // ── Schedule ────────────────────────────────────────
+      const schedLabel = new Text({
+        text: 'SCHEDULE',
+        style: {
+          fill:       TEXT_DIM,
+          fontFamily: 'Inter, system-ui, sans-serif',
+          fontSize:   9,
+          fontWeight: '700',
+        },
+      });
+      schedLabel.position.set(P, y);
+      this._content.addChild(schedLabel);
+      y += 16;
+
+      const schedRow = this._makeScheduleRow();
+      schedRow.position.set(P, y);
+      this._content.addChild(schedRow);
+      y += 20 + P;
+    }
+
+    // ── Background sized to content ──────────────────────
+    this._popupH = y;
+    this._winBg
+      .clear()
+      .roundRect(0, 0, POPUP_W, y, 8)
+      .fill({ color: BG })
+      .stroke({ color: BORDER, width: 1.5 });
   }
 
   _makeScheduleRow() {
@@ -292,4 +336,4 @@ export class EmployeeStatsPopup extends Container {
   }
 }
 
-export { POPUP_W as STATS_POPUP_W, POPUP_H as STATS_POPUP_H };
+export { POPUP_W as STATS_POPUP_W };
