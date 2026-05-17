@@ -184,6 +184,26 @@ export class Simulation {
   }
 
   /**
+   * Manually pin an employee to a specific active project.
+   * @param {import('../state/Employee.js').Employee} employee
+   * @param {number} projectId
+   */
+  assignEmployee(employee, projectId) {
+    if (!this.company) return;
+    employee.pinnedProjectId = projectId;
+  }
+
+  /**
+   * Remove the manual pin from an employee, returning them to auto-assignment.
+   * @param {import('../state/Employee.js').Employee} employee
+   */
+  unassignEmployee(employee) {
+    if (!this.company) return;
+    employee.pinnedProjectId = null;
+    employee.activeProjectId = null;
+  }
+
+  /**
    * Update the company's work schedule.
    * @param {number} startHour  Hour the work day starts (6–16).
    * @param {number} workHours  Duration: 8 | 10 | 12 | 14.

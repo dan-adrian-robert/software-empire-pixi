@@ -48,19 +48,35 @@ export class ProjectSystem {
         continue;
       }
 
-      // Find projects that this employee can contribute to.
-      const eligible = company.activeProjects.filter(
-        (p) => !p.isCompleted && !p.isReadyToFinish && matchingSkills(employee, p).length > 0,
-      );
+      let project = null;
 
-      if (eligible.length === 0) {
-        employee.activeProjectId = null;
-        continue;
+      if (employee.pinnedProjectId !== null) {
+        // Manual pin: try to use the pinned project if still eligible.
+        const pinned = company.activeProjects.find(
+          (p) => p.id === employee.pinnedProjectId && !p.isCompleted && !p.isReadyToFinish,
+        );
+        if (pinned && matchingSkills(employee, pinned).length > 0) {
+          project = pinned;
+        } else {
+          employee.activeProjectId = null;
+          continue;
+        }
+      } else {
+        // Auto greedy: find projects that this employee can contribute to.
+        const eligible = company.activeProjects.filter(
+          (p) => !p.isCompleted && !p.isReadyToFinish && matchingSkills(employee, p).length > 0,
+        );
+
+        if (eligible.length === 0) {
+          employee.activeProjectId = null;
+          continue;
+        }
+
+        // Pick the project with the most remaining work (descending).
+        eligible.sort((a, b) => this._remainingWork(b) - this._remainingWork(a));
+        project = eligible[0];
       }
 
-      // Pick the project with the most remaining work (descending).
-      eligible.sort((a, b) => this._remainingWork(b) - this._remainingWork(a));
-      const project = eligible[0];
       employee.activeProjectId = project.id;
 
       const matched = matchingSkills(employee, project);

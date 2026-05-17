@@ -25,6 +25,7 @@ import { ProjectsPanel } from '../ui/panels/ProjectsPanel.js';
 import { EmployeesPanel } from '../ui/panels/EmployeesPanel.js';
 import { HiringPanel } from '../ui/panels/HiringPanel.js';
 import { ResearchPanel } from '../ui/panels/ResearchPanel.js';
+import { AssignmentPanel } from '../ui/panels/AssignmentPanel.js';
 
 import { DeskEntity, DESK_W, DESK_H } from '../entities/DeskEntity.js';
 import { EmployeeEntity } from '../entities/EmployeeEntity.js';
@@ -42,6 +43,7 @@ const PANEL_TITLES = {
   projects: 'Projects',
   employees: 'Staff',
   hiring: 'Hiring',
+  assignment: 'Project Assignments',
   research: 'Research Tree',
 };
 
@@ -364,6 +366,8 @@ export class OfficeScene extends BaseScene {
       panel = new EmployeesPanel(this.game);
     } else if (viewId === 'hiring') {
       panel = new HiringPanel(this.game);
+    } else if (viewId === 'assignment') {
+      panel = new AssignmentPanel(this.game);
     } else if (viewId === 'research') {
       panel = new ResearchPanel(this.game);
     } else {

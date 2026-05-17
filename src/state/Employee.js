@@ -26,6 +26,8 @@ export function createEmployee({ name, skills, salary }) {
     salary,
     /** Id of the active project this employee is contributing to, or null. */
     activeProjectId: null,
+    /** Manually pinned project id, or null for automatic greedy assignment. */
+    pinnedProjectId: null,
     /** Current schedule state — one of SCHEDULE_CYCLE entries. */
     scheduleState: 'WORK',
     /** Points buffered during the current WORK period, keyed by projectId → skill → points. */
