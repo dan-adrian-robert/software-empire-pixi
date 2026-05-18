@@ -1,167 +1,133 @@
 # Software Empire
 
-A 2D management / tycoon simulation game built with **PixiJS v8**, **Vite** and plain **modern JavaScript** (ES modules, no TypeScript).
+A browser-based tycoon game where you run a software consultancy. Hire engineers, accept client projects, manage daily schedules and payroll, and invest your profits into a research tree to unlock new skills and scale your operation.
 
-This repository contains the initial project scaffold: build tooling, project structure, and a runnable Pixi application with a basic scene system, main menu and placeholder office scene.
+Built with [PixiJS v8](https://pixijs.com/) and [Vite 6](https://vitejs.dev/).
 
 ---
 
-## Quick start
+## Quick Start
 
 ```bash
 npm install
-npm run dev
+npm run dev       # start dev server (http://localhost:5173)
+npm run build     # production build → dist/
+npm run preview   # preview production build locally
+npm run lint      # ESLint check
+npm run format    # Prettier format
 ```
-
-The dev server opens at <http://localhost:5173>.
-
-### Available scripts
-
-| Command           | Description                                         |
-| ----------------- | --------------------------------------------------- |
-| `npm run dev`     | Start the Vite dev server with HMR                  |
-| `npm run build`   | Produce a production build in `dist/`               |
-| `npm run preview` | Preview the production build locally                |
-| `npm run lint`    | Run ESLint on the source                            |
-| `npm run lint:fix`| ESLint with `--fix`                                 |
-| `npm run format`  | Format the codebase with Prettier                   |
 
 ---
 
-## Project structure
+## Features
 
-```
-software-empire/
-├── index.html              # HTML shell + loading overlay
-├── vite.config.js          # Vite config + path aliases
-├── eslint.config.js        # Flat ESLint config
-├── .prettierrc.json        # Prettier formatting rules
-├── public/
-│   └── assets/             # Static, served as-is (drop art/audio here)
-└── src/
-    ├── main.js             # App entry point
-    ├── Game.js             # Top-level game class (Pixi App + managers)
-    ├── config.js           # Central, designer-facing configuration
-    ├── assets/
-    │   └── manifest.js     # Pixi Assets bundle declarations
-    ├── scenes/             # Self-contained gameplay screens
-    │   ├── BaseScene.js
-    │   ├── MainMenuScene.js
-    │   └── OfficeScene.js
-    ├── ui/                 # Reusable UI widgets (buttons, panels, ...)
-    │   └── Button.js
-    ├── systems/            # Cross-cutting systems (scene mgr, save, AI, ...)
-    │   └── SceneManager.js
-    ├── entities/           # In-world objects (employees, desks, ...)
-    │   └── Entity.js
-    ├── managers/           # Stateful global services (assets, input, audio)
-    │   ├── AssetManager.js
-    │   └── InputManager.js
-    └── utils/              # Pure helpers (math, event bus, ...)
-        ├── EventBus.js
-        └── math.js
-```
+### Time & Scheduling
+- Each in-game day runs for 180 real seconds at 1× speed.
+- Speed controls: **Pause / 1× / 2× / 4× / 8×**; "End Day" button fast-forwards to midnight.
+- The day **auto-pauses** at the start of each new day so you can plan before unpausing.
+- A configurable work schedule sets the start hour (6 AM–4 PM) and shift length (8, 10, 12, or 14 hours).
+- Every employee follows a repeating 15-minute schedule cycle: **WORK → BREAK → WORK → TALK**. Skill points only accrue during WORK slots.
+- An in-game clock (snapped to :00 :15 :30 :45) shows the current time of day.
 
-### What goes where?
+### Projects
+- Each day a fresh pool of up to **5 available projects** is offered; projects not accepted are discarded at day-end.
+- Accept or reject projects from the Projects panel; your company can run several active projects simultaneously (limited by `maxActiveProjects`).
+- Projects have per-skill point requirements with live progress bars. Tier-1 projects require Frontend Development; higher tiers unlock via research.
+- When all requirements are met a **Collect** button appears — click it to bank the payout and free the assigned team.
+- Collecting a project immediately clears all employee pins for that project.
 
-- **`scenes/`** — A scene is a screen of gameplay (Main Menu, Office, World Map, Hire Screen). Scenes own their own scene graph and are mounted/unmounted by the `SceneManager`. **One scene is active at a time.**
-- **`ui/`** — Reusable visual widgets that don't care which scene they live in (buttons, modals, tooltips, panels, HUD elements).
-- **`systems/`** — Cross-cutting logic that operates on many entities or scenes (`SceneManager`, future `SaveSystem`, `EconomySystem`, `AISystem`, ...).
-- **`entities/`** — Things that exist *in the world* (employees, desks, plants, computers). Each entity owns a Pixi `Container`. Designed to grow into an ECS later.
-- **`managers/`** — Long-lived global services that wrap a side-effectful resource (`AssetManager` wraps Pixi `Assets`; `InputManager` wraps DOM events; future `AudioManager`, `SaveManager`, ...).
-- **`utils/`** — Stateless, framework-agnostic helpers. Easy to unit test.
-- **`assets/`** (under `src/`) — Code that *describes* assets (the manifest). Actual binary files live in `public/assets/`.
-- **`public/`** — Anything in here is copied to the build root verbatim and can be referenced by URL.
+### Employees & Assignment
+- Employees have up to two skills, each ranked level 1–10. Skill-point output per 15-minute WORK period scales non-linearly (levels 1–10 produce 1–36 points).
+- Each employee has an innate **base productivity trait** (0.85–1.05×) rolled once on creation.
+- Manually assign employees to projects via the **Assignment panel** (chip-based drag-assign UI). Unassigned employees display a **⚠ warning icon** above their head in the office view.
+- A floating **+N pts** label animates above an employee when a WORK period ends and they contributed points.
+- Click any employee in the office to open their **stats popup**: skills, salary, productivity, current project.
 
-### Path aliases
+### Hiring & Firing
+- The **Hiring panel** shows up to **4 candidates** per day; the pool refreshes each new day.
+- Hire a candidate to fill an empty desk; fire an existing employee from the Employees panel.
+- Desk slots are limited; buy additional desks for **$1,000** each via the in-world purchase tile.
 
-Vite is configured with the following aliases so imports stay short as the codebase grows:
+### Economy
+- Employee salaries are deducted at end-of-day.
+- Project payouts are collected instantly when the player clicks **Collect** during the day.
+- **R&D points** accrue at end-of-day (10 pts/day base) and are spent in the Research tree.
+- A low-funds warning fires when cash drops below **$500**; bankruptcy is declared at **$0**.
+- The HUD shows current cash, daily salary cost, R&D points, and day number.
 
-| Alias        | Resolves to     |
-| ------------ | --------------- |
-| `@/`         | `src/`          |
-| `@assets/`   | `src/assets/`   |
-| `@scenes/`   | `src/scenes/`   |
-| `@ui/`       | `src/ui/`       |
-| `@systems/`  | `src/systems/`  |
-| `@entities/` | `src/entities/` |
-| `@managers/` | `src/managers/` |
-| `@utils/`    | `src/utils/`    |
+### Research Tree
+- A directed acyclic graph of **24 research nodes** spanning skill unlocks and operational upgrades.
+- Four skill branches: **Frontend Development** (unlocked at game start) → **Backend Development** and **Mobile Development** → **DevOps**.
+- General upgrades branch through Agile Workflow, Better Workstations, Recruitment Department, and converge toward late-game nodes like AI Assisted Development, Global Offices, and Digital Monopoly.
+- Locked skills cannot be assigned to projects or hired for.
 
----
+### Weather & Productivity
+- A **daily weather roll** picks from five states: Stormy (−5%), Overcast (−2.5%), Cloudy (±0%), Sunny (+2.5%), Perfect (+5%).
+- The weather modifier multiplies every employee's total productivity for the day.
+- Click the weather chip in the top bar to open a **weather popup** with the full modifier table.
 
-## Architecture overview
+### Office View
+- Animated employee sprites at their desks; body color shifts between idle (grey) and typing (blue) states.
+- Schedule state icon above each employee: 💻 WORK · ☕ BREAK · 💬 TALK — replaced by ⚠ when no project is pinned.
+- Active desks glow when the employee is contributing to a project.
+- A buy-desk tile appears at the end of the desk row when all seats are occupied.
 
-```
-                ┌──────────────────────────────┐
-                │           Game               │
-                │  (owns Pixi.Application)     │
-                └──────────────┬───────────────┘
-                               │
-        ┌──────────────────────┼──────────────────────┐
-        ▼                      ▼                      ▼
-┌──────────────┐      ┌─────────────────┐    ┌──────────────────┐
-│  Managers    │      │  SceneManager   │    │  EventBus        │
-│  (Assets,    │      │  (active scene) │    │  (loose coupling)│
-│   Input)     │      └────────┬────────┘    └──────────────────┘
-└──────────────┘               │
-                               ▼
-                       ┌────────────────┐
-                       │  Active Scene  │   <- e.g. OfficeScene
-                       │  (BaseScene)   │
-                       └───────┬────────┘
-                               │
-                  ┌────────────┴───────────┐
-                  ▼                        ▼
-           ┌─────────────┐          ┌──────────────┐
-           │  Entities   │          │   UI / HUD   │
-           └─────────────┘          └──────────────┘
-```
+### UI / HUD
+- **Top bar**: company name, cash, salary cost, R&D points, day counter, weather chip, in-game clock, speed controls, progress bar.
+- **Left sidebar**: navigation to Office / Projects / Staff / Hiring / Assignments / Research / Schedule.
+- **Right widget bar**: Activity feed (last 20 notifications) and active project cards with quick-collect buttons.
+- **Toast notifications**: transient banners for key events (project ready, hired, salary paid, warning, etc.).
+- **Schedule popup**: graphical shift editor — pick start hour and duration.
+- **Modal panels**: all management screens (Projects, Staff, Hiring, Assignments, Research) open in a scrollable modal overlay.
 
-- The **`Game`** class owns the Pixi `Application`, the global event bus and the long-lived managers, and drives the ticker.
-- The **`SceneManager`** swaps scenes through a clean `preload → enter → update → exit` lifecycle.
-- A **scene** owns its display objects, entities and per-scene UI. When the scene is replaced, everything it created is destroyed.
-- **Managers** are global services. **Systems** operate on game state. **Entities** live inside scenes. **UI widgets** are reusable view components. **Utils** are pure helpers.
-
-This split keeps the codebase scalable: adding a new screen means adding a file in `scenes/`; adding a new in-world object means adding a file in `entities/`; adding a global service (audio, save, analytics) means adding a file in `managers/`. Existing files rarely need to change.
+### New Game
+- "New Game" from the main menu resets all state: company, employees, projects, research, and economy — no page reload required.
 
 ---
 
-## Adding a new asset
+## Controls & Navigation
 
-1. Drop the file into `public/assets/...` (e.g. `public/assets/office/desk.png`).
-2. Register it in `src/assets/manifest.js` under the appropriate bundle:
-
-   ```js
-   { alias: 'desk', src: 'assets/office/desk.png' }
-   ```
-
-3. In the scene that needs it, load the bundle and use the asset:
-
-   ```js
-   await this.game.assets.loadBundle('office');
-   const tex = this.game.assets.get('desk');
-   const sprite = new Sprite(tex);
-   ```
+| Control | Action |
+|---|---|
+| Left sidebar icons | Switch between management panels |
+| Speed buttons (top bar) | Set game speed or pause |
+| Start Day button | Unpause at day start |
+| End Day button | Fast-forward to midnight |
+| Click employee sprite | Open employee stats popup |
+| Click world background | Close any open popup |
+| Scroll wheel inside modal | Scroll panel content |
+| Weather chip (top bar) | Toggle weather detail popup |
+| Schedule icon (sidebar) | Toggle schedule editor |
 
 ---
 
-## Adding a new scene
+## Tech Stack
 
-1. Create `src/scenes/MyScene.js` extending `BaseScene`.
-2. Register an id for it in `GameConfig.scenes` (`src/config.js`).
-3. Register it in `Game._registerScenes()`.
-4. Transition to it from anywhere with:
-
-   ```js
-   game.scenes.changeTo(GameConfig.scenes.MY_SCENE);
-   ```
+| Layer | Library / Tool |
+|---|---|
+| Renderer | PixiJS 8 (WebGL/WebGPU) |
+| Build | Vite 6 |
+| Language | Vanilla ES2022 modules |
+| Linting | ESLint 9 (flat config) |
+| Formatting | Prettier 3 |
 
 ---
 
-## Tech stack
+## Project Structure
 
-- [PixiJS v8](https://pixijs.com/) – WebGL/WebGPU 2D renderer
-- [Vite](https://vitejs.dev/) – dev server & bundler
-- [ESLint 9](https://eslint.org/) – linting (flat config)
-- [Prettier](https://prettier.io/) – formatting
+```
+src/
+  Game.js              — Pixi app + top-level wiring
+  config.js            — All gameplay tunables (single source of truth)
+  main.js              — DOM bootstrap
+  assets/              — Asset manifest (Pixi bundles)
+  data/                — Static seed data (skills, projects, weather, research, names)
+  entities/            — Pixi world objects (desk, employee, buy-desk)
+  managers/            — AssetManager, InputManager
+  scenes/              — MainMenuScene, OfficeScene (BaseScene lifecycle)
+  state/               — Pure data factories (Company, Employee, Project, Office, Candidate)
+  systems/             — Simulation + subsystems (Time, Project, Economy, Hiring, Productivity, Notification)
+  ui/                  — HUD widgets, popups, modals
+  ui/panels/           — Modal panel content (Projects, Staff, Hiring, Assignments, Research)
+  utils/               — EventBus, math helpers
+```
