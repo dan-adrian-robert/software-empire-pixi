@@ -8,8 +8,7 @@
  * Re-rendered on `refresh()` which is called by OfficeScene on relevant bus events.
  */
 import { Container, Graphics, Text } from 'pixi.js';
-import { SKILL_LABELS, SKILL_COLORS } from '../../data/skills.js';
-import { Panel } from '../Panel.js';
+import { SKILL_LABELS, SKILL_COLORS } from '@/data/skills.js';
 
 const SECTION_LABEL_COLOR = 0x7a86a3;
 const CARD_BG             = 0x131929;

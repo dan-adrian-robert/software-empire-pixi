@@ -240,8 +240,7 @@ export class Simulation {
    */
   setSchedule(startHour, workHours) {
     if (!this.company) return;
-    const clamped = Math.max(6, Math.min(24 - workHours, startHour));
-    this.company.schedule.startHour = clamped;
+    this.company.schedule.startHour = Math.max(6, Math.min(24 - workHours, startHour));
     this.company.schedule.workHours = workHours;
   }
 
