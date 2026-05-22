@@ -20,7 +20,12 @@
  */
 import { GameConfig } from '../config.js';
 import { matchingSkills } from '../state/Employee.js';
-import { isProjectComplete } from '../state/Project.js';
+import {
+  isProjectComplete,
+  projectElapsedDays,
+  resolveMilestoneTier,
+  computeFinalPayout,
+} from '../state/Project.js';
 
 export class ProjectSystem {
   /** @param {import('../utils/EventBus.js').EventBus} bus */
@@ -123,10 +128,17 @@ export class ProjectSystem {
 
         // Check completion after applying buffered points.
         if (!project.isReadyToFinish && !project.isCompleted && isProjectComplete(project)) {
+          const elapsed = projectElapsedDays(project, company.day);
+          project.finishedDay   = company.day;
+          project.milestoneTier = resolveMilestoneTier(elapsed, project.milestones);
+          project.finalPayout   = computeFinalPayout(project.basePayout, project.milestoneTier, project.payoutMultipliers);
           project.isReadyToFinish = true;
+
+          const tierNames = { ahead: 'Ahead of Schedule', onTrack: 'On Track', delayed: 'Delayed', critical: 'Critical Deadline' };
+          const tierLabel = tierNames[project.milestoneTier] ?? '';
           this.bus.emit('project:completed', { project, company });
           this.bus.emit('notification:add', {
-            text: `${project.name} is ready — collect $${project.payout.toLocaleString()}`,
+            text: `${project.name} ready! (${tierLabel}) — collect $${project.finalPayout.toLocaleString()} + $${project.insurance.toLocaleString()} refund`,
             type: 'success',
           });
         }

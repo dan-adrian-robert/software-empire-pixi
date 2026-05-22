@@ -90,6 +90,7 @@ sequenceDiagram
 | `project:accepted` | `Simulation.acceptProject` | `{ project, company }` | `OfficeScene` |
 | `project:rejected` | `Simulation.rejectProject` | `{ project, company }` | — |
 | `project:completed` | `ProjectSystem.flushWorkPeriod` (ready) **and** `Simulation.finishProject` (collected) | `{ project, company }` | `OfficeScene` |
+| `project:failed` | `Simulation._checkProjectDeadlines` | `{ project, company }` | `OfficeScene` |
 | `employee:hired` | `HiringSystem.hire` | `{ employee, company }` | `OfficeScene` |
 | `employee:fired` | `HiringSystem.fire` | `{ employee, company }` | `OfficeScene` |
 | `desk:bought` | `Simulation.buyDesk` | `{ company }` | `OfficeScene` |
@@ -111,8 +112,9 @@ When `TimeSystem` emits `day:ended`, `Simulation` fires all handlers in order:
 ```mermaid
 flowchart LR
   dayEnded["day:ended"] --> Weather["ProductivitySystem\n.rollDailyWeather"]
-  Weather --> Economy["EconomySystem\n.runEndOfDay\n(salaries, payout, R&D, bankruptcy check)"]
-  Economy --> Pool["Simulation\n._refreshProjectPool\n(new available projects)"]
+  Weather --> Economy["EconomySystem\n.runEndOfDay\n(salaries, R&D, bankruptcy check)"]
+  Economy --> Deadlines["Simulation\n._checkProjectDeadlines\n(fail overdue projects, emit project:failed)"]
+  Deadlines --> Pool["Simulation\n._refreshProjectPool\n(new available projects)"]
   Pool --> Hiring["HiringSystem\n.refreshCandidates"]
   Hiring --> NextDay["TimeSystem\n.beginNextDay\n(day++, auto-pause, emit day:began)"]
 ```

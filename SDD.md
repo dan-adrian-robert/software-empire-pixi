@@ -379,12 +379,20 @@ Widgets are persistent Pixi objects owned by `OfficeScene` (not re-created per s
 | `templateId` | `string` | Source template ID |
 | `name` | `string` | Display name |
 | `description` | `string` | Short description |
-| `payout` | `number` | Dollar reward on completion |
 | `tier` | `number` | Difficulty tier (1–4) |
+| `basePayout` | `number` | Full reward at On Track (1.0×) |
+| `insurance` | `number` | Upfront cost on accept; refunded on successful collect |
+| `milestones` | `{ahead, onTrack, delayed, critical}` | Elapsed-day deadlines for each tier |
+| `payoutMultipliers` | `{ahead, onTrack, delayed, critical}` | Per-tier multipliers applied to `basePayout` |
 | `requirements` | `{skill, points, current}[]` | Per-skill SP targets |
 | `isActive` | `boolean` | Player accepted |
 | `isReadyToFinish` | `boolean` | All requirements met |
 | `isCompleted` | `boolean` | Player collected payout |
+| `isFailed` | `boolean` | Project expired past critical deadline |
+| `startedDay` | `number \| null` | `company.day` at acceptance |
+| `finishedDay` | `number \| null` | `company.day` when all SP requirements were first met |
+| `milestoneTier` | `string \| null` | Locked tier: `'ahead' \| 'onTrack' \| 'delayed' \| 'critical'` |
+| `finalPayout` | `number \| null` | `basePayout × multiplier`, locked at `finishedDay` |
 
 ### Office
 
@@ -422,6 +430,7 @@ Widgets are persistent Pixi objects owned by `OfficeScene` (not re-created per s
 | `project:accepted` | `Simulation.acceptProject` | `{ project, company }` | `OfficeScene` |
 | `project:rejected` | `Simulation.rejectProject` | `{ project, company }` | — |
 | `project:completed` | `ProjectSystem.flushWorkPeriod` (ready) and `Simulation.finishProject` (collected) | `{ project, company }` | `OfficeScene` |
+| `project:failed` | `Simulation._checkProjectDeadlines` | `{ project, company }` | `OfficeScene` |
 | `employee:hired` | `HiringSystem.hire` | `{ employee, company }` | `OfficeScene` |
 | `employee:fired` | `HiringSystem.fire` | `{ employee, company }` | `OfficeScene` |
 | `desk:bought` | `Simulation.buyDesk` | `{ company }` | `OfficeScene` |
@@ -475,9 +484,13 @@ for each employee:
     for each (skill, points) in skillMap:
       req.current = min(req.points, req.current + points)
     if isProjectComplete(project):
+      elapsed              = company.day - project.startedDay + 1
+      project.finishedDay  = company.day
+      project.milestoneTier = resolveMilestoneTier(elapsed, project.milestones)
+      project.finalPayout  = round(project.basePayout × project.payoutMultipliers[tier])
       project.isReadyToFinish = true
       emit project:completed
-      emit notification:add
+      emit notification:add (tier label + finalPayout + insurance refund)
   reset workBuffer = {}
   reset workPeriodTotal = 0
 ```
@@ -506,14 +519,41 @@ Triggered by `day:ended`, executed in this order:
 1. money -= dailySalaryCost(company)
 2. stats.totalSalariesPaid += salaries
 3. emit notification:add ("Salaries paid: -$N")
-4. money += pendingPayout; pendingPayout = 0
-5. rdPoints += rdPointsPerDay
-6. move isCompleted projects → completedProjects
-7. if money < MONEY_WARNING_THRESHOLD → emit warning notification
-8. if money <= BANKRUPTCY_THRESHOLD   → emit economy:bankrupt + critical notification
+4. rdPoints += rdPointsPerDay
+5. if money < MONEY_WARNING_THRESHOLD → emit warning notification
+6. if money <= BANKRUPTCY_THRESHOLD   → emit economy:bankrupt + critical notification
 ```
 
-After `EconomySystem` runs: project pool refresh → hiring refresh → `TimeSystem.beginNextDay` (day++, gameSpeed = 0, emit `day:began`).
+After `EconomySystem` runs:
+
+```
+7. _checkProjectDeadlines:
+     for each active project where !isReadyToFinish && elapsedDays > milestones.critical:
+       project.isFailed = true
+       remove from activeProjects, add to completedProjects
+       clear employee pins
+       emit project:failed + notification
+8. project pool refresh (new available offers for the next day)
+9. hiring refresh
+10. TimeSystem.beginNextDay (day++, gameSpeed = 0, emit day:began)
+```
+
+### Project Milestone Payout
+
+```
+elapsedDays = finishedDay - startedDay + 1
+tier:
+  elapsed <= milestones.ahead    → 'ahead'    (×1.25)
+  elapsed <= milestones.onTrack  → 'onTrack'  (×1.00)
+  elapsed <= milestones.delayed  → 'delayed'  (×0.75)
+  elapsed <= milestones.critical → 'critical' (×0.50)
+  elapsed >  milestones.critical → project fails (no payout, insurance forfeited)
+
+finalPayout = round(basePayout × payoutMultipliers[tier])
+collected   = finalPayout + insurance  (insurance is a full refund)
+```
+
+Milestone deadlines are expressed in elapsed days from the acceptance day (inclusive). A project accepted on day 5 with `milestones.onTrack = 4` must have all SP requirements met by day 8 (elapsed ≤ 4) to count as On Track.
 
 ---
 

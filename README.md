@@ -31,9 +31,18 @@ npm run format    # Prettier format
 
 ### Projects
 - Each day a fresh pool of up to **5 available projects** is offered; projects not accepted are discarded at day-end.
+- Each project requires an upfront **insurance payment** to accept. If you finish successfully the insurance is refunded in full; if the project expires it is forfeited.
 - Accept or reject projects from the Projects panel; your company can run several active projects simultaneously (limited by `maxActiveProjects`).
 - Projects have per-skill point requirements with live progress bars. Tier-1 projects require Frontend Development; higher tiers unlock via research.
-- When all requirements are met a **Collect** button appears — click it to bank the payout and free the assigned team.
+- Every project has four **milestone deadlines** (measured in elapsed days from acceptance):
+  - **Ahead of Schedule** — finish early for a 1.25× bonus payout.
+  - **On Track** — finish within the expected window for the full base payout (1.0×).
+  - **Delayed** — finish late for a reduced 0.75× payout.
+  - **Critical Deadline** — last-chance window; only 0.5× payout if collected here.
+  - **Past Critical** — if no one collects before the critical deadline expires, the project is **lost** and the insurance is forfeited.
+- The milestone tier is locked the moment all skill-point requirements are met, regardless of when you click Collect.
+- When all requirements are met a **Collect** button appears — click it to bank the milestone-adjusted payout plus the insurance refund.
+- Active project cards show the current milestone status and a countdown to the next tier deadline.
 - Collecting a project immediately clears all employee pins for that project.
 
 ### Employees & Assignment
@@ -50,7 +59,8 @@ npm run format    # Prettier format
 
 ### Economy
 - Employee salaries are deducted at end-of-day.
-- Project payouts are collected instantly when the player clicks **Collect** during the day.
+- Accepting a project costs its insurance upfront; the insurance is refunded when you collect.
+- Project payouts are collected instantly when the player clicks **Collect** during the day. The amount equals `basePayout × milestoneMultiplier + insurance refund`.
 - **R&D points** accrue at end-of-day (10 pts/day base) and are spent in the Research tree.
 - A low-funds warning fires when cash drops below **$500**; bankruptcy is declared at **$0**.
 - The HUD shows current cash, daily salary cost, R&D points, and day number.

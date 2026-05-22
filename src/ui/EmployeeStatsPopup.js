@@ -19,7 +19,7 @@ import {
 } from '../data/skills.js';
 import { SCHEDULE_CYCLE } from '../state/Employee.js';
 
-const POPUP_W = 268;
+const POPUP_W = 240;
 const P = 14;                  // inner padding
 
 const BG = 0x0b1422;
@@ -31,13 +31,13 @@ const SALARY_COLOR = 0xfbbf24;
 const ACTIVE_COLOR = 0x4ade80;
 
 // Skill bar
-const BAR_CELL = 10;
-const BAR_GAP = 2;
-const BAR_TRACK_W = MAX_SKILL_LEVEL * BAR_CELL + (MAX_SKILL_LEVEL - 1) * BAR_GAP;
-const BAR_EMPTY_COLOR = 0x1f2a44;
+const BAR_CELL = 7;
+const BAR_GAP  = 2;
+const BAR_TRACK_W   = MAX_SKILL_LEVEL * BAR_CELL + (MAX_SKILL_LEVEL - 1) * BAR_GAP;
+const BAR_EMPTY_COLOR  = 0x1f2a44;
 const BAR_EMPTY_BORDER = 0x2a3554;
-const LABEL_W = 62;
-const SKILL_ROW_H = 20;
+const LABEL_W     = 56;
+const SKILL_ROW_H = 16;
 
 const ALL_SKILLS = Object.values(SKILLS);
 
@@ -194,7 +194,7 @@ export class EmployeeStatsPopup extends Container {
 
     if (emp.pinnedProjectId === null) {
       // ── Unassigned warning ──────────────────────────────
-      const boxH = 52;
+      const boxH = 60;
       const warnBox = new Graphics()
         .roundRect(P, y, POPUP_W - P * 2, boxH, 6)
         .fill({ color: WARN_BG })
@@ -292,6 +292,8 @@ export class EmployeeStatsPopup extends Container {
     const row = new Container();
     const filled = Math.max(0, Math.min(MAX_SKILL_LEVEL, level));
 
+    // Right-align the label so all labels end at the same x,
+    // giving every row a consistent gap before the bar track.
     const label = new Text({
       text: SKILL_LABELS_SHORT[skillKey] ?? skillKey,
       style: {
@@ -301,8 +303,8 @@ export class EmployeeStatsPopup extends Container {
         fontWeight: level > 0 ? '600' : '400',
       },
     });
-    label.anchor.set(0, 0.5);
-    label.position.set(0, SKILL_ROW_H / 2);
+    label.anchor.set(1, 0.5);
+    label.position.set(LABEL_W, SKILL_ROW_H / 2);
     row.addChild(label);
 
     const track = new Graphics();
@@ -317,20 +319,20 @@ export class EmployeeStatsPopup extends Container {
     track.position.set(LABEL_W + 8, (SKILL_ROW_H - BAR_CELL) / 2);
     row.addChild(track);
 
-    if (level > 0) {
-      const numText = new Text({
-        text: String(level),
-        style: {
-          fill: color,
-          fontFamily: 'Inter, system-ui, sans-serif',
-          fontSize: 10,
-          fontWeight: '700',
-        },
-      });
-      numText.anchor.set(0, 0.5);
-      numText.position.set(LABEL_W + 8 + BAR_TRACK_W + 6, SKILL_ROW_H / 2);
-      row.addChild(numText);
-    }
+    // Right-align the level number to the right edge of the row content.
+    const NUM_X = POPUP_W - 2 * P;
+    const numText = new Text({
+      text: level > 0 ? String(level) : '',
+      style: {
+        fill: color,
+        fontFamily: 'Inter, system-ui, sans-serif',
+        fontSize: 10,
+        fontWeight: '700',
+      },
+    });
+    numText.anchor.set(1, 0.5);
+    numText.position.set(NUM_X, SKILL_ROW_H / 2);
+    row.addChild(numText);
 
     return row;
   }

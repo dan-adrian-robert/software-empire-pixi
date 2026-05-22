@@ -82,5 +82,11 @@ export const GameConfig = Object.freeze({
     // Productivity engine: per-employee base productivity trait range.
     BASE_PRODUCTIVITY_MIN: 0.85,
     BASE_PRODUCTIVITY_MAX: 1.05,
+
+    // Project milestone payout multipliers (applied to basePayout at completion).
+    PROJECT_PAYOUT_MULTIPLIERS: Object.freeze({ ahead: 1.25, onTrack: 1.0, delayed: 0.75, critical: 0.5 }),
+
+    // Insurance cost = totalSP × this factor (used by projectTemplates helper).
+    PROJECT_INSURANCE_SP_FACTOR: 2.5,
   }),
 });

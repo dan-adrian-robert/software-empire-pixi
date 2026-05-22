@@ -165,6 +165,10 @@ export class OfficeScene extends BaseScene {
       if (this._activeView === 'projects') this._modal.refresh();
       this._widgetBar.refresh(true);
     });
+    this.listen('project:failed', () => {
+      if (this._activeView === 'projects') this._modal.refresh();
+      this._widgetBar.refresh(true);
+    });
     this.listen('notification:add', ({ text, type }) => {
       this._spawnToast(text, type);
       this._widgetBar.refresh(true);

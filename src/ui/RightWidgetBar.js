@@ -12,6 +12,7 @@
 import { Container, Graphics, Text } from 'pixi.js';
 import { TOP_BAR_HEIGHT } from './TopBarHUD.js';
 import { SKILL_LABELS, SKILL_COLORS } from '../data/skills.js';
+import { getActiveMilestoneStatus } from '../state/Project.js';
 
 export const RIGHT_SIDEBAR_WIDTH = 260;
 
@@ -55,6 +56,19 @@ const PROJ_CARD_BORDER = 0x2a5090;
 const PROJ_PAYOUT      = 0x4ade80;
 const PROJ_TRACK       = 0x1a2336;
 const PROJ_CARD_RADIUS = 6;
+
+const MILESTONE_COLORS = {
+  ahead:    0x4ade80,
+  onTrack:  0x60a5fa,
+  delayed:  0xfbbf24,
+  critical: 0xf87171,
+};
+const MILESTONE_LABELS = {
+  ahead:    'Ahead',
+  onTrack:  'On Track',
+  delayed:  'Delayed',
+  critical: 'Critical!',
+};
 
 // ── Widget definitions ─────────────────────────────────────────────────────────
 const WIDGETS = [
@@ -112,8 +126,9 @@ export class RightWidgetBar extends Container {
     const notifs   = this.game.sim?.notifications.notifications ?? [];
     const projects = this.game.sim?.company.activeProjects ?? [];
 
+    const currentDay  = this.game.sim?.company?.day ?? 0;
     const projectsKey = projects
-      .map(p => `${p.id}:${p.isReadyToFinish ? 'ready' : p.requirements.map(r => Math.floor(r.current)).join(',')}`)
+      .map(p => `${p.id}:${p.isReadyToFinish ? 'ready' : `d${currentDay},${p.requirements.map(r => Math.floor(r.current)).join(',')}`}`)
       .join('|');
 
     const unchanged =
@@ -297,12 +312,14 @@ export class RightWidgetBar extends Container {
   }
 
   /**
-   * Draw a compact project card with per-requirement bars.
+   * Draw a compact project card with per-requirement bars and milestone status.
    * @returns {number} y after the card
    */
   _buildProjectCard(project, startY, cardW) {
+    const company  = this.game.sim?.company;
     const reqCount = project.requirements.length;
-    const cardH    = 44 + reqCount * 22 + (project.isReadyToFinish ? 32 : 0);
+    // Height: header(28) + milestone row(18) + reqs(22 each) + optional collect(32)
+    const cardH = 46 + reqCount * 22 + (project.isReadyToFinish ? 32 : 0);
 
     const bg = new Graphics()
       .roundRect(0, 0, cardW, cardH, PROJ_CARD_RADIUS)
@@ -311,37 +328,72 @@ export class RightWidgetBar extends Container {
     bg.position.set(PROJ_PADDING, startY);
     this._content.addChild(bg);
 
-    // Project name
+    // Project name (left)
     const nameText = new Text({
       text: project.name,
       style: {
-        fill:       TEXT_BRIGHT,
-        fontFamily: 'Inter, system-ui, sans-serif',
-        fontSize:   12,
-        fontWeight: '700',
-        wordWrap:   true,
+        fill:         TEXT_BRIGHT,
+        fontFamily:   'Inter, system-ui, sans-serif',
+        fontSize:     12,
+        fontWeight:   '700',
+        wordWrap:     true,
         wordWrapWidth: cardW - 70,
       },
     });
     nameText.position.set(PROJ_PADDING + 8, startY + 8);
     this._content.addChild(nameText);
 
-    // Payout (top-right)
-    const payoutText = new Text({
-      text: `$${project.payout.toLocaleString()}`,
+    // Payout / tier badge (top-right)
+    const status = project.isReadyToFinish
+      ? { tier: project.milestoneTier }
+      : (company ? getActiveMilestoneStatus(project, company.day) : null);
+
+    const badgeColor = (status && MILESTONE_COLORS[status.tier]) ?? PROJ_PAYOUT;
+    const badgeLabel = status ? (MILESTONE_LABELS[status.tier] ?? '') : '';
+
+    const badgeText = new Text({
+      text: badgeLabel,
       style: {
-        fill:       PROJ_PAYOUT,
+        fill:       badgeColor,
         fontFamily: 'Inter, system-ui, sans-serif',
-        fontSize:   11,
+        fontSize:   10,
         fontWeight: '700',
       },
     });
-    payoutText.anchor.set(1, 0);
-    payoutText.position.set(PROJ_PADDING + cardW - 8, startY + 8);
-    this._content.addChild(payoutText);
+    badgeText.anchor.set(1, 0);
+    badgeText.position.set(PROJ_PADDING + cardW - 6, startY + 8);
+    this._content.addChild(badgeText);
+
+    // Milestone status / elapsed row
+    let infoLabel = '';
+    if (project.isReadyToFinish) {
+      const payout = project.finalPayout ?? 0;
+      infoLabel = `Ready · $${payout.toLocaleString()} + $${project.insurance.toLocaleString()} refund`;
+    } else if (company && project.startedDay !== null) {
+      const elapsed = company.day - project.startedDay + 1;
+      if (status && status.remaining > 0) {
+        infoLabel = `Day ${elapsed} · ${status.remaining}d left at ${MILESTONE_LABELS[status.tier] ?? ''}`;
+      } else if (status) {
+        infoLabel = `Day ${elapsed} · Last day at ${MILESTONE_LABELS[status.tier] ?? ''}!`;
+      }
+    }
+
+    if (infoLabel) {
+      const infoColor = (status && MILESTONE_COLORS[status.tier]) ?? TEXT_DIM;
+      const infoText = new Text({
+        text: infoLabel,
+        style: {
+          fill:       infoColor,
+          fontFamily: 'Inter, system-ui, sans-serif',
+          fontSize:   10,
+        },
+      });
+      infoText.position.set(PROJ_PADDING + 8, startY + 24);
+      this._content.addChild(infoText);
+    }
 
     // Per-requirement progress bars
-    let reqY = startY + 28;
+    let reqY = startY + 38;
     const barW = Math.floor(cardW * 0.46);
 
     for (const req of project.requirements) {
@@ -350,23 +402,17 @@ export class RightWidgetBar extends Container {
 
       const skillLabel = new Text({
         text: SKILL_LABELS[req.skill] ?? req.skill,
-        style: {
-          fill:       TEXT_DIM,
-          fontFamily: 'Inter, system-ui, sans-serif',
-          fontSize:   10,
-        },
+        style: { fill: TEXT_DIM, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 10 },
       });
       skillLabel.position.set(PROJ_PADDING + 8, reqY);
       this._content.addChild(skillLabel);
 
-      // Track
       const track = new Graphics()
         .roundRect(0, 0, barW, 8, 2)
         .fill({ color: PROJ_TRACK });
       track.position.set(PROJ_PADDING + cardW - barW - 42, reqY + 1);
       this._content.addChild(track);
 
-      // Fill
       const fillW = Math.max(0, barW * pct);
       if (fillW > 0) {
         const fill = new Graphics()
@@ -376,14 +422,9 @@ export class RightWidgetBar extends Container {
         this._content.addChild(fill);
       }
 
-      // pts text
       const ptText = new Text({
         text: `${Math.floor(req.current)}/${req.points}`,
-        style: {
-          fill:       TEXT_DIM,
-          fontFamily: 'Inter, system-ui, sans-serif',
-          fontSize:   9,
-        },
+        style: { fill: TEXT_DIM, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 9 },
       });
       ptText.anchor.set(1, 0);
       ptText.position.set(PROJ_PADDING + cardW - 6, reqY);
@@ -394,14 +435,16 @@ export class RightWidgetBar extends Container {
 
     // Collect button for ready-to-finish projects
     if (project.isReadyToFinish) {
-      const btnLabel = `Collect $${project.payout.toLocaleString()}`;
+      const tierColor = (status && MILESTONE_COLORS[status.tier]) ?? 0x4ade80;
+      const payout    = project.finalPayout ?? 0;
+      const btnLabel  = `Collect $${payout.toLocaleString()} (+$${project.insurance.toLocaleString()})`;
       const btnW = cardW - 16;
       const btnH = 22;
 
       const btnBg = new Graphics()
         .roundRect(0, 0, btnW, btnH, 4)
         .fill({ color: 0x0a2a14 })
-        .stroke({ color: 0x4ade80, width: 1, alpha: 0.8 });
+        .stroke({ color: tierColor, width: 1, alpha: 0.8 });
       btnBg.position.set(PROJ_PADDING + 8, reqY + 2);
       btnBg.eventMode = 'static';
       btnBg.cursor = 'pointer';
@@ -409,7 +452,7 @@ export class RightWidgetBar extends Container {
       const btnText = new Text({
         text: btnLabel,
         style: {
-          fill:       0x4ade80,
+          fill:       tierColor,
           fontFamily: 'Inter, system-ui, sans-serif',
           fontSize:   11,
           fontWeight: '700',

@@ -11,7 +11,7 @@
  *   - Expose project management actions (acceptProject, rejectProject).
  */
 import { createCompany } from '../state/Company.js';
-import { createProject } from '../state/Project.js';
+import { createProject, isPastCritical } from '../state/Project.js';
 import { PROJECT_TEMPLATES } from '../data/projectTemplates.js';
 import { RESEARCH_NODES } from '../data/researchNodes.js';
 import { SKILL_RESEARCH_NODE } from '../data/skills.js';
@@ -61,6 +61,7 @@ export class Simulation {
     this._endDayOff = this.bus.on('day:ended', ({ company }) => {
       this.productivity.rollDailyWeather(company);
       this.economy.runEndOfDay(company);
+      this._checkProjectDeadlines(company);
       this._refreshProjectPool(company);
       this.hiring.refreshCandidates(company);
       this.time.beginNextDay(company);
@@ -81,7 +82,7 @@ export class Simulation {
   // Player actions
   // -----------------------------------------------------------------------
 
-  /** Accept an available project (move it to active). */
+  /** Accept an available project (move it to active). Deducts insurance upfront. */
   acceptProject(project) {
     const { company } = this;
     if (company.activeProjects.length >= company.maxActiveProjects) return false;
@@ -89,12 +90,22 @@ export class Simulation {
     const idx = company.availableProjects.indexOf(project);
     if (idx === -1) return false;
 
+    if (company.money < project.insurance) {
+      this.bus.emit('notification:add', {
+        text: `Can't accept ${project.name} — need $${project.insurance.toLocaleString()} insurance.`,
+        type: 'warning',
+      });
+      return false;
+    }
+
+    company.money -= project.insurance;
+    project.startedDay = company.day;
     project.isActive = true;
     company.availableProjects.splice(idx, 1);
     company.activeProjects.push(project);
 
     this.bus.emit('notification:add', {
-      text: `Accepted: ${project.name} ($${project.payout.toLocaleString()})`,
+      text: `Accepted: ${project.name} (insured $${project.insurance.toLocaleString()}, base $${project.basePayout.toLocaleString()})`,
       type: 'info',
     });
     this.bus.emit('project:accepted', { project, company });
@@ -125,9 +136,13 @@ export class Simulation {
     const { company } = this;
     project.isReadyToFinish = false;
     project.isCompleted = true;
-    company.money += project.payout;
-    company.stats.totalRevenue += project.payout;
+
+    const payout = project.finalPayout ?? 0;
+    const refund = project.insurance;
+    company.money += payout + refund;
+    company.stats.totalRevenue += payout;
     company.stats.projectsCompleted += 1;
+
     company.activeProjects = company.activeProjects.filter((p) => p.id !== project.id);
     company.completedProjects.push(project);
 
@@ -138,8 +153,11 @@ export class Simulation {
         emp.activeProjectId = null;
       }
     }
+
+    const tierNames = { ahead: 'Ahead of Schedule', onTrack: 'On Track', delayed: 'Delayed', critical: 'Critical Deadline' };
+    const tierLabel = tierNames[project.milestoneTier] ?? '';
     this.bus.emit('notification:add', {
-      text: `Collected $${project.payout.toLocaleString()} for ${project.name}!`,
+      text: `Collected $${payout.toLocaleString()} + $${refund.toLocaleString()} refund for ${project.name}! (${tierLabel})`,
       type: 'success',
     });
     this.bus.emit('project:completed', { project, company });
@@ -230,6 +248,35 @@ export class Simulation {
   // -----------------------------------------------------------------------
   // Internal
   // -----------------------------------------------------------------------
+
+  /**
+   * Auto-fail any active project that has exceeded its critical deadline.
+   * Called after end-of-day economy runs but before the new project pool is offered.
+   */
+  _checkProjectDeadlines(company) {
+    const toFail = company.activeProjects.filter(
+      (p) => !p.isReadyToFinish && !p.isFailed && isPastCritical(p, company.day),
+    );
+
+    for (const project of toFail) {
+      project.isFailed = true;
+      company.activeProjects = company.activeProjects.filter((p) => p.id !== project.id);
+      company.completedProjects.push(project);
+
+      for (const emp of company.employees) {
+        if (emp.pinnedProjectId === project.id) {
+          emp.pinnedProjectId = null;
+          emp.activeProjectId = null;
+        }
+      }
+
+      this.bus.emit('notification:add', {
+        text: `Project lost: ${project.name} — past critical deadline. Insurance forfeited.`,
+        type: 'critical',
+      });
+      this.bus.emit('project:failed', { project, company });
+    }
+  }
 
   _refreshProjectPool(company) {
     const { AVAILABLE_PROJECT_POOL_SIZE } = GameConfig.gameplay;
