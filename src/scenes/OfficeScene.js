@@ -101,7 +101,10 @@ export class OfficeScene extends BaseScene {
     this._weatherPopup = new WeatherPopup();
 
     // End-of-day report popup.
-    this._dayReportPopup = new DayReportPopup(() => this._dayReportPopup.close());
+    this._dayReportPopup = new DayReportPopup(() => {
+      this._dayReportPopup.close();
+      this.game.sim.setSpeed(1);
+    });
 
     // Active nav view id ('office' | 'projects' | 'employees' | 'hiring').
     this._activeView = 'office';

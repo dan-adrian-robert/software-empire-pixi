@@ -79,23 +79,23 @@ sequenceDiagram
 
 | Event | Emitter(s) | Payload | Primary Listeners |
 |---|---|---|---|
-| `game:ready` | `Game.init` | — | — |
-| `resize` | `Game._onResize` | `{ width, height }` | — |
-| `scene:changed` | `SceneManager.changeTo` | `{ name }` | — |
-| `simulation:reset` | `Simulation.reset` | `{ company }` | `OfficeScene` |
-| `day:tick` | `TimeSystem.update` | `{ progress, company }` | — |
-| `day:ended` | `TimeSystem._endDay` | `{ day, company }` | `Simulation` (end-of-day chain) |
-| `day:began` | `TimeSystem.beginNextDay` | `{ day, company }` | `OfficeScene` |
-| `notification:add` | Multiple (see below) | `{ text, type }` | `NotificationSystem`, `OfficeScene` |
-| `project:accepted` | `Simulation.acceptProject` | `{ project, company }` | `OfficeScene` |
-| `project:rejected` | `Simulation.rejectProject` | `{ project, company }` | — |
-| `project:completed` | `ProjectSystem.flushWorkPeriod` (ready) **and** `Simulation.finishProject` (collected) | `{ project, company }` | `OfficeScene` |
-| `project:failed` | `Simulation._checkProjectDeadlines` | `{ project, company }` | `OfficeScene` |
-| `employee:hired` | `HiringSystem.hire` | `{ employee, company }` | `OfficeScene` |
-| `employee:fired` | `HiringSystem.fire` | `{ employee, company }` | `OfficeScene` |
-| `desk:bought` | `Simulation.buyDesk` | `{ company }` | `OfficeScene` |
-| `research:unlocked` | `Simulation.unlockResearch` | `{ nodeId, company }` | `OfficeScene` |
-| `economy:bankrupt` | `EconomySystem.runEndOfDay` | `{ company }` | — *(currently unhandled)* |
+|| `game:ready` | `Game.init` | — | — |
+|| `resize` | `Game._onResize` | `{ width, height }` | — |
+|| `scene:changed` | `SceneManager.changeTo` | `{ name }` | — |
+|| `simulation:reset` | `Simulation.reset` | `{ company }` | `OfficeScene` |
+|| `day:tick` | `TimeSystem.update` | `{ progress, company }` | — |
+|| `day:ended` | `TimeSystem._endDay` | `{ day, company }` | `Simulation` (end-of-day chain) |
+|| `day:began` | `TimeSystem.beginNextDay` | `{ day, company }` | `OfficeScene` |
+|| `notification:add` | Multiple (see below) | `{ text, type }` | `NotificationSystem`, `OfficeScene` |
+|| `project:accepted` | `Simulation.acceptProject` | `{ project, company }` | `OfficeScene` |
+|| `project:rejected` | `Simulation.rejectProject` | `{ project, company }` | — |
+|| `project:completed` | `ProjectSystem.flushWorkPeriod` (ready) **and** `Simulation.finishProject` (collected) | `{ project, company }` | `OfficeScene` |
+|| `project:failed` | `Simulation._checkProjectDeadlines` | `{ project, company }` | `OfficeScene` |
+|| `employee:hired` | `HiringSystem.hire` | `{ employee, company }` | `OfficeScene` |
+|| `employee:fired` | `HiringSystem.fire` | `{ employee, company }` | `OfficeScene` |
+|| `desk:bought` | `Simulation.buyDesk` | `{ company }` | `OfficeScene` |
+|| `research:unlocked` | `Simulation.unlockResearch` | `{ nodeId, company }` | `OfficeScene` |
+|| `economy:bankrupt` | `EconomySystem.runEndOfDay` | `{ company }` | — *(currently unhandled)* |
 
 `notification:add` is emitted by: `Simulation` (project actions, desk, research), `EconomySystem` (salary, low funds, bankruptcy), `HiringSystem` (hire/fire), `ProjectSystem` (project ready), `NotificationSystem` (ring buffer), and `HiringPanel` (hire failure).
 
@@ -140,7 +140,7 @@ All mutable game state lives in plain JavaScript objects under `src/state/`. No 
 src/state/
   Company.js    — Root aggregate; owns all arrays below
   Employee.js   — Per-employee skills, pins, buffers, scheduleState
-  Project.js    — Per-requirement progress, lifecycle flags
+  Project.js    — Per-requirement progress, lifecycle flags (includes difficulty)
   Office.js     — Desk count, tier index
   Candidate.js  — Hire pool entry
 ```
@@ -149,23 +149,23 @@ src/state/
 
 | Field | Type | Description |
 |---|---|---|
-| `name` | string | Company display name |
-| `money` | number | Current cash |
-| `day` | number | Current day number |
-| `maxActiveProjects` | number | Concurrent project cap |
-| `office` | Office | Desk count and tier |
-| `employees` | Employee[] | All hired staff |
-| `activeProjects` | Project[] | Accepted, in-progress |
-| `availableProjects` | Project[] | Offered this day |
-| `completedProjects` | Project[] | Collected history |
-| `candidates` | Candidate[] | Hiring pool (refreshed daily) |
-| `pendingPayout` | number | Revenue banked mid-day |
-| `rdPoints` | number | Research currency |
-| `rdPointsPerDay` | number | Daily R&D accrual rate |
-| `unlockedResearch` | string[] | Unlocked node IDs |
-| `schedule` | `{startHour, workHours}` | Work shift config |
-| `stats` | `{totalRevenue, totalSalariesPaid, projectsCompleted}` | Cumulative stats |
-| `currentWeather` | WeatherType \| null | Today's weather roll |
+|| `name` | string | Company display name |
+|| `money` | number | Current cash |
+|| `day` | number | Current day number |
+|| `maxActiveProjects` | number | Concurrent project cap |
+|| `office` | Office | Desk count and tier |
+|| `employees` | Employee[] | All hired staff |
+|| `activeProjects` | Project[] | Accepted, in-progress |
+|| `availableProjects` | Project[] | Offered this day |
+|| `completedProjects` | Project[] | Collected history |
+|| `candidates` | Candidate[] | Hiring pool (refreshed daily) |
+|| `pendingPayout` | number | Revenue banked mid-day |
+|| `rdPoints` | number | Research currency |
+|| `rdPointsPerDay` | number | Daily R&D accrual rate |
+|| `unlockedResearch` | string[] | Unlocked node IDs |
+|| `schedule` | `{startHour, workHours}` | Work shift config |
+|| `stats` | `{totalRevenue, totalSalariesPaid, projectsCompleted}` | Cumulative stats |
+|| `currentWeather` | WeatherType \| null | Today's weather roll |
 
 ---
 
@@ -230,9 +230,9 @@ Modal panels (loaded into `Modal.js`) must implement:
 
 | Method | When called |
 |---|---|
-| `init(x, y, width, height)` | First open |
-| `resize(x, y, width, height)` | Window resize while open |
-| `refresh()` | Called by `OfficeScene` every 0.2 s and on relevant events |
+|| `init(x, y, width, height)` | First open |
+|| `resize(x, y, width, height)` | Window resize while open |
+|| `refresh()` | Called by `OfficeScene` every 0.2 s and on relevant events |
 
 `refresh()` does a full tear-down and rebuild of the panel's child display list — straightforward to implement and always correct, at the cost of GC pressure on fast refresh cycles.
 
@@ -244,17 +244,27 @@ Modal panels (loaded into `Modal.js`) must implement:
 
 ## Data Layer
 
-Static, read-only seed data lives in `src/data/`. None of these files have side effects; they export frozen arrays/objects.
+Static, read-only seed data lives in `src/data/`. None of these files have side effects; they export frozen arrays/objects or are pure JSON.
 
 | File | Contents |
 |---|---|
-| `skills.js` | Skill IDs, labels, colors, research node mapping |
-| `projectTemplates.js` | All project definitions (name, tier, requirements, payout) |
-| `researchNodes.js` | 24 research nodes with costs, icons, dependencies |
-| `weatherTypes.js` | 5 weather states with productivity modifiers |
-| `officeTiers.js` | Office tier definitions (tier 1–5) |
-| `namePool.js` | First/last name lists for procedural candidate generation |
-| `starter.js` | Starting company constants, starter employees, starter candidates |
+|| `skills.js` | Skill IDs, labels, colors, research node mapping |
+|| `projectCatalog.json` | Project flavor data (name, description, tier, required skills) — all numeric values generated at runtime |
+|| `economyBalance.json` | Economy constants from PLOT.md: SP value ($100/SP), salary ratio (40%), difficulty multipliers, tier config |
+|| `employeeCatalog.json` | Names for the starter employee and starter candidate pool |
+|| `researchNodes.js` | 24 research nodes with costs, icons, dependencies |
+|| `weatherTypes.js` | 5 weather states with productivity modifiers |
+|| `officeTiers.js` | Office tier definitions (tier 1–5) |
+|| `namePool.js` | First/last name lists for procedural candidate generation |
+|| `starter.js` | Starting company constants (money, day, office tier) |
+
+Balance helpers and generators live outside `src/data/`:
+
+| Module | Role |
+|---|---|
+|| `src/economy/balance.js` | Pure functions: `computeMedianSalary`, `computeMedianPayout`, `computeProjectTiming`, `computeTeamOutput`, `pickDifficulty`, `getDifficultyConfig` |
+|| `src/systems/EmployeeGenerator.js` | Builds candidates with 1–2 random skills (levels 1–5) and a median salary derived from their SP |
+|| `src/systems/ProjectGenerator.js` | Combines a catalog entry with team-output-based SP, payout, insurance, and milestones at runtime |
 
 ---
 
@@ -264,17 +274,17 @@ Static, read-only seed data lives in `src/data/`. None of these files have side 
 
 | Key | Value | Description |
 |---|---|---|
-| `DAY_DURATION_SECONDS` | 180 | Real seconds per in-game day at 1× |
-| `SKILL_SP_TABLE` | `[0,1,2,4,6,9,12,16,21,28,36]` | Story points per skill level per WORK period |
-| `SPEED_PRESETS` | `[0,1,2,4,8]` | Valid game speed multipliers |
-| `DEFAULT_SPEED` | 0 | Speed on scene entry (paused) |
-| `AVAILABLE_PROJECT_POOL_SIZE` | 5 | Max offered projects per day |
-| `CANDIDATE_POOL_SIZE` | 4 | Hiring candidates shown per day |
-| `MONEY_WARNING_THRESHOLD` | 500 | Low-funds notification threshold |
-| `BANKRUPTCY_THRESHOLD` | 0 | Bankruptcy trigger value |
-| `ACTIVITY_LOG_MAX` | 20 | Notification ring buffer capacity |
-| `BASE_PRODUCTIVITY_MIN` | 0.85 | Min innate productivity trait |
-| `BASE_PRODUCTIVITY_MAX` | 1.05 | Max innate productivity trait |
+|| `DAY_DURATION_SECONDS` | 180 | Real seconds per in-game day at 1× |
+|| `SKILL_SP_TABLE` | `[0,1,2,4,6,9,12,16,21,28,36]` | Story points per skill level per WORK period |
+|| `SPEED_PRESETS` | `[0,1,2,4,8]` | Valid game speed multipliers |
+|| `DEFAULT_SPEED` | 0 | Speed on scene entry (paused) |
+|| `AVAILABLE_PROJECT_POOL_SIZE` | 5 | Max offered projects per day |
+|| `CANDIDATE_POOL_SIZE` | 4 | Hiring candidates shown per day |
+|| `MONEY_WARNING_THRESHOLD` | 5000 | Low-funds notification threshold |
+|| `BANKRUPTCY_THRESHOLD` | 0 | Bankruptcy trigger value |
+|| `ACTIVITY_LOG_MAX` | 20 | Notification ring buffer capacity |
+|| `BASE_PRODUCTIVITY_MIN` | 0.85 | Min innate productivity trait |
+|| `BASE_PRODUCTIVITY_MAX` | 1.05 | Max innate productivity trait |
 
 ---
 
@@ -282,11 +292,11 @@ Static, read-only seed data lives in `src/data/`. None of these files have side 
 
 | Alias | Resolves to |
 |---|---|
-| `@` | `src/` |
-| `@assets` | `src/assets/` |
-| `@scenes` | `src/scenes/` |
-| `@ui` | `src/ui/` |
-| `@systems` | `src/systems/` |
-| `@entities` | `src/entities/` |
-| `@managers` | `src/managers/` |
-| `@utils` | `src/utils/` |
+|| `@` | `src/` |
+|| `@assets` | `src/assets/` |
+|| `@scenes` | `src/scenes/` |
+|| `@ui` | `src/ui/` |
+|| `@systems` | `src/systems/` |
+|| `@entities` | `src/entities/` |
+|| `@managers` | `src/managers/` |
+|| `@utils` | `src/utils/` |

@@ -1,0 +1,9 @@
+{
+  "starterEmployee": { "name": "Alex Morgan" },
+  "starterCandidates": [
+    { "name": "Jordan Patel" },
+    { "name": "Sam Williams" },
+    { "name": "Casey Lee" },
+    { "name": "Morgan Garcia" }
+  ]
+}

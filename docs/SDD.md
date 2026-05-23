@@ -151,9 +151,9 @@ Exports: `projectProgress`, `projectTotalPoints`, `projectCurrentPoints`, `isPro
 
 Returns `{ tierIndex, desks, name }` from `OFFICE_TIERS[tierIndex]`. Exports `getNextOfficeTier(office)`.
 
-#### `src/state/Candidate.js` — `createCandidate(opts)`, `generateRandomCandidate(unlockedSkills)`
+#### `src/state/Candidate.js` — `createCandidate(opts)`
 
-Hire-pool entry. Same field shape as Employee minus runtime fields (`activeProjectId`, `workBuffer`, etc.).
+Hire-pool entry. Same field shape as Employee minus runtime fields (`activeProjectId`, `workBuffer`, etc.). Candidate generation (random skills, median salary) is handled by `EmployeeGenerator`, not this module.
 
 ---
 
@@ -200,9 +200,54 @@ Runs once per `day:ended`. Order of operations:
 
 ---
 
+#### `src/systems/EmployeeGenerator.js` — `EmployeeGenerator`
+
+Procedural candidate factory. Does not hold state; all methods are pure.
+
+| Method | Returns |
+|---|---|
+|| `generateCandidate(unlockedSkills, rng?)` | A `Candidate` with 1–2 random skills (level 1–5) and a median salary |
+|| `generateStarterEmployee()` | Named starter employee from `employeeCatalog.json` |
+|| `generateStarterCandidates()` | Named starter candidate pool from `employeeCatalog.json` |
+
+Salary is computed by `computeMedianSalary(skills)` in `src/economy/balance.js`:
+`salary = totalDailySP × spValue × salaryRatio`.
+
+---
+
+#### `src/systems/ProjectGenerator.js` — `ProjectGenerator`
+
+Procedural project factory. Reads entries from `projectCatalog.json` and computes all numeric values at runtime.
+
+| Method | Returns |
+|---|---|
+|| `generateFromCatalog(entry, teamOutput, difficulty)` | A project template with SP, payout, insurance, and milestones |
+|| `generatePool(company, size?)` | A pool of project templates scaled to current team output and difficulty |
+|| `generateStarterPool()` | A starter pool using a fixed `STARTER_TEAM_OUTPUT = 16` SP/day |
+
+`totalSp = round(teamOutput × difficultyMultiplier)`. SP is then distributed evenly across the project's required skills.
+
+---
+
+#### `src/economy/balance.js`
+
+Pure balance helpers used by both generators. No side effects, no game state.
+
+| Export | Purpose |
+|---|---|
+|| `dailySpForSkill(level)` | SP per WORK period for a given skill level |
+|| `computeMedianSalary(skills)` | Median daily salary for an employee's skill set |
+|| `computeMedianPayout(totalSp)` | Base project payout for a given total SP |
+|| `computeProjectTiming(totalSp, tier)` | Milestone deadlines and insurance amount |
+|| `computeTeamOutput(employees)` | Sum of daily SP across all employee skills (defaults to 16 if no team) |
+|| `pickDifficulty(rng?)` | Weighted random difficulty key: `'common'` (3), `'uncommon'` (2), `'rare'` (1) |
+|| `getDifficultyConfig(key)` | `{ label, spMultiplier, weight }` for a difficulty key |
+
+---
+
 #### `src/systems/HiringSystem.js` — `HiringSystem`
 
-**`refreshCandidates(company)`** — Generates a new `CANDIDATE_POOL_SIZE`-sized pool of candidates whose skills are within the company's current `unlockedResearch`.
+**`refreshCandidates(company)`** — Generates a new `CANDIDATE_POOL_SIZE`-sized pool of candidates via `EmployeeGenerator.generateCandidate()`, filtered to the company's current `unlockedResearch`.
 
 **`hire(company, candidate)`** — Moves candidate to `company.employees`; fails if no free desk. Emits `employee:hired`.
 
@@ -307,7 +352,7 @@ Candidate cards with Hire buttons. Validates desk availability before calling `s
 
 #### `EmployeesPanel`
 
-Roster cards with Fire buttons → `sim.fireEmployee`.
+Roster cards with Fire buttons → `sim.fireEmployee`. Each card also shows the employee's available skill points and, when skill points are available, displays upgrade buttons for each skill — identical functionality to the `EmployeeStatsPopup` skill upgrade section. Cards use dynamic height to accommodate the variable-length upgrade section.
 
 #### `ResearchPanel`
 
@@ -379,8 +424,9 @@ Widgets are persistent Pixi objects owned by `OfficeScene` (not re-created per s
 | `templateId` | `string` | Source template ID |
 | `name` | `string` | Display name |
 | `description` | `string` | Short description |
-| `tier` | `number` | Difficulty tier (1–4) |
-| `basePayout` | `number` | Full reward at On Track (1.0×) |
+| `tier` | `number` | Catalog tier (1–4); gates which skills are required |
+| `difficulty` | `'common'\|'uncommon'\|'rare'` | Generation-time difficulty; SP multiplier 1.2 / 1.5 / 2.0 |
+| `basePayout` | `number` | Full reward at On Track (1.0×); equals `totalSP × $100` |
 | `insurance` | `number` | Upfront cost on accept; refunded on successful collect |
 | `milestones` | `{ahead, onTrack, delayed, critical}` | Elapsed-day deadlines for each tier |
 | `payoutMultipliers` | `{ahead, onTrack, delayed, critical}` | Per-tier multipliers applied to `basePayout` |
@@ -569,7 +615,7 @@ All tunables live in `src/config.js` under `GameConfig.gameplay`. The object is 
 | `DEFAULT_SPEED` | `0` | Initial speed when entering office scene |
 | `AVAILABLE_PROJECT_POOL_SIZE` | `5` | Max projects offered per day |
 | `CANDIDATE_POOL_SIZE` | `4` | Hiring candidates shown per day |
-| `MONEY_WARNING_THRESHOLD` | `500` | Cash level that triggers a low-funds warning |
+| `MONEY_WARNING_THRESHOLD` | `5000` | Cash level that triggers a low-funds warning |
 | `BANKRUPTCY_THRESHOLD` | `0` | Cash level that triggers bankruptcy |
 | `ACTIVITY_LOG_MAX` | `20` | Max notifications retained in the activity feed |
 | `BASE_PRODUCTIVITY_MIN` | `0.85` | Lower bound of random productivity trait |

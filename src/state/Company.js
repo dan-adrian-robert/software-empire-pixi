@@ -5,7 +5,6 @@
  */
 import { createOffice } from './Office.js';
 import { createEmployee } from './Employee.js';
-import { createProject } from './Project.js';
 import { createCandidate } from './Candidate.js';
 import {
   STARTER_COMPANY_NAME,
@@ -13,31 +12,25 @@ import {
   STARTER_DAY,
   STARTER_MAX_ACTIVE_PROJECTS,
   STARTER_OFFICE_TIER_INDEX,
-  STARTER_EMPLOYEES,
-  STARTER_CANDIDATES,
 } from '../data/starter.js';
-import { PROJECT_TEMPLATES } from '../data/projectTemplates.js';
-import { SKILL_RESEARCH_NODE, getUnlockedSkills } from '../data/skills.js';
+import { SKILLS } from '../data/skills.js';
+import { generateStarterEmployee, generateStarterCandidates } from '../systems/EmployeeGenerator.js';
+import { generateStarterPool } from '../systems/ProjectGenerator.js';
 
 /**
  * Create a fresh Company from the starter seed.
  * @returns {Company}
  */
 export function createCompany() {
-  const employees = STARTER_EMPLOYEES.map((e) => createEmployee(e));
+  const starterResearch = ['skill_frontend_dev'];
 
-  // Only include starter candidates whose skills are all within the initial research unlock.
-  const starterAllowedSkills = getUnlockedSkills(['skill_frontend_dev']);
-  const candidates = STARTER_CANDIDATES
-    .filter((c) => c.skills.every((s) => starterAllowedSkills.has(s.skill)))
-    .map((c) => createCandidate(c));
+  const starterEmpData = generateStarterEmployee(SKILLS.FRONTEND_DEVELOPMENT);
+  const employees = [createEmployee(starterEmpData)];
 
-  // Pick up to 3 tier-1 projects that only require the pre-unlocked frontend skill.
-  const starterUnlocked = new Set(['skill_frontend_dev']);
-  const starterTemplates = PROJECT_TEMPLATES.filter(
-    (t) => t.tier === 1 && t.requirements.every((r) => starterUnlocked.has(SKILL_RESEARCH_NODE[r.skill])),
-  ).slice(0, 3);
-  const availableProjects = starterTemplates.map((t) => createProject(t));
+  const starterCandidateData = generateStarterCandidates(SKILLS.FRONTEND_DEVELOPMENT);
+  const candidates = starterCandidateData.map((c) => createCandidate(c));
+
+  const availableProjects = generateStarterPool(starterResearch, 3);
 
   return {
     name: STARTER_COMPANY_NAME,

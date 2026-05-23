@@ -71,7 +71,7 @@ export const GameConfig = Object.freeze({
     CANDIDATE_POOL_SIZE: 4,
 
     // Player is warned when money drops below this threshold.
-    MONEY_WARNING_THRESHOLD: 500,
+    MONEY_WARNING_THRESHOLD: 5_000,
 
     // Player goes bankrupt when money drops to or below this value.
     BANKRUPTCY_THRESHOLD: 0,

@@ -2,12 +2,17 @@
  * EmployeesPanel
  *
  * Lists current employees. Each card layout (single column):
- *   Name + salary
+ *   Name + level + salary
  *   Activity (working on / idle)
  *   ── divider ──
  *   Skill rows (one per line: label | bar | level)
+ *   [SKILL UPGRADE section — only when pendingSkillPoints > 0]
  *   ── divider ──
+ *   Schedule
  *   Fire button (bottom-right)
+ *
+ * Card height is computed dynamically so the optional upgrade section
+ * does not leave a blank gap on cards that don't need it.
  */
 import { Container, Graphics, Text } from 'pixi.js';
 import {
@@ -26,8 +31,8 @@ const TEXT_DIM = 0x7a86a3;
 const SALARY_COLOR = 0xfbbf24;
 const ACTIVITY_COLOR = 0x4ade80;
 const SECTION_LABEL_COLOR = 0x7a86a3;
-const PADDING = 12;          // outer gutter
-const INNER = 14;            // inner card padding (left/right)
+const PADDING = 12;
+const INNER = 14;
 
 // Skill bar cells
 const BAR_CELL = 13;
@@ -39,21 +44,24 @@ const BAR_EMPTY_BORDER = 0x2a3554;
 const SKILL_ROW_H = 22;
 const LABEL_W = 72;
 const LABEL_GAP = 12;
-const LEVEL_W = 22;
 
 const ALL_SKILLS = Object.values(SKILLS);
 
 const SCHEDULE_ICONS = { WORK: '💻', BREAK: '☕', TALK: '💬' };
 const SCHED_SECTION_H = 12 + 4 + 20; // label + gap + icon row
 
-// Card section heights
+// Fixed-height sections
 const NAME_H = 20;
 const ACTIVITY_H = 18;
-const HEADER_H = 12 + NAME_H + 6 + ACTIVITY_H + 10; // top-pad + name + gap + activity + gap
+const HEADER_H = 12 + NAME_H + 6 + ACTIVITY_H + 10;
 const DIVIDER_H = 1;
 const SKILLS_H = ALL_SKILLS.length * SKILL_ROW_H;
-const FOOTER_H = 10 + DIVIDER_H + 8 + SCHED_SECTION_H + 10 + 28 + 10; // gap + divider + gap + schedule + gap + btn + bottom-pad
-const CARD_H = HEADER_H + DIVIDER_H + 8 + SKILLS_H + FOOTER_H;
+
+// Upgrade section
+const UPGRADE_BTN_H = 26;
+const UPGRADE_HEADER_COLOR = 0x818cf8;
+const UPGRADE_BTN_BG = 0x12102a;
+const UPGRADE_BTN_BORDER = 0x818cf8;
 
 export class EmployeesPanel extends Container {
   /** @param {import('../../Game.js').Game} game */
@@ -112,23 +120,28 @@ export class EmployeesPanel extends Container {
     }
 
     for (const emp of company.employees) {
-      this._buildCard(emp, company, y);
-      y += CARD_H + 8;
+      const cardH = this._buildCard(emp, company, y);
+      y += cardH + 8;
     }
   }
 
   // -------------------------------------------------------------------------
 
+  /**
+   * Build one employee card starting at startY.
+   * Returns the actual card height so refresh() can stack cards correctly.
+   *
+   * @param {object} emp
+   * @param {object} company
+   * @param {number} startY
+   * @returns {number} card height in pixels
+   */
   _buildCard(emp, company, startY) {
     const cardW = this._width - PADDING * 2;
 
-    // Background
-    const bg = new Graphics()
-      .roundRect(0, 0, cardW, CARD_H, 8)
-      .fill({ color: CARD_BG })
-      .stroke({ color: CARD_BORDER, width: 1.5 });
-    bg.position.set(PADDING, startY);
-    this._scroll.addChild(bg);
+    // We draw the background AFTER laying out content so we know the final height.
+    // Reserve a placeholder index to insert the bg behind everything else.
+    const bgIndex = this._scroll.children.length;
 
     // ── Name ─────────────────────────────────────────────
     const nameText = new Text({
@@ -143,7 +156,6 @@ export class EmployeesPanel extends Container {
     nameText.position.set(PADDING + INNER, startY + 12);
     this._scroll.addChild(nameText);
 
-    // Level badge (left of salary)
     const levelBadge = new Text({
       text: `Lv. ${emp.level ?? 0}`,
       style: {
@@ -157,7 +169,6 @@ export class EmployeesPanel extends Container {
     levelBadge.position.set(PADDING + cardW - INNER - 72, startY + 14);
     this._scroll.addChild(levelBadge);
 
-    // Salary (right-aligned in name row)
     const salaryText = new Text({
       text: `$${emp.salary}/day`,
       style: {
@@ -171,7 +182,7 @@ export class EmployeesPanel extends Container {
     salaryText.position.set(PADDING + cardW - INNER, startY + 14);
     this._scroll.addChild(salaryText);
 
-    // ── Activity (below name) ────────────────────────────
+    // ── Activity ─────────────────────────────────────────
     const proj = emp.activeProjectId
       ? company.activeProjects.find((p) => p.id === emp.activeProjectId)
       : null;
@@ -195,7 +206,7 @@ export class EmployeesPanel extends Container {
       .stroke({ color: DIVIDER_COLOR, width: 1 });
     this._scroll.addChild(div1);
 
-    // ── Skills (single column) ───────────────────────────
+    // ── Skills ───────────────────────────────────────────
     const levelBySkill = Object.create(null);
     for (const sk of emp.skills) levelBySkill[sk.skill] = sk.level;
 
@@ -209,16 +220,82 @@ export class EmployeesPanel extends Container {
       this._scroll.addChild(row);
     });
 
-    // ── Bottom divider ───────────────────────────────────
-    const divY2 = startY + HEADER_H + DIVIDER_H + 8 + SKILLS_H + 10;
+    // Running y cursor — picks up after skills block.
+    let y = skillStartY + SKILLS_H + 10;
+
+    // ── Skill upgrade section (only when points are available) ───────────────
+    if ((emp.pendingSkillPoints ?? 0) > 0) {
+      const upgradable = emp.skills.filter(
+        (s) => s.level >= 1 && s.level < MAX_SKILL_LEVEL,
+      );
+
+      const upgradeHeader = new Text({
+        text: `SKILL UPGRADE  (${emp.pendingSkillPoints} available)`,
+        style: {
+          fill: UPGRADE_HEADER_COLOR,
+          fontFamily: 'Inter, system-ui, sans-serif',
+          fontSize: 9,
+          fontWeight: '700',
+        },
+      });
+      upgradeHeader.position.set(PADDING + INNER, y);
+      this._scroll.addChild(upgradeHeader);
+      y += 16;
+
+      const btnCount = Math.max(1, upgradable.length);
+      const BTN_GAP = 8;
+      const BTN_W = Math.floor(
+        (cardW - INNER * 2 - BTN_GAP * (btnCount - 1)) / btnCount,
+      );
+
+      upgradable.forEach((sk, i) => {
+        const btnX = PADDING + INNER + i * (BTN_W + BTN_GAP);
+        const skColor = SKILL_COLORS[sk.skill] ?? 0x4a9eff;
+
+        const btnBg = new Graphics()
+          .roundRect(0, 0, BTN_W, UPGRADE_BTN_H, 4)
+          .fill({ color: UPGRADE_BTN_BG })
+          .stroke({ color: skColor, width: 1, alpha: 0.7 });
+        btnBg.position.set(btnX, y);
+        btnBg.eventMode = 'static';
+        btnBg.cursor = 'pointer';
+
+        const btnLabel = new Text({
+          text: `${SKILL_LABELS_SHORT[sk.skill] ?? sk.skill} ${sk.level}→${sk.level + 1}`,
+          style: {
+            fill: skColor,
+            fontFamily: 'Inter, system-ui, sans-serif',
+            fontSize: 10,
+            fontWeight: '600',
+          },
+        });
+        btnLabel.anchor.set(0.5, 0.5);
+        btnLabel.position.set(BTN_W / 2, UPGRADE_BTN_H / 2);
+        btnLabel.eventMode = 'none';
+        btnBg.addChild(btnLabel);
+
+        btnBg.on('pointerup', () => {
+          const ok = this.game.sim.upgradeEmployeeSkill(emp, sk.skill);
+          if (ok) this.refresh();
+        });
+        btnBg.on('pointerover', () => { btnBg.alpha = 0.75; });
+        btnBg.on('pointerout',  () => { btnBg.alpha = 1; });
+
+        this._scroll.addChild(btnBg);
+      });
+
+      y += UPGRADE_BTN_H + 10;
+    }
+
+    // ── Bottom divider ────────────────────────────────────
     const div2 = new Graphics()
-      .moveTo(PADDING + 8, divY2)
-      .lineTo(PADDING + cardW - 8, divY2)
+      .moveTo(PADDING + 8, y)
+      .lineTo(PADDING + cardW - 8, y)
       .stroke({ color: DIVIDER_COLOR, width: 1 });
     this._scroll.addChild(div2);
+    y += DIVIDER_H + 8;
 
     // ── Schedule ─────────────────────────────────────────
-    const schedLabelY = divY2 + 8;
     const schedLabelText = new Text({
       text: 'SCHEDULE',
       style: {
@@ -228,27 +305,38 @@ export class EmployeesPanel extends Container {
         fontWeight: '700',
       },
     });
-    schedLabelText.position.set(PADDING + INNER, schedLabelY);
+    schedLabelText.position.set(PADDING + INNER, y);
     this._scroll.addChild(schedLabelText);
 
     const schedRow = this._makeScheduleRow();
-    schedRow.position.set(PADDING + INNER, schedLabelY + 16);
+    schedRow.position.set(PADDING + INNER, y + 16);
     this._scroll.addChild(schedRow);
+    y += SCHED_SECTION_H;
 
-    // ── Fire button (bottom-right) ───────────────────────
+    // ── Fire button ───────────────────────────────────────
     const fireBtn = this._makeButton('Fire', 0x2a1a1a, 0xf87171, () => {
       this.game.sim.fireEmployee(emp);
       this.refresh();
     });
-    fireBtn.position.set(PADDING + cardW - INNER - 72, divY2 + 8 + SCHED_SECTION_H + 10);
+    fireBtn.position.set(PADDING + cardW - INNER - 72, y + 6);
     this._scroll.addChild(fireBtn);
+    y += 28 + 10; // button height + bottom padding
+
+    // ── Background (drawn last so we know final height) ───
+    const cardH = y - startY;
+    const bg = new Graphics()
+      .roundRect(0, 0, cardW, cardH, 8)
+      .fill({ color: CARD_BG })
+      .stroke({ color: CARD_BORDER, width: 1.5 });
+    bg.position.set(PADDING, startY);
+    this._scroll.addChildAt(bg, bgIndex);
+
+    return cardH;
   }
 
   _makeSkillRow(skillKey, level, color, cardW) {
     const row = new Container();
-    const rowContentW = cardW - INNER * 2;
 
-    // Label
     const label = new Text({
       text: SKILL_LABELS_SHORT[skillKey] ?? skillKey,
       style: {
@@ -262,7 +350,6 @@ export class EmployeesPanel extends Container {
     label.position.set(0, SKILL_ROW_H / 2);
     row.addChild(label);
 
-    // Bar track (cells)
     const track = new Graphics();
     const trackY = (SKILL_ROW_H - BAR_CELL) / 2;
     const filled = Math.max(0, Math.min(MAX_SKILL_LEVEL, level));
@@ -278,7 +365,6 @@ export class EmployeesPanel extends Container {
     track.position.set(LABEL_W + LABEL_GAP, trackY);
     row.addChild(track);
 
-    // Numeric level (right of bar)
     if (level > 0) {
       const numText = new Text({
         text: String(level),
@@ -352,6 +438,7 @@ export class EmployeesPanel extends Container {
     });
     text.anchor.set(0.5);
     text.position.set(36, 13);
+    text.eventMode = 'none';
     container.addChild(text);
 
     container.on('pointerup', onClick);

@@ -11,11 +11,12 @@
  *   - Expose project management actions (acceptProject, rejectProject).
  */
 import { createCompany } from '../state/Company.js';
-import { createProject, isPastCritical } from '../state/Project.js';
-import { PROJECT_TEMPLATES } from '../data/projectTemplates.js';
+import { isPastCritical } from '../state/Project.js';
 import { RESEARCH_NODES } from '../data/researchNodes.js';
-import { SKILL_RESEARCH_NODE, SKILL_LABELS, MAX_SKILL_LEVEL } from '../data/skills.js';
+import { SKILL_LABELS, MAX_SKILL_LEVEL } from '../data/skills.js';
 import { GameConfig } from '../config.js';
+import { generatePool } from './ProjectGenerator.js';
+import { computeTeamOutput } from '../economy/balance.js';
 
 import { TimeSystem } from './TimeSystem.js';
 import { ProjectSystem } from './ProjectSystem.js';
@@ -314,28 +315,16 @@ export class Simulation {
 
   _refreshProjectPool(company) {
     const { AVAILABLE_PROJECT_POOL_SIZE } = GameConfig.gameplay;
-
-    // Clear leftover available projects so each new day brings a fresh set.
-    company.availableProjects = [];
-
-    // Determine appropriate tier based on office tier index.
     const tierMap = [1, 1, 2, 3, 4];
     const maxTier = tierMap[Math.min(company.office.tierIndex, tierMap.length - 1)];
+    const teamOutput = computeTeamOutput(company.employees);
 
-    const eligible = PROJECT_TEMPLATES.filter(
-      (t) =>
-        t.tier <= maxTier &&
-        !company.activeProjects.some((p) => p.templateId === t.id) &&
-        t.requirements.every((req) => {
-          const node = SKILL_RESEARCH_NODE[req.skill];
-          return !node || company.unlockedResearch.includes(node);
-        }),
-    );
-
-    // Shuffle and pick a full pool's worth of projects.
-    const shuffled = [...eligible].sort(() => Math.random() - 0.5);
-    for (let i = 0; i < Math.min(AVAILABLE_PROJECT_POOL_SIZE, shuffled.length); i++) {
-      company.availableProjects.push(createProject(shuffled[i]));
-    }
+    company.availableProjects = generatePool({
+      maxTier,
+      unlockedResearch: company.unlockedResearch,
+      activeTemplateIds: company.activeProjects.map((p) => p.templateId),
+      count: AVAILABLE_PROJECT_POOL_SIZE,
+      teamOutput,
+    });
   }
 }

@@ -1,0 +1,33 @@
+{
+  "spValue": 100,
+  "salaryRatio": 0.40,
+  "workPeriodsPerDay": 16,
+  "marketMultipliers": {
+    "low": 0.80,
+    "normal": 1.00,
+    "high": 1.20
+  },
+  "skillSpTable": [0, 1, 2, 4, 6, 9, 12, 16, 21, 28, 36],
+  "insuranceSpFactor": 2.5,
+  "employeeGeneration": {
+    "maxSkillLevel": 5,
+    "maxSkills": 2,
+    "dualSkillChance": 0.30
+  },
+  "projectGeneration": {
+    "milestoneSpPerDayBase": 8,
+    "milestoneSpPerDayTierBonus": 4,
+    "milestoneMinOnTrackDays": 2
+  },
+  "projectDifficulty": {
+    "common":   { "label": "Common",   "spMultiplier": 1.2, "weight": 3 },
+    "uncommon": { "label": "Uncommon", "spMultiplier": 1.5, "weight": 2 },
+    "rare":     { "label": "Rare",     "spMultiplier": 2.0, "weight": 1 }
+  },
+  "projectTiers": {
+    "1": { "label": "Startup / Freelance", "maxSkills": 1 },
+    "2": { "label": "Local Company",       "maxSkills": 2 },
+    "3": { "label": "National",            "maxSkills": 2 },
+    "4": { "label": "Enterprise",          "maxSkills": 4 }
+  }
+}

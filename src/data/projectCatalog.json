@@ -1,0 +1,121 @@
+[
+  {
+    "id": "frontend_001",
+    "name": "Static Landing Page",
+    "description": "A local business needs a clean, fast static landing page.",
+    "tier": 1,
+    "skills": ["frontendDevelopment"]
+  },
+  {
+    "id": "frontend_002",
+    "name": "Portfolio Website",
+    "description": "A freelance designer needs a personal portfolio online.",
+    "tier": 1,
+    "skills": ["frontendDevelopment"]
+  },
+  {
+    "id": "backend_001",
+    "name": "REST API Service",
+    "description": "A client needs a simple REST API for their data layer.",
+    "tier": 1,
+    "skills": ["backendDevelopment"]
+  },
+  {
+    "id": "mobile_001",
+    "name": "Simple Mobile App",
+    "description": "Build a straightforward single-screen utility mobile app.",
+    "tier": 1,
+    "skills": ["mobileDevelopment"]
+  },
+  {
+    "id": "frontend_003",
+    "name": "Admin Dashboard UI",
+    "description": "A startup needs a data-rich admin panel to monitor KPIs.",
+    "tier": 1,
+    "skills": ["frontendDevelopment"]
+  },
+  {
+    "id": "devops_001",
+    "name": "CI/CD Pipeline",
+    "description": "Set up automated build, test, and deploy workflows for a small team.",
+    "tier": 1,
+    "skills": ["devops"]
+  },
+  {
+    "id": "backend_002",
+    "name": "Authentication System",
+    "description": "Design a secure sign-up, login, and session management service.",
+    "tier": 2,
+    "skills": ["backendDevelopment"]
+  },
+  {
+    "id": "mobile_002",
+    "name": "Fitness Tracker App",
+    "description": "A health startup wants a mobile app to log workouts and nutrition.",
+    "tier": 2,
+    "skills": ["mobileDevelopment"]
+  },
+  {
+    "id": "backend_003",
+    "name": "Payment Processing Service",
+    "description": "Integrate a secure payment gateway into an existing platform.",
+    "tier": 2,
+    "skills": ["backendDevelopment"]
+  },
+  {
+    "id": "devops_002",
+    "name": "Cloud Infrastructure Setup",
+    "description": "Provision and configure scalable cloud resources for a growing SaaS.",
+    "tier": 2,
+    "skills": ["devops"]
+  },
+  {
+    "id": "mobile_003",
+    "name": "Social Chat Application",
+    "description": "A community platform needs real-time messaging on mobile.",
+    "tier": 2,
+    "skills": ["mobileDevelopment"]
+  },
+  {
+    "id": "fullstack_001",
+    "name": "Login System",
+    "description": "Build a secure login flow with a matching backend API.",
+    "tier": 2,
+    "skills": ["frontendDevelopment", "backendDevelopment"]
+  },
+  {
+    "id": "mobile_backend_001",
+    "name": "Mobile Authentication App",
+    "description": "A fintech client needs biometric auth on mobile backed by a secure API.",
+    "tier": 3,
+    "skills": ["mobileDevelopment", "backendDevelopment"]
+  },
+  {
+    "id": "mobile_devops_001",
+    "name": "Mobile App Release Pipeline",
+    "description": "Automate build, signing, and store deployment for a mobile product.",
+    "tier": 3,
+    "skills": ["mobileDevelopment", "devops"]
+  },
+  {
+    "id": "backend_devops_001",
+    "name": "Scalable API Deployment",
+    "description": "Harden and auto-scale a high-traffic API across multiple regions.",
+    "tier": 3,
+    "skills": ["backendDevelopment", "devops"]
+  },
+  {
+    "id": "fullstack_002",
+    "name": "E-commerce Platform",
+    "description": "A retailer needs a full storefront with cart, checkout, and admin.",
+    "tier": 3,
+    "skills": ["frontendDevelopment", "backendDevelopment"]
+  },
+  {
+    "id": "enterprise_001",
+    "name": "Enterprise SaaS Platform",
+    "description": "A multinational corporation wants a full-stack SaaS product across web, mobile, and cloud.",
+    "tier": 4,
+    "skills": ["frontendDevelopment", "backendDevelopment", "mobileDevelopment", "devops"]
+  }
+]

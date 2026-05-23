@@ -421,6 +421,7 @@ export class DayReportPopup extends Container {
     const btnLabel = makeText('Continue →', 13, 0xc8d4ef, '600');
     btnLabel.anchor.set(0.5, 0.5);
     btnLabel.position.set(W / 2, y + BTN_H / 2);
+    btnLabel.eventMode = 'none';
     this._content.addChild(btnLabel);
 
     btnBg.on('pointerup',   () => this._onClose());

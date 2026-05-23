@@ -1,7 +1,7 @@
 /**
  * Project state factory.
  *
- * An active Project is built from a PROJECT_TEMPLATES entry and tracks
+ * An active Project is built from a generated template object and tracks
  * per-requirement progress (`current` field) and milestone timing.
  *
  * Lifecycle:
@@ -13,7 +13,7 @@ import { GameConfig } from '../config.js';
 let _nextId = 1;
 
 /**
- * @param {import('../data/projectTemplates.js').ProjectTemplate} template
+ * @param {object} template  Plain template object produced by ProjectGenerator.
  * @returns {Project}
  */
 export function createProject(template) {
@@ -23,6 +23,9 @@ export function createProject(template) {
     name: template.name,
     description: template.description,
     tier: template.tier,
+
+    /** 'common' | 'uncommon' | 'rare' — set at generation time from team output. */
+    difficulty: template.difficulty ?? 'common',
 
     /** Base reward when finishing exactly On Track (multiplier 1.0). */
     basePayout: template.basePayout,

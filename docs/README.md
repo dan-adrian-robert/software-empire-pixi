@@ -34,6 +34,7 @@ npm run format    # Prettier format
 - Each project requires an upfront **insurance payment** to accept. If you finish successfully the insurance is refunded in full; if the project expires it is forfeited.
 - Accept or reject projects from the Projects panel; your company can run several active projects simultaneously (limited by `maxActiveProjects`).
 - Projects have per-skill point requirements with live progress bars. Tier-1 projects require Frontend Development; higher tiers unlock via research.
+- Every project is tagged with a **difficulty**: Common (×1.2), Uncommon (×1.5), or Rare (×2.0). Difficulty determines total SP relative to your team's current daily output — the pool scales automatically as your team grows.
 - Every project has four **milestone deadlines** (measured in elapsed days from acceptance):
   - **Ahead of Schedule** — finish early for a 1.25× bonus payout.
   - **On Track** — finish within the expected window for the full base payout (1.0×).
@@ -50,7 +51,7 @@ npm run format    # Prettier format
 - Each employee has an innate **base productivity trait** (0.85–1.05×) rolled once on creation.
 - Manually assign employees to projects via the **Assignment panel** (chip-based drag-assign UI). Unassigned employees display a **⚠ warning icon** above their head in the office view.
 - A floating **+N pts** label animates above an employee when a WORK period ends and they contributed points.
-- Click any employee in the office to open their **stats popup**: skills, salary, productivity, current project.
+- Click any employee in the office to open their **stats popup**: skills, salary, productivity, current project. When a skill point is available, upgrade buttons appear in both the stats popup and the **Staff panel**.
 
 ### Hiring & Firing
 - The **Hiring panel** shows up to **4 candidates** per day; the pool refreshes each new day.
@@ -58,11 +59,11 @@ npm run format    # Prettier format
 - Desk slots are limited; buy additional desks for **$1,000** each via the in-world purchase tile.
 
 ### Economy
-- Employee salaries are deducted at end-of-day.
+- Employee salaries are deducted at end-of-day. Salary is set at hire time based on the employee's skills: `dailySP × $100 × 40%` (median market rate from the PLOT.md balance table).
 - Accepting a project costs its insurance upfront; the insurance is refunded when you collect.
-- Project payouts are collected instantly when the player clicks **Collect** during the day. The amount equals `basePayout × milestoneMultiplier + insurance refund`.
+- Project payouts are collected instantly when the player clicks **Collect** during the day. The amount equals `basePayout × milestoneMultiplier + insurance refund`. Base payout = `totalSP × $100`.
 - **R&D points** accrue at end-of-day (10 pts/day base) and are spent in the Research tree.
-- A low-funds warning fires when cash drops below **$500**; bankruptcy is declared at **$0**.
+- A low-funds warning fires when cash drops below **$5,000**; bankruptcy is declared at **$0**.
 - The HUD shows current cash, daily salary cost, R&D points, and day number.
 
 ### Research Tree
@@ -131,12 +132,14 @@ src/
   config.js            — All gameplay tunables (single source of truth)
   main.js              — DOM bootstrap
   assets/              — Asset manifest (Pixi bundles)
-  data/                — Static seed data (skills, projects, weather, research, names)
+  data/                — Static seed data (skills, catalog JSONs, weather, research, names)
+  economy/             — Balance helpers (salary/payout formulas, team output, difficulty)
   entities/            — Pixi world objects (desk, employee, buy-desk)
   managers/            — AssetManager, InputManager
   scenes/              — MainMenuScene, OfficeScene (BaseScene lifecycle)
   state/               — Pure data factories (Company, Employee, Project, Office, Candidate)
-  systems/             — Simulation + subsystems (Time, Project, Economy, Hiring, Productivity, Notification)
+  systems/             — Simulation + subsystems (Time, Project, Economy, Hiring, Productivity,
+                         Notification, EmployeeGenerator, ProjectGenerator)
   ui/                  — HUD widgets, popups, modals
   ui/panels/           — Modal panel content (Projects, Staff, Hiring, Assignments, Research)
   utils/               — EventBus, math helpers
