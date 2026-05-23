@@ -14,7 +14,7 @@ import { createCompany } from '../state/Company.js';
 import { createProject, isPastCritical } from '../state/Project.js';
 import { PROJECT_TEMPLATES } from '../data/projectTemplates.js';
 import { RESEARCH_NODES } from '../data/researchNodes.js';
-import { SKILL_RESEARCH_NODE } from '../data/skills.js';
+import { SKILL_RESEARCH_NODE, SKILL_LABELS, MAX_SKILL_LEVEL } from '../data/skills.js';
 import { GameConfig } from '../config.js';
 
 import { TimeSystem } from './TimeSystem.js';
@@ -39,13 +39,15 @@ export class Simulation {
     /** @type {import('../state/Company.js').Company} */
     this.company = null;
 
-    this._endDayOff = null;
+    this._endDayOff   = null;
+    this._beginDayOff = null;
   }
 
   /** Called once during Game.init() and again on New Game. */
   reset() {
     // Tear down old listeners.
-    if (this._endDayOff) this._endDayOff();
+    if (this._endDayOff)   this._endDayOff();
+    if (this._beginDayOff) this._beginDayOff();
     this.notifications.destroy();
 
     this.company = createCompany();
@@ -64,7 +66,20 @@ export class Simulation {
       this._checkProjectDeadlines(company);
       this._refreshProjectPool(company);
       this.hiring.refreshCandidates(company);
+
+      // Snapshot notifications before they are cleared by day:began.
+      this.bus.emit('day:report', {
+        day:           company.day,
+        moneyEnd:      company.money,
+        notifications: [...this.notifications.notifications],
+        company,
+      });
+
       this.time.beginNextDay(company);
+    });
+
+    this._beginDayOff = this.bus.on('day:began', () => {
+      this.notifications.clear();
     });
 
     this.bus.emit('simulation:reset', { company: this.company });
@@ -234,6 +249,26 @@ export class Simulation {
   }
 
   /**
+   * Spend one pending skill point to improve an existing skill by 1 level.
+   * Only skills the employee already has (level ≥ 1) can be upgraded.
+   * @param {import('../state/Employee.js').Employee} employee
+   * @param {string} skillKey
+   * @returns {boolean} true if the upgrade was applied
+   */
+  upgradeEmployeeSkill(employee, skillKey) {
+    if (!employee || employee.pendingSkillPoints <= 0) return false;
+    const skill = employee.skills.find((s) => s.skill === skillKey && s.level >= 1);
+    if (!skill || skill.level >= MAX_SKILL_LEVEL) return false;
+    skill.level += 1;
+    employee.pendingSkillPoints -= 1;
+    this.bus.emit('notification:add', {
+      text: `${employee.name} upgraded ${SKILL_LABELS[skillKey] ?? skillKey} to Lv.${skill.level}!`,
+      type: 'success',
+    });
+    return true;
+  }
+
+  /**
    * Update the company's work schedule.
    * @param {number} startHour  Hour the work day starts (6–16).
    * @param {number} workHours  Duration: 8 | 10 | 12 | 14.
@@ -291,7 +326,6 @@ export class Simulation {
       (t) =>
         t.tier <= maxTier &&
         !company.activeProjects.some((p) => p.templateId === t.id) &&
-        !company.completedProjects.some((p) => p.templateId === t.id) &&
         t.requirements.every((req) => {
           const node = SKILL_RESEARCH_NODE[req.skill];
           return !node || company.unlockedResearch.includes(node);

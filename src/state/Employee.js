@@ -20,14 +20,21 @@ export const SCHEDULE_CYCLE = ['WORK', 'BREAK', 'WORK', 'TALK'];
  */
 export function createEmployee({ name, skills, salary }) {
   const { BASE_PRODUCTIVITY_MIN, BASE_PRODUCTIVITY_MAX } = GameConfig.gameplay;
+  const clampedSkills = skills.slice(0, 2);
   return {
     id: _nextId++,
     name,
     /** @type {Array<{skill: string, level: number}>} */
-    skills: skills.slice(0, 2),
+    skills: clampedSkills,
     salary,
     /** Innate productivity multiplier [0.85, 1.05], rolled once on creation. */
     baseProductivity: BASE_PRODUCTIVITY_MIN + Math.random() * (BASE_PRODUCTIVITY_MAX - BASE_PRODUCTIVITY_MIN),
+    /** Starting level = sum of all skill levels at creation; grows by 1 on each EXP-based level-up. */
+    level: clampedSkills.reduce((s, sk) => s + sk.level, 0),
+    /** Accumulated EXP toward the next level (0 – EXP_PER_LEVEL-1). */
+    exp: 0,
+    /** Skill points earned via levelling up but not yet spent by the player. */
+    pendingSkillPoints: 0,
     /** Id of the active project this employee is contributing to, or null. */
     activeProjectId: null,
     /** Manually pinned project id, or null for automatic greedy assignment. */

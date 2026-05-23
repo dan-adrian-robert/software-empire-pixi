@@ -77,11 +77,15 @@ export const GameConfig = Object.freeze({
     BANKRUPTCY_THRESHOLD: 0,
 
     // Number of past activity entries kept in the live panel.
-    ACTIVITY_LOG_MAX: 20,
+    ACTIVITY_LOG_MAX: 100,
 
     // Productivity engine: per-employee base productivity trait range.
     BASE_PRODUCTIVITY_MIN: 0.85,
     BASE_PRODUCTIVITY_MAX: 1.05,
+
+    // Employee experience system.
+    EXP_PER_TICK:  10,   // EXP awarded per WORK period flush when the employee contributed
+    EXP_PER_LEVEL: 100,  // EXP required to advance one level (flat per level)
 
     // Project milestone payout multipliers (applied to basePayout at completion).
     PROJECT_PAYOUT_MULTIPLIERS: Object.freeze({ ahead: 1.25, onTrack: 1.0, delayed: 0.75, critical: 0.5 }),

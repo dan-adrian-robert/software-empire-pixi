@@ -38,6 +38,10 @@ export class NotificationSystem {
     });
   }
 
+  clear() {
+    this.notifications = [];
+  }
+
   destroy() {
     if (this._off) {
       this._off();

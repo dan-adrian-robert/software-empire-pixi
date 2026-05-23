@@ -292,7 +292,7 @@ export class ProjectsPanel extends Container {
 
     if (!isActive) {
       const insText = new Text({
-        text: `Insurance: $${project.insurance.toLocaleString()}  ·  Base payout: $${project.basePayout.toLocaleString()}`,
+        text: `Insurance: $${project.insurance.toLocaleString()}  ·  $${project.basePayout.toLocaleString()} base (if done in \u2264${project.milestones.onTrack}d)`,
         style: { fill: TEXT_DIM, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 11 },
       });
       insText.position.set(startX + 10, reqY + 4);

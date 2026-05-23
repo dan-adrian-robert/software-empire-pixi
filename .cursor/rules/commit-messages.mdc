@@ -1,0 +1,65 @@
+---
+description: Write feature-focused markdown commit summaries (no file names). Use when the user asks for a commit message, commit summary, or changelog for uncommitted work.
+alwaysApply: false
+---
+
+# Commit Message Style
+
+When the user asks for a commit message or summary of uncommitted changes:
+
+1. Run `git status` and `git diff` to understand what changed.
+2. Group changes by **player-facing feature or behavior**, not by file or folder.
+3. Write for humans reading a changelog — not for developers scanning a diff.
+
+## Output format
+
+Return the message in a single fenced `markdown` code block so the user can copy it in one click.
+
+Structure:
+
+```markdown
+## Short title summarizing the main theme
+
+### Feature area 1
+- Bullet describing what was added or changed
+- Another bullet with enough detail to understand behavior
+
+### Feature area 2
+- ...
+```
+
+Also provide a **one-line title** outside the block when useful for `git commit -m`.
+
+## Content rules
+
+**Include:**
+- New features, gameplay systems, UI flows, and behavior changes
+- What the player or user can now do differently
+- Notable tweaks to existing behavior (e.g. limits raised, rules changed)
+
+**Exclude:**
+- File paths, module names, and function/class names
+- Implementation details (events, state fields, refactors) unless they change visible behavior
+- Line counts, diff stats, and "files changed" tables
+- Generic filler ("updated various files", "misc improvements")
+
+## Tone
+
+- Present tense or past tense — pick one and stay consistent within a message
+- One idea per bullet; keep bullets scannable
+- Prefer plain language over internal jargon
+
+## Example
+
+```markdown
+## Add end-of-day report, employee leveling, and scrollable activity log
+
+### End-of-day report
+- New day summary modal shown when a day ends
+- Shows finances, project outcomes, and a scrollable activity log
+- Player dismisses the report to continue to the next day
+
+### Employee leveling
+- Employees earn EXP while working and level up to gain skill points
+- Skill points can be spent to upgrade existing skills from the employee popup
+```

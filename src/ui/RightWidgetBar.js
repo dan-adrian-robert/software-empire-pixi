@@ -9,7 +9,7 @@
  * Clicking a button hides/shows its widget section. Widget sections stack
  * vertically and reflow whenever any toggle changes.
  */
-import { Container, Graphics, Text } from 'pixi.js';
+import { Container, Graphics, Text, Rectangle } from 'pixi.js';
 import { TOP_BAR_HEIGHT } from './TopBarHUD.js';
 import { SKILL_LABELS, SKILL_COLORS } from '../data/skills.js';
 import { getActiveMilestoneStatus } from '../state/Project.js';
@@ -32,9 +32,10 @@ const TOGGLE_OFF_BG = 0x111828;
 const TOGGLE_OFF_BD = 0x1e2d47;
 
 // Activity widget
-const ACT_ROW_H  = 36;
+const ACT_ROW_H   = 36;
 const ACT_ROW_GAP = 2;
 const ACT_PADDING = 10;
+const ACT_MAX_H   = 440; // fixed viewport height; content scrolls beyond this
 
 const TYPE_COLORS = {
   info:     0x6b7fa3,
@@ -97,6 +98,7 @@ export class RightWidgetBar extends Container {
     this._height           = 600;
     this._lastCount        = -1;  // notifications length cache
     this._lastProjectsKey  = '';  // fingerprint of active project progress
+    this._activityScrollY  = 0;   // current scroll offset for the activity viewport
   }
 
   init(screenWidth, screenHeight) {
@@ -233,30 +235,28 @@ export class RightWidgetBar extends Container {
     this._content.addChild(header);
     y += 18;
 
-    const availH  = this._height - TOGGLE_H - y;
-    const maxRows = Math.max(1, Math.floor(availH / (ACT_ROW_H + ACT_ROW_GAP)));
-    const visible = notifs.slice(0, maxRows);
-
-    if (visible.length === 0) {
+    if (notifs.length === 0) {
       const empty = this._makeDimText('No activity yet.', ACT_PADDING, y);
       this._content.addChild(empty);
       return y + 20;
     }
 
-    visible.forEach((n, i) => {
-      const rowY = y + i * (ACT_ROW_H + ACT_ROW_GAP);
+    // Build all rows into an inner container so we can measure and scroll.
+    const rows = new Container();
+    notifs.forEach((n, i) => {
+      const rowY = i * (ACT_ROW_H + ACT_ROW_GAP);
 
       const rowBg = new Graphics()
         .rect(ACT_PADDING / 2, 0, RIGHT_SIDEBAR_WIDTH - ACT_PADDING, ACT_ROW_H)
         .fill({ color: TYPE_BG[n.type] ?? TYPE_BG.info });
       rowBg.y = rowY;
-      this._content.addChild(rowBg);
+      rows.addChild(rowBg);
 
       const dot = new Graphics()
         .circle(0, 0, 4)
         .fill({ color: TYPE_COLORS[n.type] ?? TYPE_COLORS.info });
       dot.position.set(ACT_PADDING + 4, rowY + ACT_ROW_H / 2);
-      this._content.addChild(dot);
+      rows.addChild(dot);
 
       const label = new Text({
         text: n.text,
@@ -270,10 +270,40 @@ export class RightWidgetBar extends Container {
         },
       });
       label.position.set(ACT_PADDING + 14, rowY + 4);
-      this._content.addChild(label);
+      rows.addChild(label);
     });
 
-    return y + visible.length * (ACT_ROW_H + ACT_ROW_GAP) + 4;
+    const contentH  = notifs.length * (ACT_ROW_H + ACT_ROW_GAP);
+    const viewportH = Math.min(ACT_MAX_H, contentH);
+
+    // Clamp stored scroll so it remains valid after a daily clear or list shrink.
+    const maxScroll = -(contentH - viewportH);
+    this._activityScrollY = Math.max(maxScroll, Math.min(0, this._activityScrollY));
+    rows.y = this._activityScrollY;
+
+    // Clip mask positioned in _content-local space.
+    const mask = new Graphics()
+      .rect(0, y, RIGHT_SIDEBAR_WIDTH, viewportH)
+      .fill({ color: 0xffffff });
+    this._content.addChild(mask);
+
+    // Viewport container captures wheel events over the clipped area.
+    const viewport = new Container();
+    viewport.eventMode = 'static';
+      viewport.hitArea   = new Rectangle(0, 0, RIGHT_SIDEBAR_WIDTH, viewportH);
+    viewport.y         = y;
+    viewport.mask      = mask;
+    viewport.addChild(rows);
+
+    viewport.on('wheel', (e) => {
+      const maxS = -(contentH - viewportH);
+      this._activityScrollY = Math.max(maxS, Math.min(0, this._activityScrollY - e.deltaY * 0.5));
+      rows.y = this._activityScrollY;
+    });
+
+    this._content.addChild(viewport);
+
+    return y + viewportH + 4;
   }
 
   // ── Projects section ────────────────────────────────────────────────────────

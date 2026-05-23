@@ -18,6 +18,7 @@ import {
   MAX_SKILL_LEVEL,
 } from '../data/skills.js';
 import { SCHEDULE_CYCLE } from '../state/Employee.js';
+import { GameConfig } from '../config.js';
 
 const POPUP_W = 240;
 const P = 14;                  // inner padding
@@ -43,6 +44,15 @@ const ALL_SKILLS = Object.values(SKILLS);
 
 const SCHEDULE_ICONS = { WORK: '💻', BREAK: '☕', TALK: '💬' };
 
+// EXP bar
+const EXP_COLOR       = 0x818cf8;  // indigo
+const EXP_EMPTY_COLOR = 0x1a1a3a;
+
+// Skill upgrade section
+const UPGRADE_HEADER_COLOR = 0x818cf8;
+const UPGRADE_BTN_BG       = 0x12102a;
+const UPGRADE_BTN_BORDER   = 0x818cf8;
+
 // Warning colours (shown when employee has no project assignment)
 const WARN_BG     = 0x1a1000;
 const WARN_BORDER = 0xfbbf24;
@@ -50,8 +60,10 @@ const WARN_TEXT   = 0xfbbf24;
 const WARN_DIM    = 0x8a7040;
 
 export class EmployeeStatsPopup extends Container {
-  constructor() {
+  /** @param {import('../Game.js').Game} game */
+  constructor(game) {
     super();
+    this.game = game;
     this.visible = false;
     this._emp = null;
     this._screenW = 0;
@@ -161,7 +173,54 @@ export class EmployeeStatsPopup extends Container {
     });
     statusText.position.set(P, y);
     this._content.addChild(statusText);
-    y += 22;
+    y += 18;
+
+    // ── Level + EXP bar ──────────────────────────────────
+    const { EXP_PER_LEVEL } = GameConfig.gameplay;
+    const expFrac = Math.min(1, (emp.exp ?? 0) / EXP_PER_LEVEL);
+
+    const levelLabel = new Text({
+      text: `Lv. ${emp.level ?? 0}`,
+      style: {
+        fill: EXP_COLOR,
+        fontFamily: 'Inter, system-ui, sans-serif',
+        fontSize: 10,
+        fontWeight: '700',
+      },
+    });
+    levelLabel.position.set(P, y);
+    this._content.addChild(levelLabel);
+
+    const expBarW = POPUP_W - P * 2 - 46;  // reserve left for "Lv. N"
+    const expBarX = P + 40;
+    const expBarH = 6;
+
+    const expBg = new Graphics()
+      .roundRect(0, 0, expBarW, expBarH, 2)
+      .fill({ color: EXP_EMPTY_COLOR });
+    expBg.position.set(expBarX, y + 2);
+    this._content.addChild(expBg);
+
+    if (expFrac > 0) {
+      const expFill = new Graphics()
+        .roundRect(0, 0, Math.max(0, expBarW * expFrac), expBarH, 2)
+        .fill({ color: EXP_COLOR, alpha: 0.85 });
+      expFill.position.set(expBarX, y + 2);
+      this._content.addChild(expFill);
+    }
+
+    const expLabel = new Text({
+      text: `${emp.exp ?? 0}/${EXP_PER_LEVEL}`,
+      style: {
+        fill: TEXT_DIM,
+        fontFamily: 'Inter, system-ui, sans-serif',
+        fontSize: 9,
+      },
+    });
+    expLabel.anchor.set(1, 0);
+    expLabel.position.set(POPUP_W - P, y);
+    this._content.addChild(expLabel);
+    y += 16;
 
     // ── Divider ──────────────────────────────────────────
     const div = new Graphics()
@@ -182,6 +241,65 @@ export class EmployeeStatsPopup extends Container {
       row.position.set(P, y);
       this._content.addChild(row);
       y += SKILL_ROW_H;
+    }
+
+    // ── Skill upgrade section (if pending points) ────────
+    if ((emp.pendingSkillPoints ?? 0) > 0) {
+      const upgradableSkills = emp.skills.filter(
+        (s) => s.level >= 1 && s.level < MAX_SKILL_LEVEL,
+      );
+
+      const upgradeHeader = new Text({
+        text: `SKILL UPGRADE  (${emp.pendingSkillPoints} available)`,
+        style: {
+          fill:       UPGRADE_HEADER_COLOR,
+          fontFamily: 'Inter, system-ui, sans-serif',
+          fontSize:   9,
+          fontWeight: '700',
+        },
+      });
+      upgradeHeader.position.set(P, y);
+      this._content.addChild(upgradeHeader);
+      y += 16;
+
+      const BTN_H   = 24;
+      const BTN_GAP = 6;
+      const BTN_W   = Math.floor((POPUP_W - P * 2 - BTN_GAP * (upgradableSkills.length - 1)) / Math.max(1, upgradableSkills.length));
+
+      upgradableSkills.forEach((sk, i) => {
+        const btnX   = P + i * (BTN_W + BTN_GAP);
+        const skColor = SKILL_COLORS[sk.skill] ?? 0x4a9eff;
+        const btnBg  = new Graphics()
+          .roundRect(0, 0, BTN_W, BTN_H, 4)
+          .fill({ color: UPGRADE_BTN_BG })
+          .stroke({ color: skColor, width: 1, alpha: 0.7 });
+        btnBg.position.set(btnX, y);
+        btnBg.eventMode = 'static';
+        btnBg.cursor = 'pointer';
+
+        const btnLabel = new Text({
+          text: `${SKILL_LABELS_SHORT[sk.skill] ?? sk.skill} ${sk.level}→${sk.level + 1}`,
+          style: {
+            fill:       skColor,
+            fontFamily: 'Inter, system-ui, sans-serif',
+            fontSize:   10,
+            fontWeight: '600',
+          },
+        });
+        btnLabel.anchor.set(0.5, 0.5);
+        btnLabel.position.set(BTN_W / 2, BTN_H / 2);
+        btnBg.addChild(btnLabel);
+
+        btnBg.on('pointerup', () => {
+          const ok = this.game.sim.upgradeEmployeeSkill(emp, sk.skill);
+          if (ok) this._draw(emp, company);
+        });
+        btnBg.on('pointerover', () => { btnBg.alpha = 0.75; });
+        btnBg.on('pointerout',  () => { btnBg.alpha = 1; });
+
+        this._content.addChild(btnBg);
+      });
+      y += BTN_H + 8;
     }
 
     // ── Bottom section: warning OR schedule ──────────────

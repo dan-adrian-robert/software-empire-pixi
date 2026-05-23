@@ -20,6 +20,7 @@ import { Modal } from '../ui/Modal.js';
 import { EmployeeStatsPopup } from '../ui/EmployeeStatsPopup.js';
 import { SchedulePopup } from '../ui/SchedulePopup.js';
 import { WeatherPopup } from '../ui/WeatherPopup.js';
+import { DayReportPopup } from '../ui/DayReportPopup.js';
 import { Toast } from '../ui/Toast.js';
 
 import { ProjectsPanel } from '../ui/panels/ProjectsPanel.js';
@@ -89,7 +90,7 @@ export class OfficeScene extends BaseScene {
     this._modal = new Modal(() => this._onModalClosed());
 
     // Employee stats popup (click on world employee to open).
-    this._statsPopup = new EmployeeStatsPopup();
+    this._statsPopup = new EmployeeStatsPopup(this.game);
 
     // Work schedule popup (toggled via Schedule sidebar button).
     this._schedulePopup = new SchedulePopup((startHour, workHours) => {
@@ -98,6 +99,9 @@ export class OfficeScene extends BaseScene {
 
     // Weather info popup (click on weather chip in top bar row 2).
     this._weatherPopup = new WeatherPopup();
+
+    // End-of-day report popup.
+    this._dayReportPopup = new DayReportPopup(() => this._dayReportPopup.close());
 
     // Active nav view id ('office' | 'projects' | 'employees' | 'hiring').
     this._activeView = 'office';
@@ -125,6 +129,7 @@ export class OfficeScene extends BaseScene {
     this._popupLayer.addChild(this._schedulePopup);
     this._popupLayer.addChild(this._statsPopup);
     this._popupLayer.addChild(this._weatherPopup);
+    this._popupLayer.addChild(this._dayReportPopup);
 
     // Modal layer sits between world and HUD so HUD elements stay interactive.
     this.root.addChild(this._modalLayer);
@@ -169,6 +174,12 @@ export class OfficeScene extends BaseScene {
       if (this._activeView === 'projects') this._modal.refresh();
       this._widgetBar.refresh(true);
     });
+    this.listen('employee:levelup', ({ employee }) => {
+      if (this._statsPopup?.currentEmp?.id === employee.id) {
+        this._statsPopup.refresh(this.game.sim?.company);
+      }
+      if (this._activeView === 'staff') this._modal.refresh();
+    });
     this.listen('notification:add', ({ text, type }) => {
       this._spawnToast(text, type);
       this._widgetBar.refresh(true);
@@ -176,6 +187,10 @@ export class OfficeScene extends BaseScene {
     this.listen('research:unlocked', () => {
       if (this._activeView === 'research') this._modal.refresh();
       this._topBar.refresh();
+    });
+    this.listen('day:report', (snapshot) => {
+      const { width, height } = this.game.screen;
+      this._dayReportPopup.open(snapshot, width, height);
     });
     this.listen('simulation:reset', () => {
       this._rebuildOffice();
@@ -262,6 +277,7 @@ export class OfficeScene extends BaseScene {
     this._modal.resize(width, height);
     this._statsPopup.resize(width, height);
     this._weatherPopup.resize(width, height);
+    this._dayReportPopup.resize(width, height);
     if (this._schedulePopup.visible) {
       this._schedulePopup.open(this.game.sim?.company, width, height);
     }
@@ -513,6 +529,7 @@ export class OfficeScene extends BaseScene {
     this._modal.refresh();
     this._statsPopup.close();
     this._weatherPopup.close();
+    this._widgetBar.refresh(true);
   }
 
   // -----------------------------------------------------------------------

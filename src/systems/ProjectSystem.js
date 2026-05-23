@@ -149,6 +149,25 @@ export class ProjectSystem {
       employee.workPeriodTotal = 0;
     });
 
+    // ── EXP accrual ──────────────────────────────────────────────────────────
+    const { EXP_PER_TICK, EXP_PER_LEVEL } = GameConfig.gameplay;
+    company.employees.forEach((emp, i) => {
+      if ((totals.get(i) ?? 0) <= 0) return;
+
+      emp.exp += EXP_PER_TICK;
+
+      while (emp.exp >= EXP_PER_LEVEL) {
+        emp.exp -= EXP_PER_LEVEL;
+        emp.level += 1;
+        emp.pendingSkillPoints += 1;
+        this.bus.emit('employee:levelup', { employee: emp, company });
+        this.bus.emit('notification:add', {
+          text: `${emp.name} reached Level ${emp.level}! Skill point available.`,
+          type: 'success',
+        });
+      }
+    });
+
     return totals;
   }
 

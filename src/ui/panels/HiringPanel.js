@@ -147,6 +147,21 @@ export class HiringPanel extends Container {
     nameText.position.set(PADDING + INNER, startY + 12);
     this._scroll.addChild(nameText);
 
+    // Level badge — derived from sum of skill levels (candidates have no tracked level)
+    const candidateLevel = candidate.skills.reduce((s, sk) => s + sk.level, 0);
+    const levelBadge = new Text({
+      text: `Lv. ${candidateLevel}`,
+      style: {
+        fill: canHire ? 0x818cf8 : TEXT_DIM,
+        fontFamily: 'Inter, system-ui, sans-serif',
+        fontSize: 11,
+        fontWeight: '700',
+      },
+    });
+    levelBadge.anchor.set(1, 0);
+    levelBadge.position.set(PADDING + cardW - INNER - 72, startY + 14);
+    this._scroll.addChild(levelBadge);
+
     // Salary (right-aligned)
     const salaryText = new Text({
       text: `$${candidate.salary}/day`,

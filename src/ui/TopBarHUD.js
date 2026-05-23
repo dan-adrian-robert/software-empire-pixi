@@ -53,6 +53,7 @@ const BTN_R            = 6;
 const BTN_GAP          = 6;
 const BTN_RIGHT_MARGIN = 14;
 const START_BTN_W      = 100;
+const END_BTN_W        = 100;
 const BTN_NORMAL       = 0x1c2740;
 const BTN_ACTIVE       = 0x2a4a8a;
 const BTN_HOVER        = 0x253352;
@@ -104,6 +105,9 @@ export class TopBarHUD extends Container {
     /** @type {Container|null} */
     this._startDayBtn = null;
 
+    /** @type {Container|null} */
+    this._endDayBtn = null;
+
     /** @type {((anchorX: number, anchorY: number) => void)|null} */
     this._onWeatherClick = null;
   }
@@ -123,6 +127,7 @@ export class TopBarHUD extends Container {
     this._buildFields();
     this._buildSpeedButtons();
     this._buildStartDayButton();
+    this._buildEndDayButton();
     this.refresh();
   }
 
@@ -312,10 +317,14 @@ export class TopBarHUD extends Container {
       entry.container.position.set(x, y);
       x += BTN_W + BTN_GAP;
     }
+    const speedBlockX = this._width - BTN_RIGHT_MARGIN - totalW;
     if (this._startDayBtn) {
-      const speedBlockX = this._width - BTN_RIGHT_MARGIN - totalW;
       this._startDayBtn.x = speedBlockX - START_BTN_W - BTN_GAP;
       this._startDayBtn.y = y;
+    }
+    if (this._endDayBtn) {
+      this._endDayBtn.x = speedBlockX - END_BTN_W - BTN_GAP;
+      this._endDayBtn.y = y;
     }
   }
 
@@ -355,11 +364,46 @@ export class TopBarHUD extends Container {
     this._updateStartDayButton();
   }
 
+  _buildEndDayButton() {
+    const container = new Container();
+    container.eventMode = 'static';
+    container.cursor    = 'pointer';
+
+    const bg = new Graphics()
+      .roundRect(0, 0, END_BTN_W, BTN_H, BTN_R)
+      .fill({ color: 0x2a1a0a })
+      .stroke({ color: 0xfb923c, width: 1 });
+
+    const label = new Text({
+      text: 'End Day \u23ED',
+      style: {
+        fill:       0xfb923c,
+        fontFamily: 'Inter, system-ui, sans-serif',
+        fontSize:   13,
+        fontWeight: '700',
+      },
+    });
+    label.anchor.set(0.5);
+    label.position.set(END_BTN_W / 2, BTN_H / 2);
+
+    container.addChild(bg);
+    container.addChild(label);
+    container.on('pointerup',   () => this.game.sim.endDay());
+    container.on('pointerover', () => { bg.alpha = 0.8; });
+    container.on('pointerout',  () => { bg.alpha = 1; });
+
+    this._endDayBtn = container;
+    this.addChild(container);
+    this._repositionSpeedButtons();
+    this._updateStartDayButton();
+  }
+
   _updateStartDayButton() {
-    if (!this._startDayBtn) return;
     const time = this.game.sim?.time;
     if (!time) return;
-    this._startDayBtn.visible = time.dayProgress === 0 && time.gameSpeed === 0;
+    const atDayStart = time.dayProgress === 0 && time.gameSpeed === 0;
+    if (this._startDayBtn) this._startDayBtn.visible = atDayStart;
+    if (this._endDayBtn)   this._endDayBtn.visible   = !atDayStart;
   }
 
   _makeButton(label, onClick) {

@@ -143,6 +143,20 @@ export class EmployeesPanel extends Container {
     nameText.position.set(PADDING + INNER, startY + 12);
     this._scroll.addChild(nameText);
 
+    // Level badge (left of salary)
+    const levelBadge = new Text({
+      text: `Lv. ${emp.level ?? 0}`,
+      style: {
+        fill: 0x818cf8,
+        fontFamily: 'Inter, system-ui, sans-serif',
+        fontSize: 11,
+        fontWeight: '700',
+      },
+    });
+    levelBadge.anchor.set(1, 0);
+    levelBadge.position.set(PADDING + cardW - INNER - 72, startY + 14);
+    this._scroll.addChild(levelBadge);
+
     // Salary (right-aligned in name row)
     const salaryText = new Text({
       text: `$${emp.salary}/day`,
