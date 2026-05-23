@@ -10,23 +10,12 @@ export const STARTER_DAY = 1;
 export const STARTER_MAX_ACTIVE_PROJECTS = 3;
 export const STARTER_OFFICE_TIER_INDEX = 0; // Small Office (3 desks)
 
-/** Two pre-built employees that are part of the starting team. */
+/** Single pre-built employee on the starting team. */
 export const STARTER_EMPLOYEES = [
   {
     name: 'Alex Morgan',
-    skills: [
-      { skill: SKILLS.FRONTEND_DEVELOPMENT, level: 8 },
-      { skill: SKILLS.BACKEND_DEVELOPMENT, level: 3 },
-    ],
-    salary: 120,
-  },
-  {
-    name: 'Riley Chen',
-    skills: [
-      { skill: SKILLS.MOBILE_DEVELOPMENT, level: 7 },
-      { skill: SKILLS.FRONTEND_DEVELOPMENT, level: 4 },
-    ],
-    salary: 110,
+    skills: [{ skill: SKILLS.FRONTEND_DEVELOPMENT, level: 1 }],
+    salary: 50,
   },
 ];
 
