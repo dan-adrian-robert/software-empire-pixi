@@ -418,6 +418,7 @@ export class OfficeScene extends BaseScene {
     }
 
     this._modal.open(PANEL_TITLES[viewId], panel, width, height);
+    this.game.sound.play('ui_modal_open');
   }
 
   /** Called by Modal when it closes itself (X button or backdrop click). */

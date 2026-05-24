@@ -38,6 +38,9 @@ export const assetManifest = {
       assets: [
         // { alias: 'office-tileset', src: 'assets/office/tiles.png' },
         // { alias: 'employee-sheet', src: 'assets/office/employees.json' },
+        // SFX — loaded directly by SoundManager (not via Pixi Assets).
+        // { alias: 'sfx-modal-open',    src: 'assets/audio/sfx/ui_modal_open.mp3' },
+        // { alias: 'sfx-project-claim', src: 'assets/audio/sfx/ui_project_claim.mp3' },
       ],
     },
   ],

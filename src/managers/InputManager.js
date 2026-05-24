@@ -29,6 +29,10 @@ export class InputManager {
     /** @type {HTMLElement | null} */
     this._target = null;
 
+    /** @type {Array<() => void>} One-shot callbacks for first user interaction. */
+    this._firstInteractionCbs = [];
+    this._interacted = false;
+
     this._onKeyDown = this._onKeyDown.bind(this);
     this._onKeyUp = this._onKeyUp.bind(this);
     this._onPointerMove = this._onPointerMove.bind(this);
@@ -67,6 +71,19 @@ export class InputManager {
       this._target.removeEventListener('pointercancel', this._onPointerUp);
       this._target = null;
     }
+  }
+
+  /**
+   * Register a one-shot callback fired on the very first pointerdown. Useful
+   * for satisfying browser autoplay policy before attempting audio playback.
+   * @param {() => void} cb
+   */
+  onFirstInteraction(cb) {
+    if (this._interacted) {
+      cb();
+      return;
+    }
+    this._firstInteractionCbs.push(cb);
   }
 
   // ------------------------------------------------------------------
@@ -118,6 +135,14 @@ export class InputManager {
     this.pointer.y = e.clientY;
     this.pointer.isDown = true;
     this.pointer.justPressed = true;
+    this._fireFirstInteraction();
+  }
+
+  _fireFirstInteraction() {
+    if (this._interacted) return;
+    this._interacted = true;
+    for (const cb of this._firstInteractionCbs) cb();
+    this._firstInteractionCbs.length = 0;
   }
 
   _onPointerUp(e) {

@@ -12,6 +12,7 @@ import { Application, Container } from 'pixi.js';
 import { GameConfig } from './config.js';
 import { AssetManager } from './managers/AssetManager.js';
 import { InputManager } from './managers/InputManager.js';
+import { SoundManager } from './managers/SoundManager.js';
 import { SceneManager } from './systems/SceneManager.js';
 import { Simulation } from './systems/Simulation.js';
 import { EventBus } from './utils/EventBus.js';
@@ -34,6 +35,7 @@ export class Game {
     /** Managers - lazily wired in `init`. */
     this.assets = new AssetManager();
     this.input = new InputManager();
+    this.sound = new SoundManager();
     this.scenes = new SceneManager(this);
 
     /** Gameplay simulation - owns Company state and all systems. */
@@ -66,6 +68,10 @@ export class Game {
     this.app.stage.addChild(this.root);
 
     this.input.attach(this.app.canvas);
+    this.input.onFirstInteraction(() => this.sound.unlock());
+
+    await this.sound.init();
+    this.sound.bindEvents(this.events);
 
     this._registerScenes();
 
@@ -100,6 +106,7 @@ export class Game {
 
     this.scenes.destroy();
     this.input.detach();
+    this.sound.destroy();
 
     this.app.destroy(true, { children: true, texture: true });
     this._initialized = false;

@@ -50,6 +50,12 @@ export const GameConfig = Object.freeze({
     showFPS: true,
   },
 
+  audio: Object.freeze({
+    enabled: true,
+    masterVolume: 1,
+    sfxVolume: 0.8,
+  }),
+
   gameplay: Object.freeze({
     // Real seconds it takes to simulate one in-game day at 1x speed.
     DAY_DURATION_SECONDS: 180,
