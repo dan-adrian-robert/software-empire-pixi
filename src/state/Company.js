@@ -95,6 +95,17 @@ export function createCompany() {
      * @type {import('../data/weatherTypes.js').WeatherType | null}
      */
     currentWeather: null,
+
+    /**
+     * SP production history for the current day.
+     * Populated by recordSpPeriod() at the end of each WORK period.
+     */
+    dailySpProductivity: {
+      day: STARTER_DAY,
+      /** SP flushed at the end of each WORK period, in chronological order. */
+      periods: /** @type {number[]} */ ([]),
+      total: 0,
+    },
   };
 }
 
@@ -116,4 +127,33 @@ export function dailySalaryCost(company) {
 /** Estimated daily profit = pending payout (avg per day) - salary cost. */
 export function estimatedDailyProfit(company) {
   return -dailySalaryCost(company);
+}
+
+/** Reset the daily SP productivity snapshot for a new day. */
+export function resetDailySpProductivity(company) {
+  company.dailySpProductivity.day     = company.day;
+  company.dailySpProductivity.periods = [];
+  company.dailySpProductivity.total   = 0;
+}
+
+/**
+ * Record the SP produced at the end of a WORK period.
+ * @param {Company} company
+ * @param {number}  sp  Raw SP sum (will be rounded to 1 decimal).
+ */
+export function recordSpPeriod(company, sp) {
+  if (sp <= 0) return;
+  const rounded = Math.round(sp * 10) / 10;
+  company.dailySpProductivity.periods.push(rounded);
+  company.dailySpProductivity.total = Math.round((company.dailySpProductivity.total + rounded) * 10) / 10;
+}
+
+/**
+ * Sum of in-progress (buffered but not yet flushed) SP across all employees.
+ * Used for the live partial bar.
+ * @param {Company} company
+ * @returns {number}
+ */
+export function currentPeriodSp(company) {
+  return company.employees.reduce((s, e) => s + e.workPeriodTotal, 0);
 }

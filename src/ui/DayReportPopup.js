@@ -35,6 +35,9 @@ const YELLOW       = 0xfbbf24;
 const BLUE         = 0x60a5fa;
 const INDIGO       = 0x818cf8;
 
+const SP_BAR_COLOR  = 0x4a7acc;
+const SP_TRACK_COLOR = 0x1a2a44;
+
 const MILESTONE_COLORS = {
   ahead:    GREEN,
   onTrack:  BLUE,
@@ -131,15 +134,20 @@ export class DayReportPopup extends Container {
     this._screenW      = 800;
     this._screenH      = 600;
     this._logScrollY   = 0;
+    this._cardScrollY  = 0;   // current card-level scroll offset
+    this._viewportH    = 600; // visible card height (may be less than totalH)
+    this._totalH       = 600; // full rendered content height
+    this._cardMask     = null;
   }
 
   // ── Public API ────────────────────────────────────────────────────────────
 
   open(snapshot, screenW, screenH) {
-    this._snapshot   = snapshot;
-    this._screenW    = screenW;
-    this._screenH    = screenH;
-    this._logScrollY = 0;
+    this._snapshot    = snapshot;
+    this._screenW     = screenW;
+    this._screenH     = screenH;
+    this._logScrollY  = 0;
+    this._cardScrollY = 0;
 
     this._drawBackdrop(screenW, screenH);
     this._draw(snapshot);
@@ -161,6 +169,8 @@ export class DayReportPopup extends Container {
     this._screenW = screenW;
     this._screenH = screenH;
     this._drawBackdrop(screenW, screenH);
+    // Redraw so the viewport height re-clamps to the new screen size.
+    this._draw(this._snapshot);
     this._center(screenW, screenH);
   }
 
@@ -176,14 +186,24 @@ export class DayReportPopup extends Container {
   _center(screenW, screenH) {
     this._card.position.set(
       Math.round((screenW - W) / 2),
-      Math.round(Math.max(16, (screenH - this._totalH) / 2)),
+      Math.round(Math.max(16, (screenH - this._viewportH) / 2)),
     );
   }
 
   _draw(snapshot) {
+    // Tear down previous scroll mask so it doesn't leak across redraws.
+    if (this._cardMask) {
+      this._card.removeChild(this._cardMask);
+      this._cardMask.destroy();
+      this._cardMask = null;
+    }
+    this._content.mask = null;
+    this._content.y    = 0;
+    this._card.removeAllListeners('wheel');
+
     this._content.removeChildren();
 
-    const { day, moneyEnd, notifications, company } = snapshot;
+    const { day, moneyEnd, notifications, spProductivity, company } = snapshot;
 
     // ── Compute derived data ────────────────────────────────────────────────
     const completedToday = (company.completedProjects ?? []).filter(
@@ -342,6 +362,87 @@ export class DayReportPopup extends Container {
       y = divider(y, this._content);
     }
 
+    // ── SP Productivity ──────────────────────────────────────────────────────
+    const spProd = spProductivity;
+    if (spProd && (spProd.total > 0 || spProd.periods.length > 0)) {
+      y = sectionLabel('SP PRODUCTIVITY', y, this._content);
+
+      // Total summary row
+      y = kvRow('Total SP produced', `${Math.round(spProd.total * 10) / 10} SP`, INDIGO, y, this._content);
+
+      if (spProd.periods.length > 0) {
+        y += 6;
+
+        // ── Chart layout ──
+        const Y_AXIS_W  = 28;   // left gutter for Y-axis labels
+        const X_AXIS_H  = 16;   // bottom gutter for X-axis labels
+        const CHART_H   = 90;   // height of the bar-drawing area
+        const CHART_W   = W - P * 2 - Y_AXIS_W;
+        const n         = spProd.periods.length;
+        const BAR_GAP   = n > 8 ? 2 : 3;
+        const BAR_SLOT  = CHART_W / n;
+        const BAR_W     = Math.max(4, BAR_SLOT - BAR_GAP);
+        const maxSp     = Math.max(...spProd.periods, 1);
+        const { startHour } = company.schedule ?? { startHour: 8 };
+
+        // Origin in content-local coords
+        const chartX = P + Y_AXIS_W;  // left edge of bar area
+        const chartY = y;              // top of bar area
+
+        // ── Y-axis gridlines + labels (0, mid, max) ──
+        const yTicks = [0, 0.5, 1];
+        yTicks.forEach((frac) => {
+          const lineY = chartY + CHART_H - Math.round(frac * CHART_H);
+
+          const grid = new Graphics()
+            .moveTo(chartX, lineY)
+            .lineTo(chartX + CHART_W, lineY)
+            .stroke({ color: frac === 0 ? DIVIDER_COL : 0x1e2d47, width: 1 });
+          this._content.addChild(grid);
+
+          const spVal = Math.round(maxSp * frac * 10) / 10;
+          const lbl = makeText(spVal % 1 === 0 ? String(spVal | 0) : spVal.toFixed(1), 8, TEXT_DIM);
+          lbl.anchor.set(1, 0.5);
+          lbl.position.set(chartX - 4, lineY);
+          this._content.addChild(lbl);
+        });
+
+        // ── Bars ──
+        spProd.periods.forEach((sp, i) => {
+          const barH  = Math.max(1, Math.round(CHART_H * (sp / maxSp)));
+          const barX  = chartX + i * BAR_SLOT + (BAR_SLOT - BAR_W) / 2;
+          const barY  = chartY + CHART_H - barH;
+
+          const bar = new Graphics()
+            .roundRect(0, 0, BAR_W, barH, 2)
+            .fill({ color: SP_BAR_COLOR });
+          bar.position.set(barX, barY);
+          this._content.addChild(bar);
+        });
+
+        // ── X-axis labels (one per full hour) ──
+        const xAxisY = chartY + CHART_H + 3;
+        const hoursShown = new Set();
+        spProd.periods.forEach((_, i) => {
+          const hour = startHour + Math.floor(i / 2);
+          if (hoursShown.has(hour)) return;
+          hoursShown.add(hour);
+
+          // Position at left edge of the first period in this hour
+          const slotCentreX = chartX + i * BAR_SLOT + BAR_SLOT / 2;
+
+          const lbl = makeText(`${hour}:00`, 8, TEXT_DIM);
+          lbl.anchor.set(0.5, 0);
+          lbl.position.set(slotCentreX, xAxisY);
+          this._content.addChild(lbl);
+        });
+
+        y += CHART_H + X_AXIS_H + 6;
+      }
+
+      y = divider(y, this._content);
+    }
+
     // ── Activity log ────────────────────────────────────────────────────────
     y = sectionLabel(`ACTIVITY LOG  (${notifications.length} entries)`, y, this._content);
 
@@ -429,12 +530,43 @@ export class DayReportPopup extends Container {
     btnBg.on('pointerout',  () => { btnBg.alpha = 1; });
 
     y += BTN_H + P;
+    this._totalH = y;
+
+    // ── Viewport capping + card-level scroll ────────────────────────────────
+    const CARD_MARGIN   = 40;  // total top + bottom screen margin
+    this._viewportH = Math.min(this._totalH, this._screenH - CARD_MARGIN);
+
+    if (this._viewportH < this._totalH) {
+      // Clamp current scroll so content never goes out of bounds.
+      const minScroll = this._viewportH - this._totalH;  // negative
+      this._cardScrollY = Math.max(minScroll, Math.min(0, this._cardScrollY));
+      this._content.y   = this._cardScrollY;
+
+      // Mask to the visible card area.
+      const mask = new Graphics()
+        .rect(0, 0, W, this._viewportH)
+        .fill({ color: 0xffffff });
+      this._cardMask = mask;
+      this._card.addChild(mask);
+      this._content.mask = mask;
+
+      // Scroll handler on the card.
+      this._card.eventMode = 'static';
+      this._card.hitArea   = new Rectangle(0, 0, W, this._viewportH);
+      this._card.on('wheel', (e) => {
+        const minS = this._viewportH - this._totalH;
+        this._cardScrollY = Math.max(minS, Math.min(0, this._cardScrollY - e.deltaY * 0.5));
+        this._content.y   = this._cardScrollY;
+      });
+    } else {
+      this._viewportH   = this._totalH;
+      this._cardScrollY = 0;
+    }
 
     // ── Window background ───────────────────────────────────────────────────
-    this._totalH = y;
     this._winBg
       .clear()
-      .roundRect(0, 0, W, y, 10)
+      .roundRect(0, 0, W, this._viewportH, 10)
       .fill({ color: BG })
       .stroke({ color: BORDER, width: 1.5 });
   }

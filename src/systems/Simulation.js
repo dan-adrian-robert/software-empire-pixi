@@ -10,7 +10,7 @@
  *   - Provide reset() for "New Game".
  *   - Expose project management actions (acceptProject, rejectProject).
  */
-import { createCompany } from '../state/Company.js';
+import { createCompany, resetDailySpProductivity } from '../state/Company.js';
 import { isPastCritical } from '../state/Project.js';
 import { RESEARCH_NODES } from '../data/researchNodes.js';
 import { SKILL_LABELS, MAX_SKILL_LEVEL } from '../data/skills.js';
@@ -68,11 +68,15 @@ export class Simulation {
       this._refreshProjectPool(company);
       this.hiring.refreshCandidates(company);
 
-      // Snapshot notifications before they are cleared by day:began.
+      // Snapshot notifications and SP productivity before they are cleared by day:began.
       this.bus.emit('day:report', {
-        day:           company.day,
-        moneyEnd:      company.money,
-        notifications: [...this.notifications.notifications],
+        day:              company.day,
+        moneyEnd:         company.money,
+        notifications:    [...this.notifications.notifications],
+        spProductivity:   {
+          ...company.dailySpProductivity,
+          periods: [...company.dailySpProductivity.periods],
+        },
         company,
       });
 
@@ -81,6 +85,7 @@ export class Simulation {
 
     this._beginDayOff = this.bus.on('day:began', () => {
       this.notifications.clear();
+      resetDailySpProductivity(this.company);
     });
 
     this.bus.emit('simulation:reset', { company: this.company });

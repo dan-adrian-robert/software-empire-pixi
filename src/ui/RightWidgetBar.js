@@ -13,6 +13,7 @@ import { Container, Graphics, Text, Rectangle } from 'pixi.js';
 import { TOP_BAR_HEIGHT } from './TopBarHUD.js';
 import { SKILL_LABELS, SKILL_COLORS } from '../data/skills.js';
 import { getActiveMilestoneStatus } from '../state/Project.js';
+import { currentPeriodSp } from '../state/Company.js';
 
 export const RIGHT_SIDEBAR_WIDTH = 260;
 
@@ -71,10 +72,16 @@ const MILESTONE_LABELS = {
   critical: 'Critical!',
 };
 
+// SP Productivity widget colours
+const SP_TRACK    = 0x1a2336;
+const SP_BAR      = 0x4a7acc;
+const SP_BAR_LIVE = 0x2a4a6a;
+
 // ── Widget definitions ─────────────────────────────────────────────────────────
 const WIDGETS = [
-  { id: 'activity', label: 'Activity' },
-  { id: 'projects', label: 'Projects' },
+  { id: 'sp_productivity', label: 'SP Prod' },
+  { id: 'activity',        label: 'Activity' },
+  { id: 'projects',        label: 'Projects' },
 ];
 
 export class RightWidgetBar extends Container {
@@ -87,7 +94,7 @@ export class RightWidgetBar extends Container {
     this.addChild(this._bg);
 
     // Per-widget visibility state (all on by default)
-    this._visible = { activity: true, projects: true };
+    this._visible = { activity: true, projects: true, sp_productivity: true };
 
     // Containers filled during refresh
     this._toggleHeader = new Container();
@@ -98,6 +105,7 @@ export class RightWidgetBar extends Container {
     this._height           = 600;
     this._lastCount        = -1;  // notifications length cache
     this._lastProjectsKey  = '';  // fingerprint of active project progress
+    this._lastSpKey        = '';  // fingerprint of SP productivity state
     this._activityScrollY  = 0;   // current scroll offset for the activity viewport
   }
 
@@ -127,20 +135,27 @@ export class RightWidgetBar extends Container {
   refresh(force = false) {
     const notifs   = this.game.sim?.notifications.notifications ?? [];
     const projects = this.game.sim?.company.activeProjects ?? [];
+    const company  = this.game.sim?.company;
 
-    const currentDay  = this.game.sim?.company?.day ?? 0;
+    const currentDay  = company?.day ?? 0;
     const projectsKey = projects
       .map(p => `${p.id}:${p.isReadyToFinish ? 'ready' : `d${currentDay},${p.requirements.map(r => Math.floor(r.current)).join(',')}`}`)
       .join('|');
 
+    const prod   = company?.dailySpProductivity;
+    const liveSp = company ? currentPeriodSp(company) : 0;
+    const spKey  = prod ? `${prod.total}:${prod.periods.length}:${liveSp.toFixed(1)}` : '';
+
     const unchanged =
       notifs.length  === this._lastCount &&
-      projectsKey    === this._lastProjectsKey;
+      projectsKey    === this._lastProjectsKey &&
+      spKey          === this._lastSpKey;
 
     if (!force && unchanged) return;
 
     this._lastCount       = notifs.length;
     this._lastProjectsKey = projectsKey;
+    this._lastSpKey       = spKey;
     this._buildContent(notifs, projects);
   }
 
@@ -216,19 +231,152 @@ export class RightWidgetBar extends Container {
     this._content.y = TOGGLE_H;
 
     let y = 4;
+    let anyAbove = false;
 
+    if (this._visible.sp_productivity) {
+      y = this._buildSpProductivitySection(y, anyAbove);
+      anyAbove = true;
+    }
     if (this._visible.activity) {
-      y = this._buildActivitySection(notifs, y);
+      y = this._buildActivitySection(notifs, y, anyAbove);
+      anyAbove = true;
     }
     if (this._visible.projects) {
-      y = this._buildProjectsSection(projects, y);
+      y = this._buildProjectsSection(projects, y, anyAbove);
     }
+  }
+
+  // ── SP Productivity section ─────────────────────────────────────────────────
+
+  _buildSpProductivitySection(startY, hasAbove = false) {
+    const company = this.game.sim?.company;
+    let y = startY;
+
+    if (hasAbove) {
+      const sep = new Graphics().rect(0, 0, RIGHT_SIDEBAR_WIDTH, 1).fill({ color: BORDER });
+      sep.y = y;
+      this._content.addChild(sep);
+      y += 6;
+    }
+
+    const PAD = 10;
+
+    const header = this._makeLabel('SP PRODUCTIVITY', PAD, y);
+    this._content.addChild(header);
+    y += 18;
+
+    const prod   = company?.dailySpProductivity;
+    const liveSp = company ? currentPeriodSp(company) : 0;
+    const periods = prod?.periods ?? [];
+    const totalSp = prod?.total ?? 0;
+
+    // Summary line
+    const displayTotal = Math.round((totalSp + liveSp) * 10) / 10;
+    const summaryText = new Text({
+      text: `Today: ${displayTotal} SP`,
+      style: {
+        fill:       TEXT_BRIGHT,
+        fontFamily: 'Inter, system-ui, sans-serif',
+        fontSize:   12,
+        fontWeight: '700',
+      },
+    });
+    summaryText.position.set(PAD, y);
+    this._content.addChild(summaryText);
+
+    const subText = new Text({
+      text: `${periods.length} period${periods.length !== 1 ? 's' : ''} completed`,
+      style: {
+        fill:       TEXT_DIM,
+        fontFamily: 'Inter, system-ui, sans-serif',
+        fontSize:   10,
+      },
+    });
+    subText.position.set(PAD, y + 15);
+    this._content.addChild(subText);
+    y += 32;
+
+    if (periods.length === 0 && liveSp < 0.1) {
+      const empty = this._makeDimText('No SP produced yet today.', PAD, y);
+      this._content.addChild(empty);
+      return y + 20;
+    }
+
+    // Bar area constants
+    const LABEL_W = 38;
+    const VALUE_W = 30;
+    const BAR_W   = RIGHT_SIDEBAR_WIDTH - PAD * 2 - LABEL_W - VALUE_W - 4;
+    const BAR_H   = 7;
+    const ROW_H   = 14;
+
+    const maxSp = Math.max(...periods, liveSp, 1);
+
+    // Helper to draw one bar row
+    const drawRow = (label, sp, isLive) => {
+      const labelT = new Text({
+        text: label,
+        style: { fill: TEXT_DIM, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 9 },
+      });
+      labelT.position.set(PAD, y + 1);
+      this._content.addChild(labelT);
+
+      const trackX = PAD + LABEL_W;
+      const track = new Graphics().roundRect(0, 0, BAR_W, BAR_H, 2).fill({ color: SP_TRACK });
+      track.position.set(trackX, y + (ROW_H - BAR_H) / 2);
+      this._content.addChild(track);
+
+      const fillW = Math.max(0, Math.round(BAR_W * (sp / maxSp)));
+      if (fillW > 0) {
+        const fill = new Graphics()
+          .roundRect(0, 0, fillW, BAR_H, 2)
+          .fill({ color: isLive ? SP_BAR_LIVE : SP_BAR, alpha: isLive ? 0.65 : 1 });
+        fill.position.set(trackX, y + (ROW_H - BAR_H) / 2);
+        this._content.addChild(fill);
+      }
+
+      const valT = new Text({
+        text: sp > 0 ? sp.toFixed(1) : '…',
+        style: { fill: isLive ? TEXT_DIM : TEXT_BRIGHT, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 9 },
+      });
+      valT.anchor.set(1, 0);
+      valT.position.set(RIGHT_SIDEBAR_WIDTH - PAD, y + 1);
+      this._content.addChild(valT);
+
+      y += ROW_H;
+    };
+
+    // Completed periods — label is clock time derived from schedule
+    const { startHour } = company?.schedule ?? { startHour: 8 };
+    periods.forEach((sp, i) => {
+      const hour   = startHour + Math.floor(i / 2);
+      const minute = (i % 2) * 30;
+      const label  = `${hour}:${minute === 0 ? '00' : '30'}`;
+      drawRow(label, sp, false);
+    });
+
+    // Live partial bar (currently in a WORK period with buffered SP)
+    if (liveSp >= 0.05) {
+      const nextIdx = periods.length;
+      const hour    = startHour + Math.floor(nextIdx / 2);
+      const minute  = (nextIdx % 2) * 30;
+      const label   = `${hour}:${minute === 0 ? '00' : '30'}`;
+      drawRow(label, Math.round(liveSp * 10) / 10, true);
+    }
+
+    return y + 4;
   }
 
   // ── Activity section ────────────────────────────────────────────────────────
 
-  _buildActivitySection(notifs, startY) {
+  _buildActivitySection(notifs, startY, hasAbove = false) {
     let y = startY;
+
+    if (hasAbove) {
+      const sep = new Graphics().rect(0, 0, RIGHT_SIDEBAR_WIDTH, 1).fill({ color: BORDER });
+      sep.y = y;
+      this._content.addChild(sep);
+      y += 6;
+    }
 
     // Section label
     const header = this._makeLabel('ACTIVITY', ACT_PADDING, y);
@@ -308,14 +456,11 @@ export class RightWidgetBar extends Container {
 
   // ── Projects section ────────────────────────────────────────────────────────
 
-  _buildProjectsSection(projects, startY) {
+  _buildProjectsSection(projects, startY, hasAbove = false) {
     let y = startY;
 
-    // Separator when activity is also visible
-    if (this._visible.activity) {
-      const sep = new Graphics()
-        .rect(0, 0, RIGHT_SIDEBAR_WIDTH, 1)
-        .fill({ color: BORDER });
+    if (hasAbove) {
+      const sep = new Graphics().rect(0, 0, RIGHT_SIDEBAR_WIDTH, 1).fill({ color: BORDER });
       sep.y = y;
       this._content.addChild(sep);
       y += 6;

@@ -12,6 +12,7 @@
 import { Container, Graphics } from 'pixi.js';
 
 import { BaseScene } from './BaseScene.js';
+import { recordSpPeriod } from '../state/Company.js';
 
 import { TopBarHUD, TOP_BAR_HEIGHT } from '../ui/TopBarHUD.js';
 import { LeftSidebar, LEFT_SIDEBAR_WIDTH } from '../ui/LeftSidebar.js';
@@ -223,9 +224,14 @@ export class OfficeScene extends BaseScene {
         const prevState = SCHEDULE_CYCLE[this._prevSlot % SCHEDULE_CYCLE.length];
         if (prevState === 'WORK') {
           const totals = this.game.sim.projects.flushWorkPeriod(company);
+          let periodTotal = 0;
           totals.forEach((pts, empIdx) => {
-            if (pts > 0) this._employeeEntities[empIdx]?.showPoints(pts);
+            if (pts > 0) {
+              this._employeeEntities[empIdx]?.showPoints(pts);
+              periodTotal += pts;
+            }
           });
+          recordSpPeriod(company, periodTotal);
         }
       }
       this._prevSlot = slot;
