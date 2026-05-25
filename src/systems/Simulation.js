@@ -7,11 +7,12 @@
  * Responsibilities:
  *   - Own the Company state.
  *   - Own and tick all systems (Time, Project, Economy, Hiring, Notification).
- *   - Provide reset() for "New Game".
+ *   - Provide reset() for "New Game" and loadFromSave() for loading a checkpoint.
  *   - Expose project management actions (acceptProject, rejectProject).
  */
 import { createCompany, resetDailySpProductivity } from '../state/Company.js';
 import { isPastCritical } from '../state/Project.js';
+import { syncIdCounters } from '../state/syncIdCounters.js';
 import { RESEARCH_NODES } from '../data/researchNodes.js';
 import { SKILL_LABELS, MAX_SKILL_LEVEL } from '../data/skills.js';
 import { GameConfig } from '../config.js';
@@ -46,19 +47,63 @@ export class Simulation {
 
   /** Called once during Game.init() and again on New Game. */
   reset() {
-    // Tear down old listeners.
-    if (this._endDayOff)   this._endDayOff();
-    if (this._beginDayOff) this._beginDayOff();
-    this.notifications.destroy();
+    this._tearDown();
 
     this.company = createCompany();
     this.productivity.rollDailyWeather(this.company);
 
-    // Re-initialise systems.
     this.time = new TimeSystem(this.bus);
     this.notifications = new NotificationSystem(this.bus);
     this.notifications.init();
+    this._wireDayCycle();
 
+    this.bus.emit('simulation:reset', { company: this.company });
+  }
+
+  /**
+   * Load a previously saved day-start checkpoint.
+   * The company state is replaced with the saved copy; TimeSystem is reset to
+   * a paused day-start position. OfficeScene rebuilds via `simulation:reset`.
+   * @param {object} payload  Validated payload from SaveManager.loadSlot().
+   */
+  loadFromSave(payload) {
+    this._tearDown();
+
+    this.company = payload.company;
+    syncIdCounters(payload.nextIds);
+
+    this.time = new TimeSystem(this.bus);
+    // Force a clean, paused day-start position.
+    this.time.dayProgress = 0;
+    this.time.gameSpeed   = 0;
+    this.time._dayEnding  = false;
+
+    this.notifications = new NotificationSystem(this.bus);
+    this.notifications.init();
+    this._wireDayCycle();
+
+    this.bus.emit('simulation:reset', { company: this.company });
+  }
+
+  // -----------------------------------------------------------------------
+  // Internal helpers
+  // -----------------------------------------------------------------------
+
+  /** Tear down bus listeners and notification system before re-init. */
+  _tearDown() {
+    if (this._endDayOff)   this._endDayOff();
+    if (this._beginDayOff) this._beginDayOff();
+    this._endDayOff   = null;
+    this._beginDayOff = null;
+    this.notifications.destroy();
+  }
+
+  /**
+   * Wire the day:ended / day:began cycle.
+   * Called after both reset() and loadFromSave() have set up a fresh
+   * TimeSystem, NotificationSystem, and company reference.
+   */
+  _wireDayCycle() {
     // Wire end-of-day: roll weather first so the new day starts with fresh
     // conditions, then economy, project pool refresh, hiring, and clock advance.
     this._endDayOff = this.bus.on('day:ended', ({ company }) => {
@@ -87,8 +132,6 @@ export class Simulation {
       this.notifications.clear();
       resetDailySpProductivity(this.company);
     });
-
-    this.bus.emit('simulation:reset', { company: this.company });
   }
 
   /** @param {number} dt  Real seconds (already time-scaled by Game). */

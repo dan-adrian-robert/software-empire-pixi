@@ -7,6 +7,8 @@
 import { GameConfig } from '../config.js';
 
 let _nextId = 1;
+export function peekNextId() { return _nextId; }
+export function setNextId(n) { _nextId = n; }
 
 /** Repeating 15-minute schedule cycle for every employee. */
 export const SCHEDULE_CYCLE = ['WORK', 'BREAK', 'WORK', 'TALK'];

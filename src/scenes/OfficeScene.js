@@ -22,6 +22,7 @@ import { EmployeeStatsPopup } from '../ui/EmployeeStatsPopup.js';
 import { SchedulePopup } from '../ui/SchedulePopup.js';
 import { WeatherPopup } from '../ui/WeatherPopup.js';
 import { DayReportPopup } from '../ui/DayReportPopup.js';
+import { SaveSlotPopup } from '../ui/SaveSlotPopup.js';
 import { Toast } from '../ui/Toast.js';
 
 import { ProjectsPanel } from '../ui/panels/ProjectsPanel.js';
@@ -84,7 +85,10 @@ export class OfficeScene extends BaseScene {
 
     // HUD widgets.
     this._topBar = new TopBarHUD(game);
-    this._leftSidebar = new LeftSidebar((id) => this._navigate(id));
+    this._leftSidebar = new LeftSidebar(
+      (id) => this._navigate(id),
+      ()   => this._openSaveNamePopup(),
+    );
     this._widgetBar = new RightWidgetBar(game);
 
     // Modal popup (shared, reused for all panel types).
@@ -106,6 +110,9 @@ export class OfficeScene extends BaseScene {
       this._dayReportPopup.close();
       this.game.sim.setSpeed(1);
     });
+
+    // Save-slot popup — shown when the player clicks the Save sidebar button.
+    this._saveSlotPopup = new SaveSlotPopup();
 
     // Active nav view id ('office' | 'projects' | 'employees' | 'hiring').
     this._activeView = 'office';
@@ -134,6 +141,7 @@ export class OfficeScene extends BaseScene {
     this._popupLayer.addChild(this._statsPopup);
     this._popupLayer.addChild(this._weatherPopup);
     this._popupLayer.addChild(this._dayReportPopup);
+    this._popupLayer.addChild(this._saveSlotPopup);
 
     // Modal layer sits between world and HUD so HUD elements stay interactive.
     this.root.addChild(this._modalLayer);
@@ -287,6 +295,7 @@ export class OfficeScene extends BaseScene {
     this._statsPopup.resize(width, height);
     this._weatherPopup.resize(width, height);
     this._dayReportPopup.resize(width, height);
+    this._saveSlotPopup.resize(width, height);
     if (this._schedulePopup.visible) {
       this._schedulePopup.open(this.game.sim?.company, width, height);
     }
@@ -318,6 +327,21 @@ export class OfficeScene extends BaseScene {
     this._statsPopup.close();
     this._schedulePopup.close();
     this._weatherPopup.close();
+    this._saveSlotPopup.close();
+  }
+
+  // -----------------------------------------------------------------------
+  // Save name popup
+  // -----------------------------------------------------------------------
+
+  _openSaveNamePopup() {
+    if (!this.game.sim.company) return;
+    const { width, height } = this.game.screen;
+    this._saveSlotPopup.open(
+      width,
+      height,
+      (slotIndex, name) => this.game.saveGame({ slot: slotIndex, name }),
+    );
   }
 
   // -----------------------------------------------------------------------

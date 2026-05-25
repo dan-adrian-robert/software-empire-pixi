@@ -5,6 +5,8 @@
 import { OFFICE_TIERS } from '../data/officeTiers.js';
 
 let _nextId = 1;
+export function peekNextId() { return _nextId; }
+export function setNextId(n) { _nextId = n; }
 
 /**
  * @param {number} tierIndex  Index into OFFICE_TIERS array.

@@ -99,4 +99,9 @@ export const GameConfig = Object.freeze({
     // Insurance cost = totalSP × this factor (used by projectTemplates helper).
     PROJECT_INSURANCE_SP_FACTOR: 2.5,
   }),
+
+  save: Object.freeze({
+    SLOT_COUNT: 5,
+    STORAGE_PREFIX: 'software-empire:save:',
+  }),
 });

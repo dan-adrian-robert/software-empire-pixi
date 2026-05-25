@@ -6,6 +6,8 @@ import { randomName } from '../data/namePool.js';
 import { SKILLS } from '../data/skills.js';
 
 let _nextId = 1;
+export function peekNextId() { return _nextId; }
+export function setNextId(n) { _nextId = n; }
 
 const ALL_SKILL_KEYS = Object.values(SKILLS);
 

@@ -19,6 +19,7 @@ import { EventBus } from './utils/EventBus.js';
 
 import { MainMenuScene } from './scenes/MainMenuScene.js';
 import { OfficeScene } from './scenes/OfficeScene.js';
+import { saveSlot, loadSlot } from './systems/SaveManager.js';
 
 export class Game {
   constructor() {
@@ -40,6 +41,9 @@ export class Game {
 
     /** Gameplay simulation - owns Company state and all systems. */
     this.sim = new Simulation(this.events);
+
+    /** 0-based index of the slot receiving autosaves. New Game always uses 0. */
+    this.activeSaveSlot = 0;
 
     this._onResize = this._onResize.bind(this);
     this._onTick = this._onTick.bind(this);
@@ -81,7 +85,13 @@ export class Game {
     this.app.ticker.maxFPS = GameConfig.loop.targetFPS;
     this.app.ticker.add(this._onTick);
 
-    // Initialise simulation (creates Company from starter seed).
+    // Autosave at the start of every new day to the active slot.
+    this.events.on('day:began', () => {
+      this.saveGame({ silent: false, label: 'Autosaved' });
+    });
+
+    // Initialise simulation (creates Company from starter seed — not saved yet;
+    // the player must press New Game to write the first checkpoint).
     this.sim.reset();
 
     await this.scenes.changeTo(GameConfig.scenes.MAIN_MENU);
@@ -115,6 +125,63 @@ export class Game {
   /** Expose current viewport size for scenes that need it. */
   get screen() {
     return this.app.screen;
+  }
+
+  // ------------------------------------------------------------------
+  // Save / load helpers (called from MainMenuScene)
+  // ------------------------------------------------------------------
+
+  /**
+   * Write a checkpoint to a slot and notify the player.
+   * @param {{ slot?: number, silent?: boolean, label?: string, name?: string }} [opts]
+   *   slot:   0-based slot index (defaults to activeSaveSlot)
+   *   silent: suppress the notification (default false)
+   *   label:  prefix text in the notification (default 'Game saved')
+   *   name:   player-supplied save name shown in the Load UI
+   */
+  saveGame({ slot = this.activeSaveSlot, silent = false, label = 'Game saved', name = undefined } = {}) {
+    if (!this.sim.company) return;
+    this.activeSaveSlot = slot;
+    saveSlot(slot, this.sim, name);
+    if (!silent) {
+      const day = this.sim.company.day;
+      this.events.emit('notification:add', {
+        text: `${label} — Slot ${slot + 1}, Day ${day}`,
+        type: 'success',
+      });
+    }
+  }
+
+  /**
+   * Start a fresh campaign, always bound to slot 0.
+   * Writes the initial day-1 checkpoint before entering the office.
+   */
+  async startNewGame() {
+    this.activeSaveSlot = 0;
+    this.sim.reset();
+    this.saveGame({ silent: true });
+    await this.scenes.changeTo(GameConfig.scenes.OFFICE);
+  }
+
+  /**
+   * Load a saved checkpoint from a specific slot and enter the office paused.
+   * Returns false (and emits a warning) if the slot is invalid or corrupt.
+   * @param {number} index  0-based slot index.
+   * @returns {Promise<boolean>}
+   */
+  async loadFromSlot(index) {
+    const payload = loadSlot(index);
+    if (!payload) {
+      this.events.emit('notification:add', {
+        text: 'Save data is missing or corrupt.',
+        type: 'warning',
+      });
+      return false;
+    }
+    this.activeSaveSlot = index;
+    this.sim.loadFromSave(payload);
+    await this.scenes.changeTo(GameConfig.scenes.OFFICE);
+    return true;
   }
 
   // ------------------------------------------------------------------

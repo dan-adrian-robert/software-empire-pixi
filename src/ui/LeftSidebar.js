@@ -33,10 +33,12 @@ const NAV_ITEMS = [
 export class LeftSidebar extends Container {
   /**
    * @param {(id: string) => void} onNavigate
+   * @param {() => void} onSave
    */
-  constructor(onNavigate) {
+  constructor(onNavigate, onSave) {
     super();
     this.onNavigate = onNavigate;
+    this.onSave = onSave ?? (() => {});
 
     this._bg = new Graphics();
     this.addChild(this._bg);
@@ -44,6 +46,9 @@ export class LeftSidebar extends Container {
     this._activeView = 'office';
     /** @type {Array<{id:string, container:Container, bg:Graphics}>} */
     this._buttons = [];
+
+    /** @type {Container|null} */
+    this._saveBtn = null;
 
     this._height = 600;
   }
@@ -85,8 +90,63 @@ export class LeftSidebar extends Container {
       this._buttons.push(btn);
       this.addChild(btn.container);
     }
+
+    // Save button pinned to the bottom of the sidebar.
+    this._saveBtn = this._makeSaveButton();
+    this.addChild(this._saveBtn);
+
     this._repositionButtons();
     this._refreshButtonStates();
+  }
+
+  _makeSaveButton() {
+    const container = new Container();
+    container.eventMode = 'static';
+    container.cursor = 'pointer';
+
+    const bg = new Graphics();
+    container.addChild(bg);
+
+    const icon = new Text({ text: '💾', style: { fontSize: 22 } });
+    icon.anchor.set(0.5, 0.5);
+    icon.position.set(BTN_SIZE / 2, BTN_SIZE / 2 - 5);
+    container.addChild(icon);
+
+    const labelText = new Text({
+      text: 'Save',
+      style: {
+        fill: 0x7a86a3,
+        fontFamily: 'Inter, system-ui, sans-serif',
+        fontSize: 9,
+        fontWeight: '600',
+      },
+    });
+    labelText.anchor.set(0.5, 0);
+    labelText.position.set(BTN_SIZE / 2, BTN_SIZE - 14);
+    container.addChild(labelText);
+
+    const drawNormal = () => {
+      bg.clear()
+        .roundRect(0, 0, BTN_SIZE, BTN_SIZE, BTN_R)
+        .fill({ color: BTN_NORMAL })
+        .stroke({ color: BTN_BORDER, width: 1 });
+    };
+    const drawHover = () => {
+      bg.clear()
+        .roundRect(0, 0, BTN_SIZE, BTN_SIZE, BTN_R)
+        .fill({ color: BTN_HOVER })
+        .stroke({ color: BTN_BORDER, width: 1 });
+    };
+    drawNormal();
+
+    container.on('pointerover', drawHover);
+    container.on('pointerout', drawNormal);
+    container.on('pointerup', () => {
+      drawNormal();
+      this.onSave();
+    });
+
+    return container;
   }
 
   _makeButton({ id, emoji, label }) {
@@ -142,12 +202,16 @@ export class LeftSidebar extends Container {
   _repositionButtons() {
     const startY = 16;
     const gap = 8;
+    const cx = (LEFT_SIDEBAR_WIDTH - BTN_SIZE) / 2;
+
     this._buttons.forEach((btn, i) => {
-      btn.container.position.set(
-        (LEFT_SIDEBAR_WIDTH - BTN_SIZE) / 2,
-        startY + i * (BTN_SIZE + gap),
-      );
+      btn.container.position.set(cx, startY + i * (BTN_SIZE + gap));
     });
+
+    // Save button pinned 16px above the bottom edge of the sidebar.
+    if (this._saveBtn) {
+      this._saveBtn.position.set(cx, this._height - BTN_SIZE - 16);
+    }
   }
 
   _refreshButtonStates() {

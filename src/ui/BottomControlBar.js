@@ -19,6 +19,9 @@ const BTN_ACTIVE = 0x2a4a8a;
 const BTN_HOVER = 0x253352;
 const BTN_END = 0x1a3a1a;
 const BTN_END_HOVER = 0x254a25;
+const BTN_SAVE = 0x1a2d4a;
+const BTN_SAVE_HOVER = 0x25405a;
+const BTN_SAVE_W = 88;
 const BTN_BORDER = 0x2e4070;
 const BTN_ACTIVE_BORDER = 0x4a7aff;
 const TEXT_COLOR = 0xc8d4ed;
@@ -45,6 +48,7 @@ export class BottomControlBar extends Container {
     /** @type {Array<{speed: number, btn: Container, bg: Graphics, label: Text}>} */
     this._speedBtns = [];
     this._endDayBtn = null;
+    this._saveBtn   = null;
 
     this._screenWidth = 0;
   }
@@ -127,6 +131,12 @@ export class BottomControlBar extends Container {
     this._endDayBtn = endEntry;
     this.addChild(endEntry.container);
 
+    const saveEntry = this._makeButton('💾 Save', () => {
+      this.game.saveGame();
+    }, BTN_SAVE, BTN_SAVE_HOVER, BTN_SAVE_W);
+    this._saveBtn = saveEntry;
+    this.addChild(saveEntry.container);
+
     this._repositionButtons();
   }
 
@@ -186,6 +196,14 @@ export class BottomControlBar extends Container {
     x += gap - 8;
     if (this._endDayBtn) {
       this._endDayBtn.container.position.set(x, y);
+    }
+
+    // Save button: pinned to the right edge.
+    if (this._saveBtn) {
+      this._saveBtn.container.position.set(
+        this._screenWidth - BTN_SAVE_W - 14,
+        y,
+      );
     }
   }
 
