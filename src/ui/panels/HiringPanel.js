@@ -8,7 +8,8 @@
  *   ── divider ──
  *   Hire / No Desk button (bottom-right)
  */
-import { Container, Graphics, Text } from 'pixi.js';
+import { Container, Graphics, Sprite, Text } from 'pixi.js';
+import { getCharacterAvatarTex } from '../../utils/characterSprite.js';
 import {
   SKILLS,
   SKILL_LABELS_SHORT,
@@ -29,6 +30,11 @@ const SECTION_LABEL_COLOR = 0x7a86a3;
 const PADDING = 12;
 const INNER = 14;
 
+// Character avatar shown in each card header
+const AVATAR_SIZE = 44;
+const AVATAR_GAP  = 10;
+const TEXT_INDENT = INNER + AVATAR_SIZE + AVATAR_GAP;
+
 // Skill bar cells — same as EmployeesPanel
 const BAR_CELL = 13;
 const BAR_GAP = 3;
@@ -46,7 +52,7 @@ const SCHEDULE_ICONS = { WORK: '💻', BREAK: '☕', TALK: '💬' };
 const SCHED_SECTION_H = 12 + 4 + 20; // label + gap + icon row
 
 const NAME_H = 20;
-const HEADER_H = 12 + NAME_H + 10;           // top-pad + name + gap
+const HEADER_H = 10 + AVATAR_SIZE + 10;      // sized to contain the avatar with margins
 const DIVIDER_H = 1;
 const SKILLS_H = ALL_SKILLS.length * SKILL_ROW_H;
 const FOOTER_H = 10 + DIVIDER_H + 8 + SCHED_SECTION_H + 10 + 28 + 10;
@@ -134,6 +140,18 @@ export class HiringPanel extends Container {
     bg.position.set(PADDING, startY);
     this._scroll.addChild(bg);
 
+    // ── Avatar ────────────────────────────────────────────
+    const avatarSprite = new Sprite(getCharacterAvatarTex());
+    avatarSprite.width  = AVATAR_SIZE;
+    avatarSprite.height = AVATAR_SIZE;
+    avatarSprite.alpha  = canHire ? 1 : 0.4;
+    // Vertically centre the avatar in the header
+    avatarSprite.position.set(PADDING + INNER, startY + (HEADER_H - AVATAR_SIZE) / 2);
+    this._scroll.addChild(avatarSprite);
+
+    // Vertical centre for text (anchor at top so use midpoint offset)
+    const textBaseY = startY + HEADER_H / 2 - NAME_H / 2;
+
     // ── Name ─────────────────────────────────────────────
     const nameText = new Text({
       text: candidate.name,
@@ -144,7 +162,7 @@ export class HiringPanel extends Container {
         fontWeight: '700',
       },
     });
-    nameText.position.set(PADDING + INNER, startY + 12);
+    nameText.position.set(PADDING + TEXT_INDENT, textBaseY);
     this._scroll.addChild(nameText);
 
     // Level badge — derived from sum of skill levels (candidates have no tracked level)
@@ -159,7 +177,7 @@ export class HiringPanel extends Container {
       },
     });
     levelBadge.anchor.set(1, 0);
-    levelBadge.position.set(PADDING + cardW - INNER - 72, startY + 14);
+    levelBadge.position.set(PADDING + cardW - INNER - 72, textBaseY + 2);
     this._scroll.addChild(levelBadge);
 
     // Salary (right-aligned)
@@ -173,7 +191,7 @@ export class HiringPanel extends Container {
       },
     });
     salaryText.anchor.set(1, 0);
-    salaryText.position.set(PADDING + cardW - INNER, startY + 14);
+    salaryText.position.set(PADDING + cardW - INNER, textBaseY + 2);
     this._scroll.addChild(salaryText);
 
     // ── Top divider ──────────────────────────────────────

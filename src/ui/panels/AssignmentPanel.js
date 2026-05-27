@@ -13,7 +13,8 @@
  *   • Click an assigned chip → unassign (returns to Available).
  *   • Click the selected chip again → deselect.
  */
-import { Container, Graphics, Text } from 'pixi.js';
+import { Container, Graphics, Sprite, Text } from 'pixi.js';
+import { getCharacterAvatarTex } from '../../utils/characterSprite.js';
 import { SKILL_LABELS_SHORT, SKILL_COLORS } from '../../data/skills.js';
 
 // ── Palette ────────────────────────────────────────────────────────────────
@@ -39,11 +40,13 @@ const ROW_RADIUS      = 8;
 const ROW_GAP         = 8;
 const ROW_PAD_X       = 14;
 const ROW_PAD_Y       = 12;
-const CHIP_H          = 26;
+const CHIP_H          = 32;   // taller chip to accommodate face avatar
 const CHIP_R          = 5;
 const CHIP_GAP        = 6;
 const LABEL_W         = 120;   // width reserved for the project name column
 const SECTION_H       = 20;    // height of the section label row
+const FACE_SIZE       = 24;    // square avatar size inside chip
+const FACE_GAP        = 6;     // gap between avatar and name text
 
 export class AssignmentPanel extends Container {
   /**
@@ -173,7 +176,7 @@ export class AssignmentPanel extends Container {
 
       for (const emp of unassigned) {
         const isSelected = this._selected === emp;
-        const chip = this._buildChip(emp.name, emp.skills, isSelected, false);
+        const chip = this._buildChip(emp, isSelected, false);
         chip.position.set(chipX, chipY);
 
         chip.on('pointerup', () => {
@@ -260,7 +263,7 @@ export class AssignmentPanel extends Container {
       this._scroll.addChild(emptyNote);
     } else {
       for (const emp of assigned) {
-        const chip = this._buildChip(emp.name, emp.skills, false, true);
+        const chip = this._buildChip(emp, false, true);
         chip.position.set(chipX, chipY);
 
         // Click assigned chip → unassign
@@ -285,37 +288,52 @@ export class AssignmentPanel extends Container {
    * Build a small interactive chip for an employee.
    * Returns a Container with a `_chipW` property set to its computed width.
    *
-   * @param {string}  name
-   * @param {Array<{skill:string,level:number}>} skills
+   * @param {import('../../state/Employee.js').Employee} emp
    * @param {boolean} isSelected
    * @param {boolean} isAssigned
    */
-  _buildChip(name, skills, isSelected, isAssigned) {
+  _buildChip(emp, isSelected, isAssigned) {
+    const { name, skills, level } = emp;
     const container = new Container();
     container.eventMode = 'static';
     container.cursor = 'pointer';
 
-    // Measure text width to size chip dynamically
+    const textColor = isSelected ? CHIP_SELECTED : TEXT_BRIGHT;
+
+    // Measure name text width to size chip dynamically
     const nameLabel = new Text({
       text: name,
       style: {
-        fill: isSelected ? CHIP_SELECTED : isAssigned ? TEXT_BRIGHT : TEXT_BRIGHT,
+        fill: textColor,
         fontFamily: 'Inter, system-ui, sans-serif',
         fontSize: 12,
         fontWeight: '600',
       },
     });
 
+    const levelLabel = new Text({
+      text: `Lv.${level ?? 0}`,
+      style: {
+        fill: isSelected ? CHIP_SELECTED : 0x818cf8,
+        fontFamily: 'Inter, system-ui, sans-serif',
+        fontSize: 10,
+        fontWeight: '700',
+      },
+    });
+
     // Skill dot row
-    const DOT_R    = 3;
-    const DOT_GAP  = 4;
-    const dotRowW  = skills.length > 0
+    const DOT_R     = 3;
+    const DOT_GAP   = 4;
+    const dotRowW   = skills.length > 0
       ? skills.length * (DOT_R * 2) + (skills.length - 1) * DOT_GAP
       : 0;
 
-    const textW    = Math.ceil(nameLabel.width);
-    const innerW   = Math.max(textW, dotRowW);
-    const chipW    = innerW + ROW_PAD_X * 2;
+    const textW     = Math.ceil(nameLabel.width);
+    const levelW    = Math.ceil(levelLabel.width);
+    // content = face + gap + name + small gap + level
+    const contentW  = FACE_SIZE + FACE_GAP + textW + 6 + levelW;
+    const innerW    = Math.max(contentW, dotRowW + FACE_SIZE + FACE_GAP);
+    const chipW     = innerW + ROW_PAD_X * 2;
 
     // Background
     const chipBg = isSelected
@@ -335,15 +353,30 @@ export class AssignmentPanel extends Container {
 
     container.addChild(chipBg);
 
-    // Name centred vertically in chip
-    nameLabel.anchor.set(0.5, 0.5);
-    nameLabel.position.set(chipW / 2, CHIP_H / 2);
+    // Face avatar — left side, vertically centred
+    const face = new Sprite(getCharacterAvatarTex());
+    face.width  = FACE_SIZE;
+    face.height = FACE_SIZE;
+    face.position.set(ROW_PAD_X, (CHIP_H - FACE_SIZE) / 2);
+    container.addChild(face);
+
+    // Name + level — right of face, vertically centred (offset up if dots present)
+    const textX    = ROW_PAD_X + FACE_SIZE + FACE_GAP;
+    const hasDots  = skills.length > 0;
+    const textY    = hasDots ? CHIP_H / 2 - 8 : CHIP_H / 2 - 7;
+
+    nameLabel.anchor.set(0, 0.5);
+    nameLabel.position.set(textX, textY);
     container.addChild(nameLabel);
 
-    // Tiny skill-color dots at the bottom of the chip
-    if (skills.length > 0) {
-      const dotsY = CHIP_H - DOT_R - 2;
-      const dotsStartX = (chipW - dotRowW) / 2;
+    levelLabel.anchor.set(0, 0.5);
+    levelLabel.position.set(textX + textW + 6, textY);
+    container.addChild(levelLabel);
+
+    // Tiny skill-color dots below the name row
+    if (hasDots) {
+      const dotsY      = CHIP_H - DOT_R - 4;
+      const dotsStartX = textX;
       for (let i = 0; i < skills.length; i++) {
         const dotColor = SKILL_COLORS[skills[i].skill] ?? 0x4a9eff;
         const dot = new Graphics()
@@ -352,17 +385,11 @@ export class AssignmentPanel extends Container {
         dot.position.set(dotsStartX + i * (DOT_R * 2 + DOT_GAP) + DOT_R, dotsY);
         container.addChild(dot);
       }
-      // Shift name up slightly to leave room for dots
-      nameLabel.position.set(chipW / 2, CHIP_H / 2 - 3);
     }
 
     // Hover tint
-    container.on('pointerover', () => {
-      chipBg.alpha = 0.8;
-    });
-    container.on('pointerout', () => {
-      chipBg.alpha = 1;
-    });
+    container.on('pointerover', () => { chipBg.alpha = 0.8; });
+    container.on('pointerout',  () => { chipBg.alpha = 1; });
 
     container._chipW = chipW;
     return container;

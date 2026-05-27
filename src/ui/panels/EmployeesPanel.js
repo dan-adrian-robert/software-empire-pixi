@@ -14,7 +14,8 @@
  * Card height is computed dynamically so the optional upgrade section
  * does not leave a blank gap on cards that don't need it.
  */
-import { Container, Graphics, Text } from 'pixi.js';
+import { Container, Graphics, Sprite, Text } from 'pixi.js';
+import { getCharacterAvatarTex } from '../../utils/characterSprite.js';
 import {
   SKILLS,
   SKILL_LABELS_SHORT,
@@ -33,6 +34,11 @@ const ACTIVITY_COLOR = 0x4ade80;
 const SECTION_LABEL_COLOR = 0x7a86a3;
 const PADDING = 12;
 const INNER = 14;
+
+// Character avatar shown in each card header
+const AVATAR_SIZE = 44;   // square display size (px)
+const AVATAR_GAP  = 10;   // gap between avatar and text column
+const TEXT_INDENT = INNER + AVATAR_SIZE + AVATAR_GAP; // x offset for name / activity
 
 // Skill bar cells
 const BAR_CELL = 13;
@@ -143,6 +149,13 @@ export class EmployeesPanel extends Container {
     // Reserve a placeholder index to insert the bg behind everything else.
     const bgIndex = this._scroll.children.length;
 
+    // ── Avatar ────────────────────────────────────────────
+    const avatarSprite = new Sprite(getCharacterAvatarTex());
+    avatarSprite.width  = AVATAR_SIZE;
+    avatarSprite.height = AVATAR_SIZE;
+    avatarSprite.position.set(PADDING + INNER, startY + 10);
+    this._scroll.addChild(avatarSprite);
+
     // ── Name ─────────────────────────────────────────────
     const nameText = new Text({
       text: emp.name,
@@ -153,7 +166,7 @@ export class EmployeesPanel extends Container {
         fontWeight: '700',
       },
     });
-    nameText.position.set(PADDING + INNER, startY + 12);
+    nameText.position.set(PADDING + TEXT_INDENT, startY + 12);
     this._scroll.addChild(nameText);
 
     const levelBadge = new Text({
@@ -195,7 +208,7 @@ export class EmployeesPanel extends Container {
         fontWeight: proj ? '600' : '400',
       },
     });
-    activityText.position.set(PADDING + INNER, startY + 12 + NAME_H + 6);
+    activityText.position.set(PADDING + TEXT_INDENT, startY + 12 + NAME_H + 6);
     this._scroll.addChild(activityText);
 
     // ── Top divider ──────────────────────────────────────

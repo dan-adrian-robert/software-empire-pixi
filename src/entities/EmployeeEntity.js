@@ -2,30 +2,28 @@
  * EmployeeEntity
  *
  * Visual representation of an employee sitting at a desk.
- *
- * States:
- *   idle   - grey body
- *   typing - blue body
+ * Uses the character1.png portrait cropped to the top half so that the
+ * head/shoulders appear above the desk surface.
  *
  * The name label is rendered BELOW the desk (offset ~148px below entity origin).
  * Call `setOnClick(cb)` to make the entity interactive.
  */
 import { Entity } from './Entity.js';
-import { Graphics, Rectangle, Text } from 'pixi.js';
+import { Rectangle, Sprite, Text } from 'pixi.js';
+import { getCharacterTopHalf } from '../utils/characterSprite.js';
 
 const POINTS_LABEL_START_Y = 70; // below body, floats upward during fade
 
-const PERSON_W = 48;
-const PERSON_H = 60;
+// Display width for the character sprite. Height is derived from the crop ratio.
+const PERSON_W = 56;
 
 // How far below the entity origin the desk bottom edge sits.
 // Entity is spawned 40px above the desk (y - 40), and DESK_H = 100.
-const NAME_OFFSET_Y = PERSON_H + 88; // ≈ below desk bottom
-
-const BODY_COLOR = 0x4a5a7a;
+const NAME_OFFSET_Y = 148; // ≈ below desk bottom
 
 const SCHEDULE_ICONS = { WORK: '💻', BREAK: '☕', TALK: '💬' };
 const WARNING_ICON = '⚠️';
+
 
 export class EmployeeEntity extends Entity {
   /**
@@ -34,7 +32,7 @@ export class EmployeeEntity extends Entity {
    * @param {string} [name]
    */
   constructor(x, y, name = '') {
-    super({ x, y, width: PERSON_W, height: PERSON_H, color: 0x000000 });
+    super({ x, y, width: PERSON_W, height: PERSON_W, color: 0x000000 });
     this._placeholder.clear();
 
     this._state = 'idle';
@@ -42,11 +40,17 @@ export class EmployeeEntity extends Entity {
     this._hasProject = false;
     this._scheduleState = 'WORK';
 
-    this._hands = new Graphics();
-    this._body = new Graphics();
-    this._head = new Graphics();
+    // Character portrait — top half of character1.png
+    this._sprite = new Sprite(getCharacterTopHalf());
+    this._sprite.anchor.set(0.5, 1);
+    // Scale so the display width matches PERSON_W
+    const scale = PERSON_W / this._sprite.texture.width;
+    this._sprite.scale.set(scale);
+    const spriteDisplayH = this._sprite.texture.height * scale;
+    // Align sprite bottom with the desk line (~60px from entity origin)
+    this._sprite.position.set(PERSON_W / 2, 60);
 
-    // Schedule state icon — shown above the head
+    // Schedule state icon — shown above the sprite's top
     this._stateIcon = new Text({
       text: SCHEDULE_ICONS.WORK,
       style: {
@@ -55,7 +59,7 @@ export class EmployeeEntity extends Entity {
       },
     });
     this._stateIcon.anchor.set(0.5, 1);
-    this._stateIcon.position.set(PERSON_W / 2, -4);
+    this._stateIcon.position.set(PERSON_W / 2, 60 - spriteDisplayH - 2);
 
     // Name label — centered below the desk
     this._nameLabel = new Text({
@@ -72,16 +76,12 @@ export class EmployeeEntity extends Entity {
     /** @type {Text|null} Floating "+N pts" label shown at end of WORK period. */
     this._pointsLabel = null;
 
-    this.view.addChild(this._body);
-    this.view.addChild(this._hands);
-    this.view.addChild(this._head);
+    this.view.addChild(this._sprite);
     this.view.addChild(this._stateIcon);
     this.view.addChild(this._nameLabel);
 
     // Expand hit area to make the character easier to click.
-    this.view.hitArea = new Rectangle(-16, -16, PERSON_W + 32, PERSON_H + 32);
-
-    this._draw();
+    this.view.hitArea = new Rectangle(-16, -16, PERSON_W + 32, spriteDisplayH + 32);
   }
 
   // -------------------------------------------------------------------------
@@ -179,42 +179,5 @@ export class EmployeeEntity extends Entity {
         this._pointsLabel = null;
       }
     }
-  }
-
-  // -------------------------------------------------------------------------
-
-  _draw() {
-    this._body
-      .clear()
-      .roundRect(6, 28, PERSON_W - 12, PERSON_H - 28, 6)
-      .fill({ color: BODY_COLOR });
-
-    this._head
-      .clear()
-      .circle(PERSON_W / 2, 16, 16)
-      .fill({ color: 0xc8a882 })
-      .stroke({ color: 0x8a6852, width: 2 });
-
-    this._drawHands();
-  }
-
-  _drawHands() {
-    const color  = 0xc8a882;
-    const HAND_R = 9;
-    const baseY  = 59;
-
-    this._hands.clear();
-
-    // Left hand
-    this._hands
-      .moveTo(6 + HAND_R, baseY)
-      .arc(6, baseY, HAND_R, 0, Math.PI, true)
-      .fill({ color });
-
-    // Right hand
-    this._hands
-      .moveTo(PERSON_W - 6 + HAND_R, baseY)
-      .arc(PERSON_W - 6, baseY, HAND_R, 0, Math.PI, true)
-      .fill({ color });
   }
 }
