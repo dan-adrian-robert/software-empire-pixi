@@ -14,8 +14,8 @@
  *   • Click the selected chip again → deselect.
  */
 import { Container, Graphics, Sprite, Text } from 'pixi.js';
-import { getCharacterAvatarTex } from '../../utils/characterSprite.js';
-import { SKILL_LABELS_SHORT, SKILL_COLORS } from '../../data/skills.js';
+import { getCharacterAvatarTex } from '@utils/characterSprite.js';
+import { SKILL_COLORS } from '@/data/skills.js';
 
 // ── Palette ────────────────────────────────────────────────────────────────
 const BG_PANEL        = 0x0d1526;
@@ -354,7 +354,7 @@ export class AssignmentPanel extends Container {
     container.addChild(chipBg);
 
     // Face avatar — left side, vertically centred
-    const face = new Sprite(getCharacterAvatarTex());
+    const face = new Sprite(getCharacterAvatarTex(emp.characterIndex));
     face.width  = FACE_SIZE;
     face.height = FACE_SIZE;
     face.position.set(ROW_PAD_X, (CHIP_H - FACE_SIZE) / 2);

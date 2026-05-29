@@ -4,6 +4,7 @@
  */
 import { randomName } from '../data/namePool.js';
 import { SKILLS } from '../data/skills.js';
+import { pickRandomCharacterIndex } from '../utils/characterSprite.js';
 
 let _nextId = 1;
 export function peekNextId() { return _nextId; }
@@ -16,14 +17,17 @@ const ALL_SKILL_KEYS = Object.values(SKILLS);
  * @param {string} [opts.name]
  * @param {Array<{skill: string, level: number}>} [opts.skills]
  * @param {number} [opts.salary]
+ * @param {number} [opts.characterIndex]  1-based index into characterN.png portraits.
+ * @param {() => number} [opts.rng]
  * @returns {Candidate}
  */
-export function createCandidate({ name, skills, salary } = {}) {
+export function createCandidate({ name, skills, salary, characterIndex, rng } = {}) {
   return {
     id: _nextId++,
     name: name ?? randomName(),
     skills: skills ?? [],
     salary: salary ?? 100,
+    characterIndex: characterIndex ?? pickRandomCharacterIndex(rng),
   };
 }
 
@@ -44,7 +48,7 @@ export function generateRandomCandidate(tier = 1, rng = Math.random, allowedSkil
 
   // Fallback: if no skills are unlocked yet, return a no-skill candidate.
   if (pool.length === 0) {
-    return createCandidate({ name: randomName(rng), skills: [], salary: 100 });
+    return createCandidate({ name: randomName(rng), skills: [], salary: 100, rng });
   }
 
   const shuffled = [...pool].sort(() => rng() - 0.5);
@@ -57,5 +61,5 @@ export function generateRandomCandidate(tier = 1, rng = Math.random, allowedSkil
   const totalLevels = skills.reduce((s, sk) => s + sk.level, 0);
   const salary = Math.round((60 + totalLevels * 12 + rng() * 20) / 10) * 10;
 
-  return createCandidate({ name: randomName(rng), skills, salary });
+  return createCandidate({ name: randomName(rng), skills, salary, rng });
 }

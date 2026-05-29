@@ -2,7 +2,7 @@
  * EmployeeEntity
  *
  * Visual representation of an employee sitting at a desk.
- * Uses the character1.png portrait cropped to the top half so that the
+ * Uses a characterN.png portrait cropped to the top half so that the
  * head/shoulders appear above the desk surface.
  *
  * The name label is rendered BELOW the desk (offset ~148px below entity origin).
@@ -15,7 +15,7 @@ import { getCharacterTopHalf } from '../utils/characterSprite.js';
 const POINTS_LABEL_START_Y = 70; // below body, floats upward during fade
 
 // Display width for the character sprite. Height is derived from the crop ratio.
-const PERSON_W = 56;
+const PERSON_W = 64;
 
 // How far below the entity origin the desk bottom edge sits.
 // Entity is spawned 40px above the desk (y - 40), and DESK_H = 100.
@@ -30,8 +30,9 @@ export class EmployeeEntity extends Entity {
    * @param {number} x
    * @param {number} y
    * @param {string} [name]
+   * @param {number} [characterIndex]  1-based portrait index (characterN.png).
    */
-  constructor(x, y, name = '') {
+  constructor(x, y, name = '', characterIndex = 1) {
     super({ x, y, width: PERSON_W, height: PERSON_W, color: 0x000000 });
     this._placeholder.clear();
 
@@ -40,8 +41,7 @@ export class EmployeeEntity extends Entity {
     this._hasProject = false;
     this._scheduleState = 'WORK';
 
-    // Character portrait — top half of character1.png
-    this._sprite = new Sprite(getCharacterTopHalf());
+    this._sprite = new Sprite(getCharacterTopHalf(characterIndex));
     this._sprite.anchor.set(0.5, 1);
     // Scale so the display width matches PERSON_W
     const scale = PERSON_W / this._sprite.texture.width;

@@ -11,6 +11,7 @@
  *   - dualSkillChance controls how often a second skill is added.
  */
 import { createCandidate } from '../state/Candidate.js';
+import { pickRandomCharacterIndex } from '../utils/characterSprite.js';
 import { randomName } from '../data/namePool.js';
 import { computeMedianSalary, randomInt } from '../economy/balance.js';
 import employeeCatalog from '../data/employeeCatalog.json';
@@ -30,7 +31,7 @@ export function generateCandidate({ allowedSkills, rng = Math.random } = {}) {
   const pool = allowedSkills ? [...allowedSkills] : [];
 
   if (pool.length === 0) {
-    return createCandidate({ name: randomName(rng), skills: [], salary: 0 });
+    return createCandidate({ name: randomName(rng), skills: [], salary: 0, rng });
   }
 
   const shuffled = [...pool].sort(() => rng() - 0.5);
@@ -43,7 +44,7 @@ export function generateCandidate({ allowedSkills, rng = Math.random } = {}) {
 
   const salary = computeMedianSalary(skills);
 
-  return createCandidate({ name: randomName(rng), skills, salary });
+  return createCandidate({ name: randomName(rng), skills, salary, rng });
 }
 
 /**
@@ -59,6 +60,7 @@ export function generateStarterEmployee(frontendSkillId) {
     name: employeeCatalog.starterEmployee.name,
     skills,
     salary: computeMedianSalary(skills),
+    characterIndex: pickRandomCharacterIndex(),
   };
 }
 
@@ -73,6 +75,11 @@ export function generateStarterEmployee(frontendSkillId) {
 export function generateStarterCandidates(frontendSkillId, rng = Math.random) {
   return employeeCatalog.starterCandidates.map(({ name }) => {
     const skills = [{ skill: frontendSkillId, level: randomInt(1, 3, rng) }];
-    return { name, skills, salary: computeMedianSalary(skills) };
+    return {
+      name,
+      skills,
+      salary: computeMedianSalary(skills),
+      characterIndex: pickRandomCharacterIndex(rng),
+    };
   });
 }

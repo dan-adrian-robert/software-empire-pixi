@@ -501,7 +501,7 @@ export class OfficeScene extends BaseScene {
 
     const cols = DESK_COLS;
     const offsetX = LEFT_SIDEBAR_WIDTH + 32;
-    const offsetY = TOP_BAR_HEIGHT + 80;
+    const offsetY = TOP_BAR_HEIGHT + 100;
 
     const deskPos = (i) => ({
       x: offsetX + (i % cols) * (DESK_W + DESK_PAD_X),
@@ -517,7 +517,7 @@ export class OfficeScene extends BaseScene {
       this._world.addChild(desk.view);
 
       if (emp) {
-        const ee = new EmployeeEntity(x + DESK_W / 2 - 28, y - 40, emp.name);
+        const ee = new EmployeeEntity(x + DESK_W / 2 - 32, y - 40, emp.name, emp.characterIndex);
         const popupX = x + DESK_W + 10;
         ee.setOnClick(() => this._onEmployeeClick(emp, popupX, y - 20));
         this._employeeEntities.push(ee);

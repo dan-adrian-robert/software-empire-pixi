@@ -47,6 +47,7 @@ export class HiringSystem {
       name: candidate.name,
       skills: candidate.skills,
       salary: candidate.salary,
+      characterIndex: candidate.characterIndex,
     });
     company.employees.push(employee);
 

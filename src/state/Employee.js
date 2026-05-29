@@ -18,14 +18,16 @@ export const SCHEDULE_CYCLE = ['WORK', 'BREAK', 'WORK', 'TALK'];
  * @param {string} opts.name
  * @param {Array<{skill: string, level: number}>} opts.skills  - max two skills
  * @param {number} opts.salary  - daily salary cost
+ * @param {number} [opts.characterIndex]  1-based index into characterN.png portraits.
  * @returns {Employee}
  */
-export function createEmployee({ name, skills, salary }) {
+export function createEmployee({ name, skills, salary, characterIndex = 1 }) {
   const { BASE_PRODUCTIVITY_MIN, BASE_PRODUCTIVITY_MAX } = GameConfig.gameplay;
   const clampedSkills = skills.slice(0, 2);
   return {
     id: _nextId++,
     name,
+    characterIndex,
     /** @type {Array<{skill: string, level: number}>} */
     skills: clampedSkills,
     salary,

@@ -9,15 +9,15 @@
  *   Hire / No Desk button (bottom-right)
  */
 import { Container, Graphics, Sprite, Text } from 'pixi.js';
-import { getCharacterAvatarTex } from '../../utils/characterSprite.js';
+import { getCharacterAvatarTex } from '@utils/characterSprite.js';
 import {
   SKILLS,
   SKILL_LABELS_SHORT,
   SKILL_COLORS,
   MAX_SKILL_LEVEL,
-} from '../../data/skills.js';
-import { freeDesks } from '../../state/Company.js';
-import { SCHEDULE_CYCLE } from '../../state/Employee.js';
+} from '@/data/skills.js';
+import { freeDesks } from '@/state/Company.js';
+import { SCHEDULE_CYCLE } from '@/state/Employee.js';
 
 const CARD_BG = 0x131929;
 const CARD_BORDER = 0x1e3050;
@@ -141,7 +141,7 @@ export class HiringPanel extends Container {
     this._scroll.addChild(bg);
 
     // ── Avatar ────────────────────────────────────────────
-    const avatarSprite = new Sprite(getCharacterAvatarTex());
+    const avatarSprite = new Sprite(getCharacterAvatarTex(candidate.characterIndex));
     avatarSprite.width  = AVATAR_SIZE;
     avatarSprite.height = AVATAR_SIZE;
     avatarSprite.alpha  = canHire ? 1 : 0.4;

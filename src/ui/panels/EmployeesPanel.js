@@ -15,14 +15,14 @@
  * does not leave a blank gap on cards that don't need it.
  */
 import { Container, Graphics, Sprite, Text } from 'pixi.js';
-import { getCharacterAvatarTex } from '../../utils/characterSprite.js';
+import { getCharacterAvatarTex } from '@utils/characterSprite.js';
 import {
   SKILLS,
   SKILL_LABELS_SHORT,
   SKILL_COLORS,
   MAX_SKILL_LEVEL,
-} from '../../data/skills.js';
-import { SCHEDULE_CYCLE } from '../../state/Employee.js';
+} from '@/data/skills.js';
+import { SCHEDULE_CYCLE } from '@/state/Employee.js';
 
 const CARD_BG = 0x131929;
 const CARD_BORDER = 0x1e3050;
@@ -150,7 +150,7 @@ export class EmployeesPanel extends Container {
     const bgIndex = this._scroll.children.length;
 
     // ── Avatar ────────────────────────────────────────────
-    const avatarSprite = new Sprite(getCharacterAvatarTex());
+    const avatarSprite = new Sprite(getCharacterAvatarTex(emp.characterIndex));
     avatarSprite.width  = AVATAR_SIZE;
     avatarSprite.height = AVATAR_SIZE;
     avatarSprite.position.set(PADDING + INNER, startY + 10);
