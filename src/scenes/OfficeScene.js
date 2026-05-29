@@ -126,6 +126,10 @@ export class OfficeScene extends BaseScene {
 
     // Last known 15-minute slot index — used to detect WORK period end.
     this._prevSlot = -1;
+
+    // Last dimensions used for layout — used to detect stale layout.
+    this._layoutWidth = 0;
+    this._layoutHeight = 0;
   }
 
   async preload() {
@@ -213,6 +217,14 @@ export class OfficeScene extends BaseScene {
   }
 
   update(dt) {
+    // Safety net: re-layout if the canvas size has changed since the last
+    // resize() call (guards against race conditions between Pixi's renderer
+    // resize and our own _onResize handler).
+    const { width: sw, height: sh } = this.game.screen;
+    if (Math.abs(sw - this._layoutWidth) > 1 || Math.abs(sh - this._layoutHeight) > 1) {
+      this.resize(sw, sh);
+    }
+
     // Keep speed-button highlight in sync with current game speed.
     this._topBar.update();
 
@@ -312,6 +324,9 @@ export class OfficeScene extends BaseScene {
       this._initialized = true;
       this._rebuildOffice();
     }
+
+    this._layoutWidth = width;
+    this._layoutHeight = height;
   }
 
   async exit() {

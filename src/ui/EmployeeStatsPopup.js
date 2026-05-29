@@ -69,6 +69,8 @@ export class EmployeeStatsPopup extends Container {
     this._screenW = 0;
     this._screenH = 0;
     this._popupH = 300;
+    this._anchorX = 0;
+    this._anchorY = 0;
 
     this._winBg = new Graphics();
     this._content = new Container();
@@ -85,6 +87,8 @@ export class EmployeeStatsPopup extends Container {
     this._emp = emp;
     this._screenW = screenW;
     this._screenH = screenH;
+    this._anchorX = anchorX;
+    this._anchorY = anchorY;
 
     // Draw first so _popupH is set before placement.
     this._draw(emp, company);
@@ -100,7 +104,9 @@ export class EmployeeStatsPopup extends Container {
   resize(screenW, screenH) {
     this._screenW = screenW;
     this._screenH = screenH;
-    // No repositioning needed — popup will re-open on next click.
+    if (this.visible) {
+      this._placeWindow(this._anchorX, this._anchorY, screenW, screenH);
+    }
   }
 
   /** Re-draw skill/status content while popup stays open (e.g. every 0.2s tick). */

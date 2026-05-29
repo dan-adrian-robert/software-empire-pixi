@@ -47,6 +47,7 @@ export class Game {
 
     this._onResize = this._onResize.bind(this);
     this._onTick = this._onTick.bind(this);
+    this._resizeRaf = 0;
 
     this._initialized = false;
   }
@@ -111,6 +112,10 @@ export class Game {
   destroy() {
     if (!this._initialized) return;
 
+    if (this._resizeRaf) {
+      cancelAnimationFrame(this._resizeRaf);
+      this._resizeRaf = 0;
+    }
     window.removeEventListener('resize', this._onResize);
     this.app.ticker.remove(this._onTick);
 
@@ -194,9 +199,13 @@ export class Game {
   }
 
   _onResize() {
-    const { width, height } = this.app.screen;
-    this.scenes.resize(width, height);
-    this.events.emit('resize', { width, height });
+    if (this._resizeRaf) cancelAnimationFrame(this._resizeRaf);
+    this._resizeRaf = requestAnimationFrame(() => {
+      this._resizeRaf = 0;
+      const { width, height } = this.app.screen;
+      this.scenes.resize(width, height);
+      this.events.emit('resize', { width, height });
+    });
   }
 
   _onTick(ticker) {
