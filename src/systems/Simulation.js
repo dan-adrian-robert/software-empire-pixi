@@ -11,6 +11,7 @@
  *   - Expose project management actions (acceptProject, rejectProject).
  */
 import { createCompany, resetDailySpProductivity } from '../state/Company.js';
+import { createFurnitureItem } from '../state/FurnitureItem.js';
 import { isPastCritical } from '../state/Project.js';
 import { syncIdCounters } from '../state/syncIdCounters.js';
 import { RESEARCH_NODES } from '../data/researchNodes.js';
@@ -239,18 +240,64 @@ export class Simulation {
     this.time.gameSpeed = speed;
   }
 
-  /** Purchase one additional desk slot for a flat fee. */
-  buyDesk() {
+  /**
+   * Place a new desk at the given tile position. Deducts $1,000.
+   * @param {number} tileX
+   * @param {number} tileY
+   * @returns {boolean}
+   */
+  placeDeskAtTile(tileX, tileY) {
     const PRICE = 1000;
-    if (!this.company) return;
+    if (!this.company) return false;
     if (this.company.money < PRICE) {
       this.bus.emit('notification:add', { text: 'Not enough money for a new desk.', type: 'warning' });
-      return;
+      return false;
     }
     this.company.money -= PRICE;
     this.company.office.desks += 1;
-    this.bus.emit('notification:add', { text: 'New desk added! (+1 slot)', type: 'success' });
-    this.bus.emit('desk:bought', { company: this.company });
+    this.company.office.deskTiles.push({ tileX, tileY });
+    this.bus.emit('notification:add', { text: 'New desk placed! (+1 slot)', type: 'success' });
+    this.bus.emit('desk:placed', { company: this.company });
+    return true;
+  }
+
+  /**
+   * Move a desk from its current tile position to a new one.
+   * Updates in-place so the array index (and employee mapping) is preserved.
+   * @param {number} oldTileX
+   * @param {number} oldTileY
+   * @param {number} newTileX
+   * @param {number} newTileY
+   */
+  moveDeskAtTile(oldTileX, oldTileY, newTileX, newTileY) {
+    if (!this.company) return;
+    const desk = this.company.office.deskTiles.find(
+      (d) => d.tileX === oldTileX && d.tileY === oldTileY,
+    );
+    if (!desk) return;
+    desk.tileX = newTileX;
+    desk.tileY = newTileY;
+    this.bus.emit('desk:placed', { company: this.company });
+  }
+
+  /**
+   * Remove the desk at the given tile position.
+   * Blocked when an employee is seated at that desk.
+   * @param {number} tileX
+   * @param {number} tileY
+   */
+  removeDeskAtTile(tileX, tileY) {
+    if (!this.company) return;
+    const tiles = this.company.office.deskTiles;
+    const idx = tiles.findIndex((d) => d.tileX === tileX && d.tileY === tileY);
+    if (idx === -1) return;
+    if (this.company.employees[idx]) {
+      this.bus.emit('notification:add', { text: 'Cannot remove a desk with an employee seated.', type: 'warning' });
+      return;
+    }
+    tiles.splice(idx, 1);
+    this.company.office.desks -= 1;
+    this.bus.emit('desk:removed', { company: this.company });
   }
 
   /**
@@ -359,6 +406,31 @@ export class Simulation {
       });
       this.bus.emit('project:failed', { project, company });
     }
+  }
+
+  // -----------------------------------------------------------------------
+  // Build mode actions
+  // -----------------------------------------------------------------------
+
+  /**
+   * Place a furniture item on the floor at the given tile coordinates.
+   * @param {string} typeId
+   * @param {number} tileX
+   * @param {number} tileY
+   */
+  placeFurniture(typeId, tileX, tileY) {
+    const item = createFurnitureItem(typeId, tileX, tileY);
+    this.company.furniture.push(item);
+    this.bus.emit('furniture:placed', { item });
+  }
+
+  /**
+   * Remove a placed furniture item by its id.
+   * @param {number} itemId
+   */
+  removeFurniture(itemId) {
+    this.company.furniture = this.company.furniture.filter((f) => f.id !== itemId);
+    this.bus.emit('furniture:removed', { itemId });
   }
 
   _refreshProjectPool(company) {

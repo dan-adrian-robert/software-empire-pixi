@@ -97,6 +97,12 @@ export function createCompany() {
     currentWeather: null,
 
     /**
+     * Placed furniture items on the office floor.
+     * @type {import('./FurnitureItem.js').FurnitureItem[]}
+     */
+    furniture: [],
+
+    /**
      * SP production history for the current day.
      * Populated by recordSpPeriod() at the end of each WORK period.
      */

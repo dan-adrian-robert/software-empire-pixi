@@ -17,9 +17,10 @@ const POINTS_LABEL_START_Y = 70; // below body, floats upward during fade
 // Display width for the character sprite. Height is derived from the crop ratio.
 const PERSON_W = 64;
 
-// How far below the entity origin the desk bottom edge sits.
-// Entity is spawned 40px above the desk (y - 40), and DESK_H = 100.
-const NAME_OFFSET_Y = 148; // ≈ below desk bottom
+// How far below the entity origin the name label sits.
+// Entity origin = py + 52. Desk bottom = py + 128.
+// Label offset = 128 - 52 + 16 = 92 → name at 16px below desk bottom.
+const NAME_OFFSET_Y = 92;
 
 const SCHEDULE_ICONS = { WORK: '💻', BREAK: '☕', TALK: '💬' };
 const WARNING_ICON = '⚠️';

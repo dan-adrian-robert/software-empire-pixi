@@ -9,10 +9,11 @@
  * Storage keys: `software-empire:save:0` … `:4`
  */
 import { GameConfig } from '../config.js';
-import { peekNextId as empNextId } from '../state/Employee.js';
-import { peekNextId as projNextId } from '../state/Project.js';
-import { peekNextId as candNextId } from '../state/Candidate.js';
-import { peekNextId as offNextId } from '../state/Office.js';
+import { peekNextId as empNextId }       from '../state/Employee.js';
+import { peekNextId as projNextId }      from '../state/Project.js';
+import { peekNextId as candNextId }      from '../state/Candidate.js';
+import { peekNextId as offNextId }       from '../state/Office.js';
+import { peekNextId as furnitureNextId } from '../state/FurnitureItem.js';
 
 const { SLOT_COUNT, STORAGE_PREFIX } = GameConfig.save;
 
@@ -40,6 +41,7 @@ export function saveSlot(index, sim, saveName) {
       project:   projNextId(),
       candidate: candNextId(),
       office:    offNextId(),
+      furniture: furnitureNextId(),
     },
   };
 
@@ -124,5 +126,6 @@ function _validate(payload) {
   const { employee, project, candidate, office } = payload.nextIds;
   if (typeof employee !== 'number' || typeof project !== 'number'
     || typeof candidate !== 'number' || typeof office !== 'number') return false;
+  // furniture counter is optional (added later; defaults gracefully in syncIdCounters)
   return true;
 }

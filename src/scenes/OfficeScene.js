@@ -24,6 +24,9 @@ import { WeatherPopup } from '../ui/WeatherPopup.js';
 import { DayReportPopup } from '../ui/DayReportPopup.js';
 import { SaveSlotPopup } from '../ui/SaveSlotPopup.js';
 import { Toast } from '../ui/Toast.js';
+import { BuildOverlay } from '../ui/BuildOverlay.js';
+import { BuildPanel } from '../ui/BuildPanel.js';
+import { BuildToggleButton } from '../ui/BuildToggleButton.js';
 
 import { ProjectsPanel } from '../ui/panels/ProjectsPanel.js';
 import { EmployeesPanel } from '../ui/panels/EmployeesPanel.js';
@@ -33,15 +36,13 @@ import { AssignmentPanel } from '../ui/panels/AssignmentPanel.js';
 
 import { DeskEntity, DESK_W, DESK_H } from '../entities/DeskEntity.js';
 import { EmployeeEntity } from '../entities/EmployeeEntity.js';
-import { BuyDeskEntity } from '../entities/BuyDeskEntity.js';
+import { FurnitureEntity } from '../entities/FurnitureEntity.js';
 import { SCHEDULE_CYCLE } from '../state/Employee.js';
+import { getFurnitureType } from '../data/furnitureTypes.js';
 
 const TILE = 64;
 const FLOOR_COLOR = 0x0f172a;
-const GRID_COLOR = 0x141e35;
-const DESK_COLS = 4;
-const DESK_PAD_X = 32;
-const DESK_PAD_Y = 28;
+const GRID_COLOR  = 0x141e35;
 
 const PANEL_TITLES = {
   projects: 'Projects',
@@ -80,8 +81,6 @@ export class OfficeScene extends BaseScene {
     this._desks = [];
     /** @type {EmployeeEntity[]} */
     this._employeeEntities = [];
-    /** @type {BuyDeskEntity|null} */
-    this._buyDeskEntity = null;
 
     // HUD widgets.
     this._topBar = new TopBarHUD(game);
@@ -114,6 +113,20 @@ export class OfficeScene extends BaseScene {
     // Save-slot popup — shown when the player clicks the Save sidebar button.
     this._saveSlotPopup = new SaveSlotPopup();
 
+    // Build mode.
+    this._buildOverlay    = new BuildOverlay();
+    this._buildPanel      = new BuildPanel();
+    this._buildToggleBtn  = new BuildToggleButton();
+    this._buildMode       = false;
+    /** @type {{ typeId: string, ghost: Container, type: object } | null} */
+    this._buildDrag       = null;
+    /** @type {FurnitureEntity[]} */
+    this._furnitureEntities = [];
+
+    // Bound drag handlers (stored for removal).
+    this._onBuildPointerMove = (e) => this._handleBuildDragMove(e);
+    this._onBuildPointerUp   = (e) => this._handleBuildDragDrop(e);
+
     // Active nav view id ('office' | 'projects' | 'employees' | 'hiring').
     this._activeView = 'office';
 
@@ -140,6 +153,8 @@ export class OfficeScene extends BaseScene {
     this.root.addChild(this._world);
     this._world.addChild(this._floor);
     this._world.addChild(this._grid);
+    // Build overlay sits above floor/grid but below desk entities.
+    this._world.addChild(this._buildOverlay);
 
     // Popup layer (employee stats + schedule + weather) — above world, below modal and HUD.
     this.root.addChild(this._popupLayer);
@@ -161,6 +176,10 @@ export class OfficeScene extends BaseScene {
     this._hudLayer.addChild(this._leftSidebar);
     this._hudLayer.addChild(this._widgetBar);
 
+    // Build UI — floating over HUD layer.
+    this._hudLayer.addChild(this._buildToggleBtn);
+    this._hudLayer.addChild(this._buildPanel);
+
     // World background click closes any open floating popup.
     // Employee entities and the schedule popup stop propagation so they don't trigger this.
     this._world.eventMode = 'static';
@@ -179,7 +198,8 @@ export class OfficeScene extends BaseScene {
     this.listen('day:began', () => this._onDayBegan());
     this.listen('employee:hired', () => this._rebuildOffice());
     this.listen('employee:fired', () => this._rebuildOffice());
-    this.listen('desk:bought', () => this._rebuildOffice());
+    this.listen('desk:placed',   () => this._rebuildOffice());
+    this.listen('desk:removed',  () => this._rebuildOffice());
     this.listen('project:completed', () => {
       if (this._activeView === 'projects') this._modal.refresh();
       this._widgetBar.refresh(true);
@@ -212,7 +232,17 @@ export class OfficeScene extends BaseScene {
     });
     this.listen('simulation:reset', () => {
       this._rebuildOffice();
+      this._rebuildFurniture();
       this._navigate('office');
+    });
+
+    // Build panel drag start → scene handles the drag.
+    this._buildPanel.setOnDragStart((typeId, e) => this._onBuildDragStart(typeId, e));
+
+    // Toggle button.
+    this._buildToggleBtn.setOnToggle(() => {
+      if (this._buildMode) this._exitBuildMode();
+      else this._enterBuildMode();
     });
   }
 
@@ -290,7 +320,6 @@ export class OfficeScene extends BaseScene {
       this._statsPopup.refresh(this.game.sim?.company);
       this._schedulePopup.refresh(this.game.sim?.company);
       this._weatherPopup.refresh(this.game.sim?.company);
-      this._refreshBuyDesk();
     }
 
     // Toasts.
@@ -300,7 +329,6 @@ export class OfficeScene extends BaseScene {
   resize(width, height) {
     this._drawFloor(width, height);
     this._drawGrid(width, height);
-    this._positionDesks(width, height);
 
     this._topBar.resize(width);
     this._leftSidebar.resize(width, height);
@@ -315,14 +343,21 @@ export class OfficeScene extends BaseScene {
     }
     this._repositionToasts(width);
 
+    this._buildOverlay.resize(width, height);
+    this._buildPanel.resize(width, height);
+    this._buildToggleBtn.resize(width, height);
+
     // First-time initialisation guard.
     if (!this._initialized) {
       this._topBar.init(width);
       this._topBar.setWeatherClickHandler((ax, ay) => this._toggleWeatherPopup(ax, ay));
       this._leftSidebar.init(height);
       this._widgetBar.init(width, height);
+      this._buildToggleBtn.init(width, height);
+      this._buildPanel.init(width, height);
       this._initialized = true;
       this._rebuildOffice();
+      this._rebuildFurniture();
     }
 
     this._layoutWidth = width;
@@ -334,9 +369,10 @@ export class OfficeScene extends BaseScene {
       this.game.app.canvas.removeEventListener('wheel', this._onWheel);
       this._onWheel = null;
     }
+    this._exitBuildMode();
     this._desks = [];
     this._employeeEntities = [];
-    this._buyDeskEntity = null;
+    this._furnitureEntities = [];
     this._toasts = [];
     this._initialized = false;
     this._activeView = 'office';
@@ -390,6 +426,7 @@ export class OfficeScene extends BaseScene {
   }
 
   _onEmployeeClick(emp, deskX, deskY) {
+    if (this._buildMode) return;
     const company = this.game.sim?.company;
     if (!company) return;
 
@@ -503,71 +540,389 @@ export class OfficeScene extends BaseScene {
     // Destroy old entities.
     for (const d of this._desks) d.destroy();
     for (const e of this._employeeEntities) e.destroy();
-    this._buyDeskEntity?.destroy();
     this._desks = [];
     this._employeeEntities = [];
-    this._buyDeskEntity = null;
 
     const company = this.game.sim?.company;
     if (!company) return;
 
-    const { desks } = company.office;
+    const deskTiles = company.office.deskTiles ?? [];
     const employees = company.employees;
 
-    const cols = DESK_COLS;
-    const offsetX = LEFT_SIDEBAR_WIDTH + 32;
-    const offsetY = TOP_BAR_HEIGHT + 100;
-
-    const deskPos = (i) => ({
-      x: offsetX + (i % cols) * (DESK_W + DESK_PAD_X),
-      y: offsetY + Math.floor(i / cols) * (DESK_H + DESK_PAD_Y + 30),
-    });
-
-    // Existing desks
-    for (let i = 0; i < desks; i++) {
-      const { x, y } = deskPos(i);
+    for (let i = 0; i < deskTiles.length; i++) {
+      const { tileX, tileY } = deskTiles[i];
+      const { px, py } = this._tileToPixel(tileX, tileY);
       const emp = employees[i] ?? null;
-      const desk = new DeskEntity(x, y, emp !== null);
+
+      const desk = new DeskEntity(emp !== null);
+      desk.view.position.set(px, py);
+
+      // Build-mode: make desk draggable / deletable via the same mechanism as FurnitureEntity
+      // We store tile coords on the view so _onFurnitureDragStart can use them.
+      desk.view._deskTileX = tileX;
+      desk.view._deskTileY = tileY;
+      desk.view._isDeskEntity = true;
+
       this._desks.push(desk);
       this._world.addChild(desk.view);
 
       if (emp) {
-        const ee = new EmployeeEntity(x + DESK_W / 2 - 32, y - 40, emp.name, emp.characterIndex);
-        const popupX = x + DESK_W + 10;
-        ee.setOnClick(() => this._onEmployeeClick(emp, popupX, y - 20));
+        // Sprite center = entity_y + 21.5 (spriteH≈77, anchor bottom at local y=60)
+        // Monitor center = py+74 (MON_Y=38, MON_H=72) → entity_y = py+52
+        const ee = new EmployeeEntity(px + DESK_W / 2 - 32, py + 20, emp.name, emp.characterIndex);
+        const popupX = px + DESK_W + 10;
+        ee.setOnClick(() => this._onEmployeeClick(emp, popupX, py - 20));
         this._employeeEntities.push(ee);
         this._world.addChild(ee.view);
       }
     }
+  }
 
-    // Buy-desk slot — only shown when every existing desk is occupied.
-    const hasEmptyDesk = employees.length < desks;
-    const { x: bx, y: by } = deskPos(desks);
-    const canAfford = company.money >= 1000;
-    this._buyDeskEntity = new BuyDeskEntity(bx, by, canAfford, () => {
-      this.game.sim.buyDesk();
+  // -----------------------------------------------------------------------
+  // Build mode
+  // -----------------------------------------------------------------------
+
+  _enterBuildMode() {
+    this._buildMode = true;
+    // Close any open popups so they don't linger during build mode.
+    this._closeStatsPopup();
+    this._closeSchedulePopup();
+    this._weatherPopup.close();
+    // Swap right sidebar: hide widgets, show build panel in its place.
+    this._widgetBar.visible = false;
+    this._buildOverlay.show();
+    this._buildPanel.show();
+    this._buildToggleBtn.setActive(true);
+    // Make existing furniture interactive.
+    for (const fe of this._furnitureEntities) fe.setBuildMode(true);
+    // Make desk tiles interactive: show a ✕ button to remove, drag to move.
+    this._attachDeskBuildHandlers();
+    // Prevent world click from closing popups while in build mode.
+    this._world.off('pointerdown');
+  }
+
+  _exitBuildMode() {
+    this._buildMode = false;
+    this._buildDragCancel();
+    this._buildOverlay.hide();
+    this._buildPanel.hide();
+    // Restore the normal right sidebar.
+    this._widgetBar.visible = true;
+    this._buildToggleBtn.setActive(false);
+    // Restore furniture to decorative.
+    for (const fe of this._furnitureEntities) fe.setBuildMode(false);
+    // Remove desk build-mode overlays.
+    this._detachDeskBuildHandlers();
+    // Re-attach world background click handler.
+    this._world.removeAllListeners();
+    this._world.on('pointerdown', () => {
+      this._closeStatsPopup();
+      this._closeSchedulePopup();
+      this._weatherPopup.close();
     });
-    this._buyDeskEntity.view.visible = !hasEmptyDesk;
-    this._world.addChild(this._buyDeskEntity.view);
   }
 
-  _positionDesks(width, height) {
-    void width;
-    void height;
-  }
-
-  /** Update the buy-desk slot visibility/affordability without rebuilding the whole office. */
-  _refreshBuyDesk() {
+  /** Attach interactive delete/drag overlays to each DeskEntity when in build mode. */
+  _attachDeskBuildHandlers() {
     const company = this.game.sim?.company;
-    if (!company || !this._buyDeskEntity) return;
-    const canAfford = company.money >= 1000;
-    const hasEmptyDesk = company.employees.length < company.office.desks;
-    // Rebuild only when affordability changes (visibility is updated cheaply below).
-    if (this._buyDeskEntity._canAfford !== canAfford) {
-      this._rebuildOffice();
-      return;
+    if (!company) return;
+    const deskTiles = company.office.deskTiles ?? [];
+    for (let i = 0; i < this._desks.length; i++) {
+      const desk = this._desks[i];
+      const { tileX, tileY } = deskTiles[i] ?? {};
+      const isOccupied = !!(company.employees[i]);
+      desk.view.eventMode = 'static';
+      desk.view.cursor = 'grab';
+      // Drag-to-move: pointerdown on the desk body starts a move drag.
+      const srcTileX = tileX;
+      const srcTileY = tileY;
+      desk.view.on('pointerdown', (ev) => {
+        ev.stopPropagation();
+        this._onDeskDragStart(srcTileX, srcTileY, ev);
+      });
+      // ✕ delete button overlay.
+      this._addDeskDeleteButton(desk, tileX, tileY, isOccupied);
     }
-    this._buyDeskEntity.view.visible = !hasEmptyDesk;
+  }
+
+  /**
+   * Start a move-drag for an existing desk tile.
+   * Stores the source tile in _buildDrag so _handleBuildDragDrop routes to moveDeskAtTile.
+   * @param {number} srcTileX
+   * @param {number} srcTileY
+   * @param {PointerEvent} e
+   */
+  _onDeskDragStart(srcTileX, srcTileY, e) {
+    if (this._buildDrag) this._buildDragCancel();
+    const type = getFurnitureType('desk');
+    const ghost = this._makeDragGhost(type);
+    this.root.addChild(ghost);
+
+    this._buildDrag = { typeId: 'desk', type, ghost, moveSrcTileX: srcTileX, moveSrcTileY: srcTileY };
+
+    this.game.app.canvas.addEventListener('pointermove', this._onBuildPointerMove);
+    this.game.app.canvas.addEventListener('pointerup',   this._onBuildPointerUp);
+
+    this._moveDragGhost(e.clientX, e.clientY);
+  }
+
+  _detachDeskBuildHandlers() {
+    for (const desk of this._desks) {
+      desk.view.eventMode = 'none';
+      desk.view.cursor = 'default';
+      desk.view.removeAllListeners('pointerdown');
+      if (desk.view._buildDeleteBtn) {
+        desk.view._buildDeleteBtn.destroy({ children: true });
+        desk.view._buildDeleteBtn = null;
+      }
+    }
+  }
+
+  _addDeskDeleteButton(desk, tileX, tileY, isOccupied) {
+    const SIZE = 22;
+    const BX   = DESK_W - SIZE - 4;
+    const BY   = 4;
+
+    const btn = new Graphics();
+    btn
+      .roundRect(BX, BY, SIZE, SIZE, 5)
+      .fill({ color: isOccupied ? 0x555555 : 0xdc2626 })
+      .stroke({ color: 0xffffff, width: 1.5 })
+      .moveTo(BX + 6, BY + 6)
+      .lineTo(BX + SIZE - 6, BY + SIZE - 6)
+      .stroke({ color: 0xffffff, width: 2 })
+      .moveTo(BX + SIZE - 6, BY + 6)
+      .lineTo(BX + 6, BY + SIZE - 6)
+      .stroke({ color: 0xffffff, width: 2 });
+
+    btn.eventMode = 'static';
+    btn.cursor = isOccupied ? 'not-allowed' : 'pointer';
+    btn.hitArea = { contains: (x, y) => x >= BX && x <= BX + SIZE && y >= BY && y <= BY + SIZE };
+
+    btn.on('pointerdown', (ev) => {
+      ev.stopPropagation();
+      if (isOccupied) {
+        this.game.events.emit('notification:add', { text: 'Cannot remove a desk with an employee seated.', type: 'warning' });
+        return;
+      }
+      this.game.sim.removeDeskAtTile(tileX, tileY);
+      this._rebuildOffice();
+      this._attachDeskBuildHandlers();
+    });
+
+    desk.view.addChild(btn);
+    desk.view._buildDeleteBtn = btn;
+  }
+
+  /**
+   * Called by BuildPanel when the player starts dragging a furniture card.
+   * @param {string} typeId
+   * @param {PointerEvent} e
+   */
+  _onBuildDragStart(typeId, e) {
+    if (this._buildDrag) this._buildDragCancel();
+
+    const type = getFurnitureType(typeId);
+    const ghost = this._makeDragGhost(type);
+    this.root.addChild(ghost);
+
+    this._buildDrag = { typeId, type, ghost };
+
+    this.game.app.canvas.addEventListener('pointermove', this._onBuildPointerMove);
+    this.game.app.canvas.addEventListener('pointerup',   this._onBuildPointerUp);
+
+    // Position ghost immediately at cursor.
+    this._moveDragGhost(e.clientX, e.clientY);
+  }
+
+  _handleBuildDragMove(e) {
+    if (!this._buildDrag) return;
+    this._moveDragGhost(e.clientX, e.clientY);
+
+    const { tileX, tileY } = this._screenToTile(e.clientX, e.clientY);
+    const { type, moveSrcTileX, moveSrcTileY } = this._buildDrag;
+    const excludeDeskTile = moveSrcTileX !== undefined
+      ? { tileX: moveSrcTileX, tileY: moveSrcTileY }
+      : null;
+    const valid = this._isTileValid(tileX, tileY, type.w, type.h, null, excludeDeskTile);
+    this._buildOverlay.setHoverTile(tileX, tileY, type.w, type.h, valid);
+  }
+
+  _handleBuildDragDrop(e) {
+    if (!this._buildDrag) return;
+    const { typeId, type, moveSrcTileX, moveSrcTileY } = this._buildDrag;
+    const { tileX, tileY } = this._screenToTile(e.clientX, e.clientY);
+
+    const excludeDeskTile = moveSrcTileX !== undefined
+      ? { tileX: moveSrcTileX, tileY: moveSrcTileY }
+      : null;
+
+    if (this._isTileValid(tileX, tileY, type.w, type.h, null, excludeDeskTile)) {
+      if (typeId === 'desk') {
+        if (moveSrcTileX !== undefined) {
+          this.game.sim.moveDeskAtTile(moveSrcTileX, moveSrcTileY, tileX, tileY);
+        } else {
+          this.game.sim.placeDeskAtTile(tileX, tileY);
+        }
+        this._rebuildOffice();
+        if (this._buildMode) this._attachDeskBuildHandlers();
+      } else {
+        this.game.sim.placeFurniture(typeId, tileX, tileY);
+        this._rebuildFurniture();
+      }
+    }
+
+    this._buildDragCancel();
+  }
+
+  _buildDragCancel() {
+    if (!this._buildDrag) return;
+    this._buildDrag.ghost.destroy({ children: true });
+    this._buildDrag = null;
+    this._buildOverlay.setHoverTile(null, null);
+    this.game.app.canvas.removeEventListener('pointermove', this._onBuildPointerMove);
+    this.game.app.canvas.removeEventListener('pointerup',   this._onBuildPointerUp);
+  }
+
+  /** Rebuild all FurnitureEntity views from company.furniture[]. */
+  _rebuildFurniture() {
+    for (const fe of this._furnitureEntities) fe.destroy();
+    this._furnitureEntities = [];
+
+    const company = this.game.sim?.company;
+    if (!company) return;
+
+    for (const item of (company.furniture ?? [])) {
+      const fe = new FurnitureEntity(
+        item,
+        (it) => {
+          this.game.sim.removeFurniture(it.id);
+          this._rebuildFurniture();
+        },
+        (it, ev) => this._onFurnitureDragStart(it, ev),
+      );
+      const { px, py } = this._tileToPixel(item.tileX, item.tileY);
+      fe.setPosition(px, py);
+      if (this._buildMode) fe.setBuildMode(true);
+      this._world.addChild(fe.view);
+      this._furnitureEntities.push(fe);
+    }
+  }
+
+  /**
+   * Move-drag for already-placed furniture: remove from state, then start a
+   * new drag that will re-place it on drop.
+   */
+  _onFurnitureDragStart(item, e) {
+    const { typeId } = item;
+    this.game.sim.removeFurniture(item.id);
+    this._rebuildFurniture();
+    this._onBuildDragStart(typeId, e);
+  }
+
+  // -----------------------------------------------------------------------
+  // Build mode helpers
+  // -----------------------------------------------------------------------
+
+  /** Convert a screen pixel (from PointerEvent) to tile coordinates. */
+  _screenToTile(screenX, screenY) {
+    const rect   = this.game.app.canvas.getBoundingClientRect();
+    const scaleX = this.game.screen.width  / rect.width;
+    const scaleY = this.game.screen.height / rect.height;
+    const canvasX = (screenX - rect.left) * scaleX;
+    const canvasY = (screenY - rect.top)  * scaleY;
+    return {
+      tileX: Math.floor((canvasX - LEFT_SIDEBAR_WIDTH) / TILE),
+      tileY: Math.floor((canvasY - TOP_BAR_HEIGHT)     / TILE),
+    };
+  }
+
+  /** Convert tile coords to top-left canvas pixel position. */
+  _tileToPixel(tileX, tileY) {
+    return {
+      px: LEFT_SIDEBAR_WIDTH + tileX * TILE,
+      py: TOP_BAR_HEIGHT     + tileY * TILE,
+    };
+  }
+
+  /**
+   * Returns true if the tile region is within the floor and not occupied by
+   * a desk or another furniture item.
+   * @param {number} tileX
+   * @param {number} tileY
+   * @param {number} w  Width in tiles.
+   * @param {number} h  Height in tiles.
+   * @param {number|null} excludeId  Furniture id to ignore (used when moving).
+   */
+  /**
+   * @param {number} tileX
+   * @param {number} tileY
+   * @param {number} w
+   * @param {number} h
+   * @param {number|null} excludeId  Furniture id to ignore (used when moving furniture).
+   * @param {{ tileX: number, tileY: number }|null} excludeDeskTile  Desk tile to ignore (used when moving a desk).
+   */
+  _isTileValid(tileX, tileY, w, h, excludeId, excludeDeskTile = null) {
+    const floorTilesW = Math.floor((this._layoutWidth  - LEFT_SIDEBAR_WIDTH) / TILE);
+    const floorTilesH = Math.floor((this._layoutHeight - TOP_BAR_HEIGHT)     / TILE);
+
+    // Must be within floor bounds.
+    if (tileX < 0 || tileY < 0 || tileX + w > floorTilesW || tileY + h > floorTilesH) return false;
+
+    const company = this.game.sim?.company;
+    if (!company) return true;
+
+    // Check overlap with desks (each desk is exactly 2×2 tiles).
+    for (const dt of (company.office.deskTiles ?? [])) {
+      if (excludeDeskTile && dt.tileX === excludeDeskTile.tileX && dt.tileY === excludeDeskTile.tileY) continue;
+      if (this._tilesOverlap(tileX, tileY, w, h, dt.tileX, dt.tileY, 2, 2)) return false;
+    }
+
+    // Check overlap with other furniture.
+    for (const it of company.furniture) {
+      if (it.id === excludeId) continue;
+      const ft = getFurnitureType(it.typeId);
+      if (this._tilesOverlap(tileX, tileY, w, h, it.tileX, it.tileY, ft.w, ft.h)) return false;
+    }
+
+    return true;
+  }
+
+  _tilesOverlap(ax, ay, aw, ah, bx, by, bw, bh) {
+    return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+  }
+
+  /** Move drag ghost to follow cursor (canvas-relative pixel position). */
+  _moveDragGhost(screenX, screenY) {
+    if (!this._buildDrag) return;
+    const rect   = this.game.app.canvas.getBoundingClientRect();
+    const scaleX = this.game.screen.width  / rect.width;
+    const scaleY = this.game.screen.height / rect.height;
+    const cx = (screenX - rect.left) * scaleX;
+    const cy = (screenY - rect.top)  * scaleY;
+    const { type } = this._buildDrag;
+    this._buildDrag.ghost.position.set(
+      cx - (type.w * TILE) / 2,
+      cy - (type.h * TILE) / 2,
+    );
+  }
+
+  /** Create a semi-transparent ghost container for the item being dragged. */
+  _makeDragGhost(type) {
+    const ghost = new Container();
+    ghost.alpha = 0.65;
+    ghost.eventMode = 'none';
+
+    const pw = type.w * TILE;
+    const ph = type.h * TILE;
+
+    const g = new Graphics()
+      .roundRect(2, 2, pw - 4, ph - 4, 6)
+      .fill({ color: type.color, alpha: 0.7 })
+      .stroke({ color: type.color, width: 2, alpha: 0.9 });
+    ghost.addChild(g);
+
+    return ghost;
   }
 
   // -----------------------------------------------------------------------
