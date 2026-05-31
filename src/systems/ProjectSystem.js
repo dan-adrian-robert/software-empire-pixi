@@ -106,9 +106,10 @@ export class ProjectSystem {
    * Call this whenever the WORK schedule period ends.
    *
    * @param {import('../state/Company.js').Company} company
+   * @param {import('./TeamSystem.js').TeamSystem|null} [teamSystem]
    * @returns {Map<number, number>} Map of employee index → total points flushed
    */
-  flushWorkPeriod(company) {
+  flushWorkPeriod(company, teamSystem = null) {
     /** @type {Map<number, number>} */
     const totals = new Map();
 
@@ -154,7 +155,8 @@ export class ProjectSystem {
     company.employees.forEach((emp, i) => {
       if ((totals.get(i) ?? 0) <= 0) return;
 
-      emp.exp += EXP_PER_TICK;
+      const expMult = teamSystem ? teamSystem.expMultiplier(company, emp) : 1;
+      emp.exp += EXP_PER_TICK * expMult;
 
       while (emp.exp >= EXP_PER_LEVEL) {
         emp.exp -= EXP_PER_LEVEL;
@@ -164,6 +166,7 @@ export class ProjectSystem {
         this.bus.emit('notification:add', {
           text: `${emp.name} reached Level ${emp.level}! Skill point available.`,
           type: 'success',
+          suppress: emp.logsMuted,
         });
       }
     });

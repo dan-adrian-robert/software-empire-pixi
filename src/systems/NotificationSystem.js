@@ -25,7 +25,9 @@ export class NotificationSystem {
   }
 
   init() {
-    this._off = this.bus.on('notification:add', ({ text, type = 'info' }) => {
+    this._off = this.bus.on('notification:add', ({ text, type = 'info', suppress }) => {
+      // suppress:true means completely invisible — no toast AND no list entry.
+      if (suppress) return;
       this.notifications.unshift({
         id: _nextNotifId++,
         text,

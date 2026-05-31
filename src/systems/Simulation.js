@@ -11,6 +11,7 @@
  *   - Expose project management actions (acceptProject, rejectProject).
  */
 import { createCompany, resetDailySpProductivity } from '../state/Company.js';
+import { STAFF_ROLES } from '../data/staffRoles.js';
 import { createFurnitureItem } from '../state/FurnitureItem.js';
 import { isPastCritical } from '../state/Project.js';
 import { syncIdCounters } from '../state/syncIdCounters.js';
@@ -26,18 +27,22 @@ import { EconomySystem } from './EconomySystem.js';
 import { HiringSystem } from './HiringSystem.js';
 import { NotificationSystem } from './NotificationSystem.js';
 import { ProductivitySystem } from './ProductivitySystem.js';
+import { PmAssignmentSystem } from './PmAssignmentSystem.js';
+import { TeamSystem } from './TeamSystem.js';
 
 export class Simulation {
   /** @param {import('../utils/EventBus.js').EventBus} bus */
   constructor(bus) {
     this.bus = bus;
 
+    this.teamSystem = new TeamSystem();
     this.time = new TimeSystem(bus);
     this.projects = new ProjectSystem(bus);
     this.economy = new EconomySystem(bus);
-    this.hiring = new HiringSystem(bus);
+    this.hiring = new HiringSystem(bus, this.teamSystem);
     this.notifications = new NotificationSystem(bus);
     this.productivity = new ProductivitySystem();
+    this.pmAssignment = new PmAssignmentSystem(bus);
 
     /** @type {import('../state/Company.js').Company} */
     this.company = null;
@@ -71,6 +76,7 @@ export class Simulation {
     this._tearDown();
 
     this.company = payload.company;
+    this._patchSaveCompat(this.company);
     syncIdCounters(payload.nextIds);
 
     this.time = new TimeSystem(this.bus);
@@ -113,6 +119,7 @@ export class Simulation {
       this._checkProjectDeadlines(company);
       this._refreshProjectPool(company);
       this.hiring.refreshCandidates(company);
+      this.hiring.refreshOtherCandidates(company);
 
       // Snapshot notifications and SP productivity before they are cleared by day:began.
       this.bus.emit('day:report', {
@@ -133,6 +140,37 @@ export class Simulation {
       this.notifications.clear();
       resetDailySpProductivity(this.company);
     });
+  }
+
+  /**
+   * Backfill fields that are missing from saves created before a given feature
+   * was added. Keeps old save files loadable without resetting.
+   * @param {import('../state/Company.js').Company} company
+   */
+  _patchSaveCompat(company) {
+    // role and logsMuted fields added with Project Manager / mute feature
+    for (const emp of company.employees) {
+      if (!emp.role) emp.role = STAFF_ROLES.PROGRAMMER;
+      if (emp.logsMuted === undefined) emp.logsMuted = false;
+    }
+    for (const cand of company.candidates ?? []) {
+      if (!cand.role) cand.role = STAFF_ROLES.PROGRAMMER;
+      if (cand.level === undefined) cand.level = null;
+    }
+    if (!Array.isArray(company.otherCandidates)) {
+      company.otherCandidates = [];
+    }
+    // teams array added with Team Lead feature
+    if (!Array.isArray(company.teams)) {
+      company.teams = [];
+    }
+    // Ensure any existing team_lead employees without a team get one.
+    for (const emp of company.employees) {
+      if (emp.role === STAFF_ROLES.TEAM_LEAD) {
+        const hasTeam = company.teams.some((t) => t.leadId === emp.id);
+        if (!hasTeam) this.teamSystem.createTeamForLead(company, emp);
+      }
+    }
   }
 
   /** @param {number} dt  Real seconds (already time-scaled by Game). */
@@ -360,6 +398,7 @@ export class Simulation {
     this.bus.emit('notification:add', {
       text: `${employee.name} upgraded ${SKILL_LABELS[skillKey] ?? skillKey} to Lv.${skill.level}!`,
       type: 'success',
+      suppress: employee.logsMuted,
     });
     return true;
   }

@@ -33,6 +33,14 @@ export const RESEARCH_NODES = [
     cost: 160,
     dependencies: ['skill_backend_dev'],
   },
+  // ---- Team management ----
+  {
+    id: 'team_management',
+    name: 'Team Management',
+    icon: '🧑‍🤝‍🧑',
+    cost: 80,
+    dependencies: [],
+  },
   // ---- General research ----
   {
     id: 'agile_workflow',

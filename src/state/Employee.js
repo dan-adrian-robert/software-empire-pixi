@@ -5,6 +5,7 @@
  * functions exported here so logic stays testable and traceable.
  */
 import { GameConfig } from '../config.js';
+import { STAFF_ROLES } from '../data/staffRoles.js';
 
 let _nextId = 1;
 export function peekNextId() { return _nextId; }
@@ -19,22 +20,26 @@ export const SCHEDULE_CYCLE = ['WORK', 'BREAK', 'WORK', 'TALK'];
  * @param {Array<{skill: string, level: number}>} opts.skills  - max two skills
  * @param {number} opts.salary  - daily salary cost
  * @param {number} [opts.characterIndex]  1-based index into characterN.png portraits.
+ * @param {string} [opts.role]  - STAFF_ROLES value, defaults to 'programmer'.
+ * @param {number|null} [opts.startingLevel]  - Explicit starting level for non-programmer roles.
  * @returns {Employee}
  */
-export function createEmployee({ name, skills, salary, characterIndex = 1 }) {
+export function createEmployee({ name, skills, salary, characterIndex = 1, role = STAFF_ROLES.PROGRAMMER, startingLevel = null }) {
   const { BASE_PRODUCTIVITY_MIN, BASE_PRODUCTIVITY_MAX } = GameConfig.gameplay;
   const clampedSkills = skills.slice(0, 2);
+  const derivedLevel = clampedSkills.reduce((s, sk) => s + sk.level, 0);
   return {
     id: _nextId++,
     name,
     characterIndex,
+    role,
     /** @type {Array<{skill: string, level: number}>} */
     skills: clampedSkills,
     salary,
     /** Innate productivity multiplier [0.85, 1.05], rolled once on creation. */
     baseProductivity: BASE_PRODUCTIVITY_MIN + Math.random() * (BASE_PRODUCTIVITY_MAX - BASE_PRODUCTIVITY_MIN),
-    /** Starting level = sum of all skill levels at creation; grows by 1 on each EXP-based level-up. */
-    level: clampedSkills.reduce((s, sk) => s + sk.level, 0),
+    /** Starting level = sum of all skill levels (programmers) or explicit value (non-programmers). */
+    level: startingLevel ?? derivedLevel,
     /** Accumulated EXP toward the next level (0 – EXP_PER_LEVEL-1). */
     exp: 0,
     /** Skill points earned via levelling up but not yet spent by the player. */
@@ -49,6 +54,8 @@ export function createEmployee({ name, skills, salary, characterIndex = 1 }) {
     workBuffer: {},
     /** Running sum of all buffered points this WORK period. */
     workPeriodTotal: 0,
+    /** When true, notifications about this employee skip the toast popup. */
+    logsMuted: false,
   };
 }
 
@@ -58,6 +65,21 @@ export function createEmployee({ name, skills, salary, characterIndex = 1 }) {
  */
 export function employeeTotalPoints(employee, pointsPerLevel) {
   return employee.skills.reduce((sum, s) => sum + s.level * pointsPerLevel, 0);
+}
+
+/** True when the employee is a developer who earns story points. */
+export function isProgrammer(employee) {
+  return (employee.role ?? STAFF_ROLES.PROGRAMMER) === STAFF_ROLES.PROGRAMMER;
+}
+
+/** True when the employee is a Project Manager. */
+export function isProjectManager(employee) {
+  return employee.role === STAFF_ROLES.PROJECT_MANAGER;
+}
+
+/** True when the employee is a Team Lead. */
+export function isTeamLead(employee) {
+  return employee.role === STAFF_ROLES.TEAM_LEAD;
 }
 
 /**

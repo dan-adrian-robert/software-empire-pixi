@@ -14,6 +14,11 @@
     "maxSkills": 2,
     "dualSkillChance": 0.30
   },
+  "otherStaffGeneration": {
+    "poolSize": 1,
+    "projectManagerSalary": 120,
+    "teamLeadSalary": 150
+  },
   "projectGeneration": {
     "milestoneSpPerDayBase": 8,
     "milestoneSpPerDayTierBonus": 4,

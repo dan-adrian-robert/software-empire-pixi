@@ -12,16 +12,22 @@ import { GameConfig } from '../config.js';
 import { createEmployee } from '../state/Employee.js';
 import { freeDesks } from '../state/Company.js';
 import { getUnlockedSkills } from '../data/skills.js';
-import { generateCandidate } from './EmployeeGenerator.js';
+import { generateCandidate, generateProjectManagerCandidate, generateTeamLeadCandidate } from './EmployeeGenerator.js';
+import { STAFF_ROLES } from '../data/staffRoles.js';
+import economyBalance from '../data/economyBalance.json';
 
 export class HiringSystem {
-  /** @param {import('../utils/EventBus.js').EventBus} bus */
-  constructor(bus) {
+  /**
+   * @param {import('../utils/EventBus.js').EventBus} bus
+   * @param {import('./TeamSystem.js').TeamSystem} [teamSystem]
+   */
+  constructor(bus, teamSystem) {
     this.bus = bus;
+    this.teamSystem = teamSystem ?? null;
   }
 
   /**
-   * Replace the candidate pool for the new day.
+   * Replace the programmer candidate pool for the new day.
    * @param {import('../state/Company.js').Company} company
    */
   refreshCandidates(company) {
@@ -30,6 +36,18 @@ export class HiringSystem {
     company.candidates = Array.from({ length: count }, () =>
       generateCandidate({ allowedSkills }),
     );
+  }
+
+  /**
+   * Replace the Other (non-programmer) candidate pool for the new day.
+   * Alternates between PM and Team Lead candidates so each day offers one of each type.
+   * @param {import('../state/Company.js').Company} company
+   */
+  refreshOtherCandidates(company) {
+    company.otherCandidates = [
+      generateProjectManagerCandidate(),
+      generateTeamLeadCandidate(),
+    ];
   }
 
   /**
@@ -48,11 +66,19 @@ export class HiringSystem {
       skills: candidate.skills,
       salary: candidate.salary,
       characterIndex: candidate.characterIndex,
+      role: candidate.role,
+      startingLevel: candidate.level ?? null,
     });
     company.employees.push(employee);
 
-    // Remove from candidate pool.
+    // Remove from the appropriate candidate pool.
     company.candidates = company.candidates.filter((c) => c.id !== candidate.id);
+    company.otherCandidates = (company.otherCandidates ?? []).filter((c) => c.id !== candidate.id);
+
+    // Auto-create a team when a Team Lead is hired.
+    if (employee.role === STAFF_ROLES.TEAM_LEAD && this.teamSystem) {
+      this.teamSystem.createTeamForLead(company, employee);
+    }
 
     this.bus.emit('employee:hired', { employee, company });
     this.bus.emit('notification:add', {
@@ -71,9 +97,14 @@ export class HiringSystem {
   fire(company, employee) {
     company.employees = company.employees.filter((e) => e.id !== employee.id);
 
-    // Remove from any active project.
-    for (const project of company.activeProjects) {
-      // project doesn't track assigned employees directly; employee.activeProjectId clears itself.
+    // Dissolve team if this employee was a Team Lead.
+    if (employee.role === STAFF_ROLES.TEAM_LEAD && this.teamSystem) {
+      this.teamSystem.dissolveTeam(company, employee.id);
+    }
+
+    // Remove from any team they were a member of.
+    if (this.teamSystem) {
+      this.teamSystem.removeFromTeam(company, employee.id);
     }
 
     this.bus.emit('employee:fired', { employee, company });

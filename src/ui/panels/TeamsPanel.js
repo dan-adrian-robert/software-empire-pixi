@@ -1,16 +1,17 @@
 /**
- * AssignmentPanel
+ * TeamsPanel
  *
- * Modal panel for manually assigning employees to active projects.
+ * Modal panel for assigning programmers to Team Lead teams.
+ * Only visible after the `team_management` research node is unlocked.
  *
  * Layout:
- *   Row 0  – AVAILABLE: chips for every unassigned (pinnedProjectId === null) employee.
- *   Row 1+ – One row per active project: project name on the left, assigned chips on the right.
+ *   Row 0  – AVAILABLE: chips for every programmer not yet in any team.
+ *   Row 1+ – One row per team: lead name/level/buff on the left, member chips on the right.
  *
  * Interaction:
- *   • Click an unassigned chip → select it (gold highlight).
- *   • While a chip is selected, click a project row background → assign to that project.
- *   • Click an assigned chip → unassign (returns to Available).
+ *   • Click an available chip → select it (gold highlight).
+ *   • While a chip is selected, click a team row background → assign to that team.
+ *   • Click an assigned chip → remove from team (returns to Available).
  *   • Click the selected chip again → deselect.
  */
 import { Container, Graphics, Sprite, Text } from 'pixi.js';
@@ -32,24 +33,25 @@ const CHIP_SELECTED   = 0xc8a400;
 const CHIP_SEL_BG     = 0x3a2e00;
 const CHIP_ASSIGNED   = 0x2a4a7a;
 const CHIP_ASS_BORDER = 0x4a7aff;
-const CHIP_REMOVE_BG  = 0x3a1a1a;
-const CHIP_REMOVE_CLR = 0xf87171;
 const EMPTY_TEXT      = 0x3a4a6a;
 const HINT_COLOR      = 0x4a5a7a;
+const BUFF_COLOR      = 0x4ade80;
+const LEAD_BADGE_BG   = 0x1a2e1a;
+const LEAD_BADGE_CLR  = 0x4ade80;
 
-const ROW_RADIUS      = 8;
-const ROW_GAP         = 8;
-const ROW_PAD_X       = 14;
-const ROW_PAD_Y       = 12;
-const CHIP_H          = 32;   // taller chip to accommodate face avatar
-const CHIP_R          = 5;
-const CHIP_GAP        = 6;
-const LABEL_W         = 120;   // width reserved for the project name column
-const SECTION_H       = 20;    // height of the section label row
-const FACE_SIZE       = 24;    // square avatar size inside chip
-const FACE_GAP        = 6;     // gap between avatar and name text
+const ROW_RADIUS  = 8;
+const ROW_GAP     = 8;
+const ROW_PAD_X   = 14;
+const ROW_PAD_Y   = 12;
+const CHIP_H      = 32;
+const CHIP_R      = 5;
+const CHIP_GAP    = 6;
+const LEAD_COL_W  = 180;  // width reserved for the team lead info column
+const SECTION_H   = 20;
+const FACE_SIZE   = 24;
+const FACE_GAP    = 6;
 
-export class AssignmentPanel extends Container {
+export class TeamsPanel extends Container {
   /**
    * @param {import('../../Game.js').Game} game
    */
@@ -94,10 +96,10 @@ export class AssignmentPanel extends Container {
     y = this._buildAvailableRow(company, y);
     y += ROW_GAP;
 
-    // ── Project rows ────────────────────────────────────────────────────────
-    if (company.activeProjects.length === 0) {
+    // ── Team rows ────────────────────────────────────────────────────────────
+    if (company.teams.length === 0) {
       const msg = new Text({
-        text: 'No active projects. Accept a project first.',
+        text: 'No teams yet. Hire a Team Lead to create one.',
         style: {
           fill: TEXT_DIM,
           fontFamily: 'Inter, system-ui, sans-serif',
@@ -109,15 +111,15 @@ export class AssignmentPanel extends Container {
       return;
     }
 
-    for (const project of company.activeProjects) {
-      y = this._buildProjectRow(company, project, y);
+    for (const team of company.teams) {
+      y = this._buildTeamRow(company, team, y);
       y += ROW_GAP;
     }
 
-    // Hint at the bottom
+    // Hint at the bottom when a chip is selected
     if (this._selected) {
       const hint = new Text({
-        text: 'Click a project row to assign the selected employee.',
+        text: 'Click a team row to assign the selected employee.',
         style: {
           fill: HINT_COLOR,
           fontFamily: 'Inter, system-ui, sans-serif',
@@ -133,12 +135,16 @@ export class AssignmentPanel extends Container {
   // ── Row builders ──────────────────────────────────────────────────────────
 
   _buildAvailableRow(company, startY) {
-    const unassigned = company.employees.filter((e) => isProgrammer(e) && e.pinnedProjectId === null);
+    const teamSystem = this.game.sim.teamSystem;
+    const unassigned = company.employees.filter((e) => {
+      if (!isProgrammer(e)) return false;
+      const team = teamSystem.getTeamForEmployee(company, e.id);
+      return team === null;
+    });
 
-    const chipsH    = unassigned.length > 0 ? CHIP_H : 20;
-    const rowH      = SECTION_H + ROW_PAD_Y * 2 + chipsH;
+    const chipsH = unassigned.length > 0 ? CHIP_H : 20;
+    const rowH   = SECTION_H + ROW_PAD_Y * 2 + chipsH;
 
-    // Card background
     const bg = new Graphics()
       .roundRect(0, 0, this._width, rowH, ROW_RADIUS)
       .fill({ color: ROW_BG })
@@ -146,7 +152,6 @@ export class AssignmentPanel extends Container {
     bg.position.set(0, startY);
     this._scroll.addChild(bg);
 
-    // Section label
     const label = new Text({
       text: 'AVAILABLE',
       style: {
@@ -162,7 +167,7 @@ export class AssignmentPanel extends Container {
 
     if (unassigned.length === 0) {
       const empty = new Text({
-        text: 'All employees are assigned.',
+        text: 'All programmers are assigned to teams.',
         style: {
           fill: EMPTY_TEXT,
           fontFamily: 'Inter, system-ui, sans-serif',
@@ -193,19 +198,22 @@ export class AssignmentPanel extends Container {
     return startY + rowH;
   }
 
-  _buildProjectRow(company, project, startY) {
-    const assigned = company.employees.filter((e) => isProgrammer(e) && e.pinnedProjectId === project.id);
+  _buildTeamRow(company, team, startY) {
+    const teamSystem = this.game.sim.teamSystem;
+    const lead = teamSystem.getTeamLead(company, team);
+    const members = team.memberIds
+      .map((id) => company.employees.find((e) => e.id === id))
+      .filter(Boolean);
 
-    const chipsH = CHIP_H;
-    const rowH   = SECTION_H + ROW_PAD_Y * 2 + chipsH;
-
+    const chipsH  = CHIP_H;
+    const rowH    = SECTION_H + ROW_PAD_Y * 2 + chipsH;
     const isTarget = this._selected !== null;
 
-    // Clickable card background — acts as assignment drop zone when a chip is selected
+    // Clickable card background
     const bg = new Graphics()
       .roundRect(0, 0, this._width, rowH, ROW_RADIUS)
       .fill({ color: isTarget ? ROW_HOVER : ROW_BG })
-      .stroke({ color: isTarget ? CHIP_ASS_BORDER : ROW_BORDER, width: isTarget ? 1.5 : 1.5 });
+      .stroke({ color: isTarget ? CHIP_ASS_BORDER : ROW_BORDER, width: 1.5 });
     bg.position.set(0, startY);
     bg.eventMode = 'static';
     bg.cursor = isTarget ? 'pointer' : 'default';
@@ -225,16 +233,19 @@ export class AssignmentPanel extends Container {
     });
     bg.on('pointerup', () => {
       if (!this._selected) return;
-      this.game.sim.assignEmployee(this._selected, project.id);
+      teamSystem.assignToTeam(company, this._selected.id, team.id);
       this._selected = null;
       this.refresh();
     });
 
     this._scroll.addChild(bg);
 
-    // Project name label (left column)
-    const nameText = new Text({
-      text: project.name,
+    // ── Lead info column ────────────────────────────────────────────────────
+    const buffPct = lead ? Math.round(lead.level * 5) : 0;
+    const leadLevel = lead ? lead.level : '?';
+
+    const teamNameText = new Text({
+      text: team.name,
       style: {
         fill: TEXT_BRIGHT,
         fontFamily: 'Inter, system-ui, sans-serif',
@@ -242,17 +253,41 @@ export class AssignmentPanel extends Container {
         fontWeight: '700',
       },
     });
-    nameText.position.set(ROW_PAD_X, startY + ROW_PAD_Y);
-    this._scroll.addChild(nameText);
+    teamNameText.position.set(ROW_PAD_X, startY + ROW_PAD_Y);
+    this._scroll.addChild(teamNameText);
 
-    // Chips area: assigned employees
-    const chipsStartX = ROW_PAD_X + LABEL_W;
+    const leadInfoText = new Text({
+      text: lead ? `${lead.name}  Lv.${leadLevel}` : 'Lead missing',
+      style: {
+        fill: TEXT_DIM,
+        fontFamily: 'Inter, system-ui, sans-serif',
+        fontSize: 11,
+      },
+    });
+    leadInfoText.position.set(ROW_PAD_X, startY + ROW_PAD_Y + SECTION_H);
+    this._scroll.addChild(leadInfoText);
+
+    // EXP buff badge
+    const buffText = new Text({
+      text: `+${buffPct}% EXP`,
+      style: {
+        fill: BUFF_COLOR,
+        fontFamily: 'Inter, system-ui, sans-serif',
+        fontSize: 10,
+        fontWeight: '700',
+      },
+    });
+    buffText.position.set(ROW_PAD_X, startY + ROW_PAD_Y + SECTION_H + 16);
+    this._scroll.addChild(buffText);
+
+    // ── Member chips ────────────────────────────────────────────────────────
+    const chipsStartX = ROW_PAD_X + LEAD_COL_W;
     const chipY       = startY + ROW_PAD_Y + SECTION_H;
     let chipX         = chipsStartX;
 
-    if (assigned.length === 0) {
+    if (members.length === 0) {
       const emptyNote = new Text({
-        text: isTarget ? '← click to assign' : 'no one assigned',
+        text: isTarget ? '← click to assign' : 'no members',
         style: {
           fill: isTarget ? HINT_COLOR : EMPTY_TEXT,
           fontFamily: 'Inter, system-ui, sans-serif',
@@ -263,14 +298,14 @@ export class AssignmentPanel extends Container {
       emptyNote.position.set(chipsStartX, chipY + 4);
       this._scroll.addChild(emptyNote);
     } else {
-      for (const emp of assigned) {
+      for (const emp of members) {
         const chip = this._buildChip(emp, false, true);
         chip.position.set(chipX, chipY);
 
-        // Click assigned chip → unassign
+        // Click assigned chip → remove from team
         chip.on('pointerup', (e) => {
           e.stopPropagation();
-          this.game.sim.unassignEmployee(emp);
+          teamSystem.removeFromTeam(company, emp.id);
           if (this._selected === emp) this._selected = null;
           this.refresh();
         });
@@ -286,9 +321,6 @@ export class AssignmentPanel extends Container {
   // ── Chip builder ──────────────────────────────────────────────────────────
 
   /**
-   * Build a small interactive chip for an employee.
-   * Returns a Container with a `_chipW` property set to its computed width.
-   *
    * @param {import('../../state/Employee.js').Employee} emp
    * @param {boolean} isSelected
    * @param {boolean} isAssigned
@@ -301,7 +333,6 @@ export class AssignmentPanel extends Container {
 
     const textColor = isSelected ? CHIP_SELECTED : TEXT_BRIGHT;
 
-    // Measure name text width to size chip dynamically
     const nameLabel = new Text({
       text: name,
       style: {
@@ -322,21 +353,18 @@ export class AssignmentPanel extends Container {
       },
     });
 
-    // Skill dot row
-    const DOT_R     = 3;
-    const DOT_GAP   = 4;
-    const dotRowW   = skills.length > 0
+    const DOT_R    = 3;
+    const DOT_GAP  = 4;
+    const dotRowW  = skills.length > 0
       ? skills.length * (DOT_R * 2) + (skills.length - 1) * DOT_GAP
       : 0;
 
-    const textW     = Math.ceil(nameLabel.width);
-    const levelW    = Math.ceil(levelLabel.width);
-    // content = face + gap + name + small gap + level
-    const contentW  = FACE_SIZE + FACE_GAP + textW + 6 + levelW;
-    const innerW    = Math.max(contentW, dotRowW + FACE_SIZE + FACE_GAP);
-    const chipW     = innerW + ROW_PAD_X * 2;
+    const textW    = Math.ceil(nameLabel.width);
+    const levelW   = Math.ceil(levelLabel.width);
+    const contentW = FACE_SIZE + FACE_GAP + textW + 6 + levelW;
+    const innerW   = Math.max(contentW, dotRowW + FACE_SIZE + FACE_GAP);
+    const chipW    = innerW + ROW_PAD_X * 2;
 
-    // Background
     const chipBg = isSelected
       ? new Graphics()
           .roundRect(0, 0, chipW, CHIP_H, CHIP_R)
@@ -354,17 +382,15 @@ export class AssignmentPanel extends Container {
 
     container.addChild(chipBg);
 
-    // Face avatar — left side, vertically centred
     const face = new Sprite(getCharacterAvatarTex(emp.characterIndex));
     face.width  = FACE_SIZE;
     face.height = FACE_SIZE;
     face.position.set(ROW_PAD_X, (CHIP_H - FACE_SIZE) / 2);
     container.addChild(face);
 
-    // Name + level — right of face, vertically centred (offset up if dots present)
-    const textX    = ROW_PAD_X + FACE_SIZE + FACE_GAP;
-    const hasDots  = skills.length > 0;
-    const textY    = hasDots ? CHIP_H / 2 - 8 : CHIP_H / 2 - 7;
+    const textX   = ROW_PAD_X + FACE_SIZE + FACE_GAP;
+    const hasDots = skills.length > 0;
+    const textY   = hasDots ? CHIP_H / 2 - 8 : CHIP_H / 2 - 7;
 
     nameLabel.anchor.set(0, 0.5);
     nameLabel.position.set(textX, textY);
@@ -374,7 +400,6 @@ export class AssignmentPanel extends Container {
     levelLabel.position.set(textX + textW + 6, textY);
     container.addChild(levelLabel);
 
-    // Tiny skill-color dots below the name row
     if (hasDots) {
       const dotsY      = CHIP_H - DOT_R - 4;
       const dotsStartX = textX;
@@ -388,7 +413,6 @@ export class AssignmentPanel extends Container {
       }
     }
 
-    // Hover tint
     container.on('pointerover', () => { chipBg.alpha = 0.8; });
     container.on('pointerout',  () => { chipBg.alpha = 1; });
 

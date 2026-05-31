@@ -1,12 +1,13 @@
 /**
  * HiringPanel
  *
- * Lists available candidates. Card layout mirrors EmployeesPanel:
- *   Name + salary
- *   ── divider ──
- *   Skill rows (one per line: label | bar | level)
- *   ── divider ──
- *   Hire / No Desk button (bottom-right)
+ * Two tabs:
+ *   Programmers — lists company.candidates (skill-based workers)
+ *   Other       — lists company.otherCandidates (e.g. Project Managers)
+ *
+ * Card layouts:
+ *   Programmer card: avatar, name, level badge, salary, skill bars, schedule, Hire button
+ *   Other card:      avatar, name, role label, salary, schedule, Hire button
  */
 import { Container, Graphics, Sprite, Text } from 'pixi.js';
 import { getCharacterAvatarTex } from '@utils/characterSprite.js';
@@ -16,9 +17,11 @@ import {
   SKILL_COLORS,
   MAX_SKILL_LEVEL,
 } from '@/data/skills.js';
+import { ROLE_LABELS, STAFF_ROLES } from '@/data/staffRoles.js';
 import { freeDesks } from '@/state/Company.js';
 import { SCHEDULE_CYCLE } from '@/state/Employee.js';
 
+// ── Palette ────────────────────────────────────────────────────────────────
 const CARD_BG = 0x131929;
 const CARD_BORDER = 0x1e3050;
 const CARD_BORDER_DIM = 0x181f30;
@@ -27,15 +30,23 @@ const TEXT_BRIGHT = 0xe6e8ef;
 const TEXT_DIM = 0x7a86a3;
 const SALARY_COLOR = 0xfbbf24;
 const SECTION_LABEL_COLOR = 0x7a86a3;
+const ROLE_COLOR = 0x818cf8;
+
+const TAB_ON_BG   = 0x1a2a44;
+const TAB_OFF_BG  = 0x0d1526;
+const TAB_ON_CLR  = 0xe6e8ef;
+const TAB_OFF_CLR = 0x4a5a7a;
+const TAB_BORDER  = 0x2a4a8a;
+
 const PADDING = 12;
 const INNER = 14;
 
-// Character avatar shown in each card header
+// Character avatar
 const AVATAR_SIZE = 44;
 const AVATAR_GAP  = 10;
 const TEXT_INDENT = INNER + AVATAR_SIZE + AVATAR_GAP;
 
-// Skill bar cells — same as EmployeesPanel
+// Skill bar cells
 const BAR_CELL = 13;
 const BAR_GAP = 3;
 const BAR_TRACK_W = MAX_SKILL_LEVEL * BAR_CELL + (MAX_SKILL_LEVEL - 1) * BAR_GAP;
@@ -51,33 +62,54 @@ const ALL_SKILLS = Object.values(SKILLS);
 const SCHEDULE_ICONS = { WORK: '💻', BREAK: '☕', TALK: '💬' };
 const SCHED_SECTION_H = 12 + 4 + 20; // label + gap + icon row
 
+// Programmer card measurements
 const NAME_H = 20;
-const HEADER_H = 10 + AVATAR_SIZE + 10;      // sized to contain the avatar with margins
+const HEADER_H = 10 + AVATAR_SIZE + 10;
 const DIVIDER_H = 1;
 const SKILLS_H = ALL_SKILLS.length * SKILL_ROW_H;
-const FOOTER_H = 10 + DIVIDER_H + 8 + SCHED_SECTION_H + 10 + 28 + 10;
-const CARD_H = HEADER_H + DIVIDER_H + 8 + SKILLS_H + FOOTER_H;
+const PROG_FOOTER_H = 10 + DIVIDER_H + 8 + SCHED_SECTION_H + 10 + 28 + 10;
+const PROG_CARD_H = HEADER_H + DIVIDER_H + 8 + SKILLS_H + PROG_FOOTER_H;
+
+// Other card measurements (no skill section)
+const OTHER_FOOTER_H = 10 + DIVIDER_H + 8 + SCHED_SECTION_H + 10 + 28 + 10;
+const OTHER_CARD_H = HEADER_H + OTHER_FOOTER_H;
+
+// Tab bar
+const TAB_H = 32;
+const TAB_GAP = 4;
+
+const TABS = [
+  { id: 'programmers', label: 'Programmers' },
+  { id: 'other',       label: 'Other' },
+];
 
 export class HiringPanel extends Container {
   /** @param {import('../../Game.js').Game} game */
   constructor(game) {
     super();
     this.game = game;
-    this._scroll = new Container();
+
+    this._tabBar    = new Container();
+    this._scroll    = new Container();
+    this._activeTab = 'programmers';
+
+    this.addChild(this._tabBar);
     this.addChild(this._scroll);
-    this._width = 600;
+
+    this._width  = 600;
     this._height = 500;
+    this._tabBarH = TAB_H + 8;
   }
 
   init(x, y, width, height) {
-    this._width = width;
+    this._width  = width;
     this._height = height;
     this.position.set(x, y);
     this.refresh();
   }
 
   resize(x, y, width, height) {
-    this._width = width;
+    this._width  = width;
     this._height = height;
     this.position.set(x, y);
     this.refresh();
@@ -85,12 +117,18 @@ export class HiringPanel extends Container {
 
   refresh() {
     this._scroll.removeChildren();
+    this._tabBar.removeChildren();
+
     const company = this.game.sim?.company;
     if (!company) return;
 
-    let y = 0;
-    const free = freeDesks(company);
+    this._buildTabBar();
+    this._scroll.position.set(0, this._tabBarH);
 
+    const free = freeDesks(company);
+    let y = 0;
+
+    // Desk availability header
     const header = new Text({
       text: `HIRING — ${free} DESK${free !== 1 ? 'S' : ''} AVAILABLE`,
       style: {
@@ -105,9 +143,62 @@ export class HiringPanel extends Container {
     this._scroll.addChild(header);
     y += 24;
 
+    if (this._activeTab === 'programmers') {
+      this._buildProgrammersContent(company, y, free);
+    } else {
+      this._buildOtherContent(company, y, free);
+    }
+  }
+
+  // ── Tab bar ───────────────────────────────────────────────────────────────
+
+  _buildTabBar() {
+    const tabW = Math.floor((this._width - PADDING * 2 - TAB_GAP) / 2);
+
+    TABS.forEach((tab, i) => {
+      const isOn = this._activeTab === tab.id;
+      const x    = PADDING + i * (tabW + TAB_GAP);
+
+      const bg = new Graphics()
+        .roundRect(0, 0, tabW, TAB_H, 6)
+        .fill({ color: isOn ? TAB_ON_BG : TAB_OFF_BG })
+        .stroke({ color: TAB_BORDER, width: 1.5, alpha: isOn ? 1 : 0.4 });
+      bg.position.set(x, 0);
+      bg.eventMode = 'static';
+      bg.cursor = 'pointer';
+      bg.on('pointerup', () => {
+        if (this._activeTab !== tab.id) {
+          this._activeTab = tab.id;
+          this.refresh();
+        }
+      });
+      bg.on('pointerover', () => { if (!isOn) bg.alpha = 0.8; });
+      bg.on('pointerout',  () => { bg.alpha = 1; });
+      this._tabBar.addChild(bg);
+
+      const label = new Text({
+        text: tab.label,
+        style: {
+          fill: isOn ? TAB_ON_CLR : TAB_OFF_CLR,
+          fontFamily: 'Inter, system-ui, sans-serif',
+          fontSize: 12,
+          fontWeight: isOn ? '700' : '400',
+        },
+      });
+      label.anchor.set(0.5, 0.5);
+      label.position.set(x + tabW / 2, TAB_H / 2);
+      label.eventMode = 'none';
+      this._tabBar.addChild(label);
+    });
+  }
+
+  // ── Programmers tab ───────────────────────────────────────────────────────
+
+  _buildProgrammersContent(company, startY, free) {
+    let y = startY;
     if (company.candidates.length === 0) {
       const empty = new Text({
-        text: 'No candidates available right now. More will appear tomorrow.',
+        text: 'No programmer candidates right now. More will appear tomorrow.',
         style: {
           fill: TEXT_DIM,
           fontFamily: 'Inter, system-ui, sans-serif',
@@ -122,37 +213,62 @@ export class HiringPanel extends Container {
     }
 
     for (const candidate of company.candidates) {
-      this._buildCard(candidate, y, free > 0);
-      y += CARD_H + 8;
+      this._buildProgrammerCard(candidate, y, free > 0);
+      y += PROG_CARD_H + 8;
     }
   }
 
-  // -------------------------------------------------------------------------
+  // ── Other tab ─────────────────────────────────────────────────────────────
 
-  _buildCard(candidate, startY, canHire) {
+  _buildOtherContent(company, startY, free) {
+    let y = startY;
+    const pool = company.otherCandidates ?? [];
+
+    if (pool.length === 0) {
+      const empty = new Text({
+        text: 'No other candidates right now. More will appear tomorrow.',
+        style: {
+          fill: TEXT_DIM,
+          fontFamily: 'Inter, system-ui, sans-serif',
+          fontSize: 12,
+          wordWrap: true,
+          wordWrapWidth: this._width - PADDING * 2,
+        },
+      });
+      empty.position.set(PADDING + 8, y);
+      this._scroll.addChild(empty);
+      return;
+    }
+
+    for (const candidate of pool) {
+      this._buildOtherCard(candidate, y, free > 0);
+      y += OTHER_CARD_H + 8;
+    }
+  }
+
+  // ── Card builders ─────────────────────────────────────────────────────────
+
+  _buildProgrammerCard(candidate, startY, canHire) {
     const cardW = this._width - PADDING * 2;
 
-    // Background
     const bg = new Graphics()
-      .roundRect(0, 0, cardW, CARD_H, 8)
+      .roundRect(0, 0, cardW, PROG_CARD_H, 8)
       .fill({ color: CARD_BG })
       .stroke({ color: canHire ? CARD_BORDER : CARD_BORDER_DIM, width: 1.5 });
     bg.position.set(PADDING, startY);
     this._scroll.addChild(bg);
 
-    // ── Avatar ────────────────────────────────────────────
+    // Avatar
     const avatarSprite = new Sprite(getCharacterAvatarTex(candidate.characterIndex));
     avatarSprite.width  = AVATAR_SIZE;
     avatarSprite.height = AVATAR_SIZE;
     avatarSprite.alpha  = canHire ? 1 : 0.4;
-    // Vertically centre the avatar in the header
     avatarSprite.position.set(PADDING + INNER, startY + (HEADER_H - AVATAR_SIZE) / 2);
     this._scroll.addChild(avatarSprite);
 
-    // Vertical centre for text (anchor at top so use midpoint offset)
     const textBaseY = startY + HEADER_H / 2 - NAME_H / 2;
 
-    // ── Name ─────────────────────────────────────────────
+    // Name
     const nameText = new Text({
       text: candidate.name,
       style: {
@@ -165,7 +281,7 @@ export class HiringPanel extends Container {
     nameText.position.set(PADDING + TEXT_INDENT, textBaseY);
     this._scroll.addChild(nameText);
 
-    // Level badge — derived from sum of skill levels (candidates have no tracked level)
+    // Level badge
     const candidateLevel = candidate.skills.reduce((s, sk) => s + sk.level, 0);
     const levelBadge = new Text({
       text: `Lv. ${candidateLevel}`,
@@ -180,7 +296,7 @@ export class HiringPanel extends Container {
     levelBadge.position.set(PADDING + cardW - INNER - 72, textBaseY + 2);
     this._scroll.addChild(levelBadge);
 
-    // Salary (right-aligned)
+    // Salary
     const salaryText = new Text({
       text: `$${candidate.salary}/day`,
       style: {
@@ -194,38 +310,109 @@ export class HiringPanel extends Container {
     salaryText.position.set(PADDING + cardW - INNER, textBaseY + 2);
     this._scroll.addChild(salaryText);
 
-    // ── Top divider ──────────────────────────────────────
+    // Top divider
     const divY1 = startY + HEADER_H;
-    const div1 = new Graphics()
-      .moveTo(PADDING + 8, divY1)
-      .lineTo(PADDING + cardW - 8, divY1)
-      .stroke({ color: DIVIDER_COLOR, width: 1 });
-    this._scroll.addChild(div1);
+    this._scroll.addChild(new Graphics()
+      .moveTo(PADDING + 8, divY1).lineTo(PADDING + cardW - 8, divY1)
+      .stroke({ color: DIVIDER_COLOR, width: 1 }));
 
-    // ── Skills (single column) ───────────────────────────
+    // Skills
     const levelBySkill = Object.create(null);
     for (const sk of candidate.skills) levelBySkill[sk.skill] = sk.level;
 
     const skillStartY = divY1 + 8;
     ALL_SKILLS.forEach((skillKey, i) => {
-      const rowY = skillStartY + i * SKILL_ROW_H;
+      const rowY  = skillStartY + i * SKILL_ROW_H;
       const level = levelBySkill[skillKey] ?? 0;
       const color = SKILL_COLORS[skillKey] ?? 0x4a9eff;
-      const dimmed = !canHire;
-      const row = this._makeSkillRow(skillKey, level, color, cardW, dimmed);
+      const row   = this._makeSkillRow(skillKey, level, color, cardW, !canHire);
       row.position.set(PADDING + INNER, rowY);
       this._scroll.addChild(row);
     });
 
-    // ── Bottom divider ───────────────────────────────────
+    // Bottom divider
     const divY2 = startY + HEADER_H + DIVIDER_H + 8 + SKILLS_H + 10;
-    const div2 = new Graphics()
-      .moveTo(PADDING + 8, divY2)
-      .lineTo(PADDING + cardW - 8, divY2)
-      .stroke({ color: DIVIDER_COLOR, width: 1 });
-    this._scroll.addChild(div2);
+    this._scroll.addChild(new Graphics()
+      .moveTo(PADDING + 8, divY2).lineTo(PADDING + cardW - 8, divY2)
+      .stroke({ color: DIVIDER_COLOR, width: 1 }));
 
-    // ── Schedule ─────────────────────────────────────────
+    this._appendScheduleAndHireButton(candidate, cardW, divY2, startY, canHire);
+  }
+
+  _buildOtherCard(candidate, startY, canHire) {
+    const cardW = this._width - PADDING * 2;
+
+    const bg = new Graphics()
+      .roundRect(0, 0, cardW, OTHER_CARD_H, 8)
+      .fill({ color: CARD_BG })
+      .stroke({ color: canHire ? CARD_BORDER : CARD_BORDER_DIM, width: 1.5 });
+    bg.position.set(PADDING, startY);
+    this._scroll.addChild(bg);
+
+    // Avatar
+    const avatarSprite = new Sprite(getCharacterAvatarTex(candidate.characterIndex));
+    avatarSprite.width  = AVATAR_SIZE;
+    avatarSprite.height = AVATAR_SIZE;
+    avatarSprite.alpha  = canHire ? 1 : 0.4;
+    avatarSprite.position.set(PADDING + INNER, startY + (HEADER_H - AVATAR_SIZE) / 2);
+    this._scroll.addChild(avatarSprite);
+
+    const textBaseY = startY + HEADER_H / 2 - NAME_H / 2;
+
+    // Name
+    const nameText = new Text({
+      text: candidate.name,
+      style: {
+        fill: canHire ? TEXT_BRIGHT : TEXT_DIM,
+        fontFamily: 'Inter, system-ui, sans-serif',
+        fontSize: 14,
+        fontWeight: '700',
+      },
+    });
+    nameText.position.set(PADDING + TEXT_INDENT, textBaseY);
+    this._scroll.addChild(nameText);
+
+    // Role label (+ level for Team Lead)
+    const roleStr = candidate.role === STAFF_ROLES.TEAM_LEAD && candidate.level != null
+      ? `${ROLE_LABELS[candidate.role]} · Lv.${candidate.level} (+${Math.round(candidate.level * 5)}% EXP buff)`
+      : (ROLE_LABELS[candidate.role] ?? candidate.role);
+    const roleLabel = new Text({
+      text: roleStr,
+      style: {
+        fill: canHire ? ROLE_COLOR : TEXT_DIM,
+        fontFamily: 'Inter, system-ui, sans-serif',
+        fontSize: 11,
+        fontWeight: '600',
+      },
+    });
+    roleLabel.position.set(PADDING + TEXT_INDENT, textBaseY + NAME_H + 2);
+    this._scroll.addChild(roleLabel);
+
+    // Salary
+    const salaryText = new Text({
+      text: `$${candidate.salary}/day`,
+      style: {
+        fill: canHire ? SALARY_COLOR : TEXT_DIM,
+        fontFamily: 'Inter, system-ui, sans-serif',
+        fontSize: 12,
+        fontWeight: '600',
+      },
+    });
+    salaryText.anchor.set(1, 0);
+    salaryText.position.set(PADDING + cardW - INNER, textBaseY + 2);
+    this._scroll.addChild(salaryText);
+
+    // Divider before schedule
+    const divY2 = startY + HEADER_H + 10;
+    this._scroll.addChild(new Graphics()
+      .moveTo(PADDING + 8, divY2).lineTo(PADDING + cardW - 8, divY2)
+      .stroke({ color: DIVIDER_COLOR, width: 1 }));
+
+    this._appendScheduleAndHireButton(candidate, cardW, divY2, startY, canHire);
+  }
+
+  // Shared footer: schedule row + hire button, starting at divY2.
+  _appendScheduleAndHireButton(candidate, cardW, divY2, startY, canHire) {
     const schedLabelY = divY2 + 8;
     const schedLabelText = new Text({
       text: 'SCHEDULE',
@@ -243,7 +430,6 @@ export class HiringPanel extends Container {
     schedRow.position.set(PADDING + INNER, schedLabelY + 16);
     this._scroll.addChild(schedRow);
 
-    // ── Hire button (bottom-right) ───────────────────────
     const hireBtn = this._makeButton(
       canHire ? 'Hire' : 'No Desk',
       canHire ? 0x0f1f14 : 0x1a1a2a,
@@ -264,7 +450,7 @@ export class HiringPanel extends Container {
     this._scroll.addChild(hireBtn);
   }
 
-  // -------------------------------------------------------------------------
+  // ── Sub-component builders ────────────────────────────────────────────────
 
   _makeSkillRow(skillKey, level, color, cardW, dimmed) {
     const row = new Container();
@@ -376,7 +562,7 @@ export class HiringPanel extends Container {
 
     container.on('pointerup', onClick);
     container.on('pointerover', () => { bg.alpha = 0.8; });
-    container.on('pointerout', () => { bg.alpha = 1; });
+    container.on('pointerout',  () => { bg.alpha = 1; });
 
     return container;
   }

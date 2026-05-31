@@ -14,7 +14,7 @@ import {
   STARTER_OFFICE_TIER_INDEX,
 } from '../data/starter.js';
 import { SKILLS } from '../data/skills.js';
-import { generateStarterEmployee, generateStarterCandidates } from '../systems/EmployeeGenerator.js';
+import { generateStarterEmployee, generateStarterCandidates, generateStarterPmCandidates, generateStarterTeamLeadCandidates } from '../systems/EmployeeGenerator.js';
 import { generateStarterPool } from '../systems/ProjectGenerator.js';
 
 /**
@@ -29,6 +29,11 @@ export function createCompany() {
 
   const starterCandidateData = generateStarterCandidates(SKILLS.FRONTEND_DEVELOPMENT);
   const candidates = starterCandidateData.map((c) => createCandidate(c));
+
+  const otherCandidates = [
+    ...generateStarterPmCandidates(3),
+    ...generateStarterTeamLeadCandidates(2),
+  ];
 
   const availableProjects = generateStarterPool(starterResearch, 3);
 
@@ -55,9 +60,13 @@ export function createCompany() {
     /** @type {import('./Project.js').Project[]} */
     completedProjects: [],
 
-    /** Candidates available to hire this day. */
+    /** Programmer candidates available to hire this day. */
     /** @type {import('./Candidate.js').Candidate[]} */
     candidates,
+
+    /** Non-programmer (Other) candidates available to hire this day. */
+    /** @type {import('./Candidate.js').Candidate[]} */
+    otherCandidates,
 
     /** Running income banked from completed projects during current day (paid at day end). */
     pendingPayout: 0,
@@ -101,6 +110,13 @@ export function createCompany() {
      * @type {import('./FurnitureItem.js').FurnitureItem[]}
      */
     furniture: [],
+
+    /**
+     * Teams managed by hired Team Leads. Each team is created automatically
+     * when a Team Lead is hired and dissolved when they are fired.
+     * @type {import('./Team.js').Team[]}
+     */
+    teams: [],
 
     /**
      * SP production history for the current day.

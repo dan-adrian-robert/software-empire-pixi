@@ -14,10 +14,12 @@ import { createCandidate } from '../state/Candidate.js';
 import { pickRandomCharacterIndex } from '../utils/characterSprite.js';
 import { randomName } from '../data/namePool.js';
 import { computeMedianSalary, randomInt } from '../economy/balance.js';
+import { STAFF_ROLES } from '../data/staffRoles.js';
 import employeeCatalog from '../data/employeeCatalog.json';
 import economyBalance from '../data/economyBalance.json';
 
 const { maxSkillLevel, maxSkills, dualSkillChance } = economyBalance.employeeGeneration;
+const { projectManagerSalary, teamLeadSalary } = economyBalance.otherStaffGeneration;
 
 /**
  * Generate a single random Candidate from the current unlocked skill pool.
@@ -45,6 +47,67 @@ export function generateCandidate({ allowedSkills, rng = Math.random } = {}) {
   const salary = computeMedianSalary(skills);
 
   return createCandidate({ name: randomName(rng), skills, salary, rng });
+}
+
+/**
+ * Generate a single Project Manager candidate.
+ *
+ * @param {object} [opts]
+ * @param {() => number} [opts.rng]  Math.random-compatible RNG.
+ * @returns {import('../state/Candidate.js').Candidate}
+ */
+export function generateProjectManagerCandidate({ rng = Math.random } = {}) {
+  return createCandidate({
+    name: randomName(rng),
+    skills: [],
+    salary: projectManagerSalary,
+    characterIndex: pickRandomCharacterIndex(rng),
+    role: STAFF_ROLES.PROJECT_MANAGER,
+    rng,
+  });
+}
+
+/**
+ * Generate a batch of starter PM candidates for day 1.
+ *
+ * @param {number} [count]
+ * @param {() => number} [rng]
+ * @returns {import('../state/Candidate.js').Candidate[]}
+ */
+export function generateStarterPmCandidates(count = 3, rng = Math.random) {
+  return Array.from({ length: count }, () => generateProjectManagerCandidate({ rng }));
+}
+
+/**
+ * Generate a batch of starter Team Lead candidates for day 1.
+ *
+ * @param {number} [count]
+ * @param {() => number} [rng]
+ * @returns {import('../state/Candidate.js').Candidate[]}
+ */
+export function generateStarterTeamLeadCandidates(count = 2, rng = Math.random) {
+  return Array.from({ length: count }, () => generateTeamLeadCandidate({ rng }));
+}
+
+/**
+ * Generate a single Team Lead candidate.
+ * Team Leads have no skills but come with a random starting level (1–5).
+ *
+ * @param {object} [opts]
+ * @param {() => number} [opts.rng]  Math.random-compatible RNG.
+ * @returns {import('../state/Candidate.js').Candidate}
+ */
+export function generateTeamLeadCandidate({ rng = Math.random } = {}) {
+  const level = randomInt(1, 5, rng);
+  return createCandidate({
+    name: randomName(rng),
+    skills: [],
+    salary: teamLeadSalary,
+    characterIndex: pickRandomCharacterIndex(rng),
+    role: STAFF_ROLES.TEAM_LEAD,
+    level,
+    rng,
+  });
 }
 
 /**

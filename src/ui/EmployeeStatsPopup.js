@@ -17,7 +17,8 @@ import {
   SKILL_COLORS,
   MAX_SKILL_LEVEL,
 } from '../data/skills.js';
-import { SCHEDULE_CYCLE } from '../state/Employee.js';
+import { SCHEDULE_CYCLE, isProgrammer, isTeamLead } from '../state/Employee.js';
+import { ROLE_LABELS } from '../data/staffRoles.js';
 import { GameConfig } from '../config.js';
 
 const POPUP_W = 240;
@@ -135,6 +136,122 @@ export class EmployeeStatsPopup extends Container {
   _draw(emp, company) {
     this._content.removeChildren();
 
+    if (isProgrammer(emp)) {
+      this._drawProgrammer(emp, company);
+    } else {
+      this._drawOtherStaff(emp, company);
+    }
+  }
+
+  _drawOtherStaff(emp, company) {
+    let y = P;
+
+    // Name
+    const nameText = new Text({
+      text: emp.name,
+      style: { fill: TEXT_BRIGHT, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 14, fontWeight: '700' },
+    });
+    nameText.position.set(P, y);
+    this._content.addChild(nameText);
+
+    const salaryText = new Text({
+      text: `$${emp.salary}/day`,
+      style: { fill: SALARY_COLOR, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 12, fontWeight: '600' },
+    });
+    salaryText.anchor.set(1, 0);
+    salaryText.position.set(POPUP_W - P, y + 2);
+    this._content.addChild(salaryText);
+    y += 22;
+
+    // Role badge
+    const roleText = new Text({
+      text: ROLE_LABELS[emp.role] ?? emp.role,
+      style: { fill: EXP_COLOR, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 11, fontWeight: '600' },
+    });
+    roleText.position.set(P, y);
+    this._content.addChild(roleText);
+    y += 20;
+
+    // Activity — role-specific
+    if (isTeamLead(emp)) {
+      // Level row
+      const levelText = new Text({
+        text: `Level ${emp.level}`,
+        style: { fill: 0x818cf8, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 11, fontWeight: '600' },
+      });
+      levelText.position.set(P, y);
+      this._content.addChild(levelText);
+      y += 18;
+
+      // EXP buff row
+      const buffPct = Math.round(emp.level * 5);
+      const buffText = new Text({
+        text: `EXP buff: +${buffPct}%`,
+        style: { fill: 0x4ade80, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 11, fontWeight: '600' },
+      });
+      buffText.position.set(P, y);
+      this._content.addChild(buffText);
+      y += 18;
+
+      // Team row
+      const team = this.game?.sim?.teamSystem?.getTeamForEmployee(company, emp.id);
+      const teamStr = team
+        ? `${team.name} (${team.memberIds.length} member${team.memberIds.length !== 1 ? 's' : ''})`
+        : 'No team yet';
+      const teamText = new Text({
+        text: teamStr,
+        style: { fill: TEXT_DIM, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 11 },
+      });
+      teamText.position.set(P, y);
+      this._content.addChild(teamText);
+      y += 20;
+    } else {
+      const hasProjects = company.activeProjects.length > 0;
+      const statusText = new Text({
+        text: hasProjects ? 'Monitoring projects' : 'Idle — no active projects',
+        style: {
+          fill: hasProjects ? ACTIVE_COLOR : TEXT_DIM,
+          fontFamily: 'Inter, system-ui, sans-serif',
+          fontSize: 11,
+          fontWeight: hasProjects ? '600' : '400',
+        },
+      });
+      statusText.position.set(P, y);
+      this._content.addChild(statusText);
+      y += 20;
+    }
+
+    // Divider
+    this._content.addChild(new Graphics()
+      .moveTo(8, y).lineTo(POPUP_W - 8, y)
+      .stroke({ color: DIVIDER, width: 1 }));
+    y += 8;
+
+    // Schedule
+    const schedLabel = new Text({
+      text: 'SCHEDULE',
+      style: { fill: TEXT_DIM, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 9, fontWeight: '700' },
+    });
+    schedLabel.position.set(P, y);
+    this._content.addChild(schedLabel);
+    y += 16;
+
+    const schedRow = this._makeScheduleRow();
+    schedRow.position.set(P, y);
+    this._content.addChild(schedRow);
+    y += 20 + P;
+
+    y = this._appendMuteButton(emp, company, y);
+
+    this._popupH = y;
+    this._winBg
+      .clear()
+      .roundRect(0, 0, POPUP_W, y, 8)
+      .fill({ color: BG })
+      .stroke({ color: BORDER, width: 1.5 });
+  }
+
+  _drawProgrammer(emp, company) {
     let y = P;
 
     // ── Name ─────────────────────────────────────────────
@@ -370,6 +487,8 @@ export class EmployeeStatsPopup extends Container {
       y += 20 + P;
     }
 
+    y = this._appendMuteButton(emp, company, y);
+
     // ── Background sized to content ──────────────────────
     this._popupH = y;
     this._winBg
@@ -377,6 +496,50 @@ export class EmployeeStatsPopup extends Container {
       .roundRect(0, 0, POPUP_W, y, 8)
       .fill({ color: BG })
       .stroke({ color: BORDER, width: 1.5 });
+  }
+
+  /**
+   * Renders a Mute / Unmute logs toggle button spanning the popup width.
+   * Returns the updated y cursor.
+   */
+  _appendMuteButton(emp, company, y) {
+    const btnW   = POPUP_W - P * 2;
+    const btnH   = 24;
+    const muted  = emp.logsMuted;
+    const bgColor  = muted ? 0x2a2000 : 0x0d1526;
+    const clrColor = muted ? 0xfbbf24 : 0x4a5a7a;
+
+    const btnBg = new Graphics()
+      .roundRect(P, y, btnW, btnH, 5)
+      .fill({ color: bgColor })
+      .stroke({ color: clrColor, width: 1, alpha: 0.8 });
+    btnBg.eventMode = 'static';
+    btnBg.cursor = 'pointer';
+
+    const label = new Text({
+      text: muted ? '🔕 Unmute logs' : '🔔 Mute logs',
+      style: {
+        fill: clrColor,
+        fontFamily: 'Inter, system-ui, sans-serif',
+        fontSize: 11,
+        fontWeight: '600',
+      },
+    });
+    label.anchor.set(0.5, 0.5);
+    label.position.set(P + btnW / 2, y + btnH / 2);
+    label.eventMode = 'none';
+
+    btnBg.on('pointerup', () => {
+      emp.logsMuted = !emp.logsMuted;
+      this._draw(emp, company);
+    });
+    btnBg.on('pointerover', () => { btnBg.alpha = 0.75; });
+    btnBg.on('pointerout',  () => { btnBg.alpha = 1; });
+
+    this._content.addChild(btnBg);
+    this._content.addChild(label);
+
+    return y + btnH + P;
   }
 
   _makeScheduleRow() {

@@ -5,6 +5,7 @@
 import { randomName } from '../data/namePool.js';
 import { SKILLS } from '../data/skills.js';
 import { pickRandomCharacterIndex } from '../utils/characterSprite.js';
+import { STAFF_ROLES } from '../data/staffRoles.js';
 
 let _nextId = 1;
 export function peekNextId() { return _nextId; }
@@ -18,16 +19,21 @@ const ALL_SKILL_KEYS = Object.values(SKILLS);
  * @param {Array<{skill: string, level: number}>} [opts.skills]
  * @param {number} [opts.salary]
  * @param {number} [opts.characterIndex]  1-based index into characterN.png portraits.
+ * @param {string} [opts.role]  - STAFF_ROLES value, defaults to 'programmer'.
+ * @param {number} [opts.level] - Starting level override (used for Team Leads).
  * @param {() => number} [opts.rng]
  * @returns {Candidate}
  */
-export function createCandidate({ name, skills, salary, characterIndex, rng } = {}) {
+export function createCandidate({ name, skills, salary, characterIndex, role, level, rng } = {}) {
   return {
     id: _nextId++,
     name: name ?? randomName(),
     skills: skills ?? [],
     salary: salary ?? 100,
     characterIndex: characterIndex ?? pickRandomCharacterIndex(rng),
+    role: role ?? STAFF_ROLES.PROGRAMMER,
+    /** Explicit starting level — only set for non-programmer roles like Team Lead. */
+    level: level ?? null,
   };
 }
 

@@ -22,7 +22,8 @@ import {
   SKILL_COLORS,
   MAX_SKILL_LEVEL,
 } from '@/data/skills.js';
-import { SCHEDULE_CYCLE } from '@/state/Employee.js';
+import { SCHEDULE_CYCLE, isProgrammer, isTeamLead } from '@/state/Employee.js';
+import { ROLE_LABELS } from '@/data/staffRoles.js';
 
 const CARD_BG = 0x131929;
 const CARD_BORDER = 0x1e3050;
@@ -143,10 +144,13 @@ export class EmployeesPanel extends Container {
    * @returns {number} card height in pixels
    */
   _buildCard(emp, company, startY) {
-    const cardW = this._width - PADDING * 2;
+    return isProgrammer(emp)
+      ? this._buildProgrammerCard(emp, company, startY)
+      : this._buildOtherCard(emp, company, startY);
+  }
 
-    // We draw the background AFTER laying out content so we know the final height.
-    // Reserve a placeholder index to insert the bg behind everything else.
+  _buildProgrammerCard(emp, company, startY) {
+    const cardW = this._width - PADDING * 2;
     const bgIndex = this._scroll.children.length;
 
     // ── Avatar ────────────────────────────────────────────
@@ -159,24 +163,14 @@ export class EmployeesPanel extends Container {
     // ── Name ─────────────────────────────────────────────
     const nameText = new Text({
       text: emp.name,
-      style: {
-        fill: TEXT_BRIGHT,
-        fontFamily: 'Inter, system-ui, sans-serif',
-        fontSize: 14,
-        fontWeight: '700',
-      },
+      style: { fill: TEXT_BRIGHT, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 14, fontWeight: '700' },
     });
     nameText.position.set(PADDING + TEXT_INDENT, startY + 12);
     this._scroll.addChild(nameText);
 
     const levelBadge = new Text({
       text: `Lv. ${emp.level ?? 0}`,
-      style: {
-        fill: 0x818cf8,
-        fontFamily: 'Inter, system-ui, sans-serif',
-        fontSize: 11,
-        fontWeight: '700',
-      },
+      style: { fill: 0x818cf8, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 11, fontWeight: '700' },
     });
     levelBadge.anchor.set(1, 0);
     levelBadge.position.set(PADDING + cardW - INNER - 72, startY + 14);
@@ -184,12 +178,7 @@ export class EmployeesPanel extends Container {
 
     const salaryText = new Text({
       text: `$${emp.salary}/day`,
-      style: {
-        fill: SALARY_COLOR,
-        fontFamily: 'Inter, system-ui, sans-serif',
-        fontSize: 12,
-        fontWeight: '600',
-      },
+      style: { fill: SALARY_COLOR, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 12, fontWeight: '600' },
     });
     salaryText.anchor.set(1, 0);
     salaryText.position.set(PADDING + cardW - INNER, startY + 14);
@@ -213,11 +202,9 @@ export class EmployeesPanel extends Container {
 
     // ── Top divider ──────────────────────────────────────
     const divY1 = startY + HEADER_H;
-    const div1 = new Graphics()
-      .moveTo(PADDING + 8, divY1)
-      .lineTo(PADDING + cardW - 8, divY1)
-      .stroke({ color: DIVIDER_COLOR, width: 1 });
-    this._scroll.addChild(div1);
+    this._scroll.addChild(new Graphics()
+      .moveTo(PADDING + 8, divY1).lineTo(PADDING + cardW - 8, divY1)
+      .stroke({ color: DIVIDER_COLOR, width: 1 }));
 
     // ── Skills ───────────────────────────────────────────
     const levelBySkill = Object.create(null);
@@ -233,23 +220,15 @@ export class EmployeesPanel extends Container {
       this._scroll.addChild(row);
     });
 
-    // Running y cursor — picks up after skills block.
     let y = skillStartY + SKILLS_H + 10;
 
-    // ── Skill upgrade section (only when points are available) ───────────────
+    // ── Skill upgrade section ─────────────────────────────
     if ((emp.pendingSkillPoints ?? 0) > 0) {
-      const upgradable = emp.skills.filter(
-        (s) => s.level >= 1 && s.level < MAX_SKILL_LEVEL,
-      );
+      const upgradable = emp.skills.filter((s) => s.level >= 1 && s.level < MAX_SKILL_LEVEL);
 
       const upgradeHeader = new Text({
         text: `SKILL UPGRADE  (${emp.pendingSkillPoints} available)`,
-        style: {
-          fill: UPGRADE_HEADER_COLOR,
-          fontFamily: 'Inter, system-ui, sans-serif',
-          fontSize: 9,
-          fontWeight: '700',
-        },
+        style: { fill: UPGRADE_HEADER_COLOR, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 9, fontWeight: '700' },
       });
       upgradeHeader.position.set(PADDING + INNER, y);
       this._scroll.addChild(upgradeHeader);
@@ -257,9 +236,7 @@ export class EmployeesPanel extends Container {
 
       const btnCount = Math.max(1, upgradable.length);
       const BTN_GAP = 8;
-      const BTN_W = Math.floor(
-        (cardW - INNER * 2 - BTN_GAP * (btnCount - 1)) / btnCount,
-      );
+      const BTN_W = Math.floor((cardW - INNER * 2 - BTN_GAP * (btnCount - 1)) / btnCount);
 
       upgradable.forEach((sk, i) => {
         const btnX = PADDING + INNER + i * (BTN_W + BTN_GAP);
@@ -275,48 +252,129 @@ export class EmployeesPanel extends Container {
 
         const btnLabel = new Text({
           text: `${SKILL_LABELS_SHORT[sk.skill] ?? sk.skill} ${sk.level}→${sk.level + 1}`,
-          style: {
-            fill: skColor,
-            fontFamily: 'Inter, system-ui, sans-serif',
-            fontSize: 10,
-            fontWeight: '600',
-          },
+          style: { fill: skColor, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 10, fontWeight: '600' },
         });
         btnLabel.anchor.set(0.5, 0.5);
         btnLabel.position.set(BTN_W / 2, UPGRADE_BTN_H / 2);
         btnLabel.eventMode = 'none';
         btnBg.addChild(btnLabel);
 
-        btnBg.on('pointerup', () => {
-          const ok = this.game.sim.upgradeEmployeeSkill(emp, sk.skill);
-          if (ok) this.refresh();
-        });
+        btnBg.on('pointerup', () => { if (this.game.sim.upgradeEmployeeSkill(emp, sk.skill)) this.refresh(); });
         btnBg.on('pointerover', () => { btnBg.alpha = 0.75; });
         btnBg.on('pointerout',  () => { btnBg.alpha = 1; });
 
         this._scroll.addChild(btnBg);
       });
-
       y += UPGRADE_BTN_H + 10;
     }
 
-    // ── Bottom divider ────────────────────────────────────
-    const div2 = new Graphics()
-      .moveTo(PADDING + 8, y)
-      .lineTo(PADDING + cardW - 8, y)
-      .stroke({ color: DIVIDER_COLOR, width: 1 });
-    this._scroll.addChild(div2);
+    y = this._appendScheduleAndFire(emp, cardW, y);
+
+    const cardH = y - startY;
+    const bg = new Graphics()
+      .roundRect(0, 0, cardW, cardH, 8)
+      .fill({ color: CARD_BG })
+      .stroke({ color: CARD_BORDER, width: 1.5 });
+    bg.position.set(PADDING, startY);
+    this._scroll.addChildAt(bg, bgIndex);
+    return cardH;
+  }
+
+  _buildOtherCard(emp, company, startY) {
+    const cardW   = this._width - PADDING * 2;
+    const bgIndex = this._scroll.children.length;
+
+    // ── Avatar ────────────────────────────────────────────
+    const avatarSprite = new Sprite(getCharacterAvatarTex(emp.characterIndex));
+    avatarSprite.width  = AVATAR_SIZE;
+    avatarSprite.height = AVATAR_SIZE;
+    avatarSprite.position.set(PADDING + INNER, startY + 10);
+    this._scroll.addChild(avatarSprite);
+
+    // ── Name ─────────────────────────────────────────────
+    const nameText = new Text({
+      text: emp.name,
+      style: { fill: TEXT_BRIGHT, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 14, fontWeight: '700' },
+    });
+    nameText.position.set(PADDING + TEXT_INDENT, startY + 12);
+    this._scroll.addChild(nameText);
+
+    // Role label beneath name
+    const roleText = new Text({
+      text: ROLE_LABELS[emp.role] ?? emp.role,
+      style: { fill: 0x818cf8, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 11, fontWeight: '600' },
+    });
+    roleText.position.set(PADDING + TEXT_INDENT, startY + 12 + NAME_H + 2);
+    this._scroll.addChild(roleText);
+
+    const salaryText = new Text({
+      text: `$${emp.salary}/day`,
+      style: { fill: SALARY_COLOR, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 12, fontWeight: '600' },
+    });
+    salaryText.anchor.set(1, 0);
+    salaryText.position.set(PADDING + cardW - INNER, startY + 14);
+    this._scroll.addChild(salaryText);
+
+    // Activity line: role-specific text
+    let activityStr;
+    let activityColor;
+    if (isTeamLead(emp)) {
+      const teamSystem = this.game.sim?.teamSystem;
+      const team = teamSystem?.getTeamForEmployee(company, emp.id);
+      const memberCount = team ? team.memberIds.length : 0;
+      const buffPct = Math.round(emp.level * 5);
+      activityStr = team
+        ? `${team.name} · ${memberCount} member${memberCount !== 1 ? 's' : ''} · +${buffPct}% EXP`
+        : `Lv.${emp.level} · +${buffPct}% EXP buff`;
+      activityColor = 0x4ade80;
+    } else {
+      const hasProjects = company.activeProjects.length > 0;
+      activityStr   = hasProjects ? 'Monitoring projects' : 'Idle — no active projects';
+      activityColor = hasProjects ? ACTIVITY_COLOR : TEXT_DIM;
+    }
+    const activityText = new Text({
+      text: activityStr,
+      style: {
+        fill: activityColor,
+        fontFamily: 'Inter, system-ui, sans-serif',
+        fontSize: 11,
+        fontWeight: '600',
+      },
+    });
+    activityText.position.set(PADDING + TEXT_INDENT, startY + 12 + NAME_H + 6 + 16);
+    this._scroll.addChild(activityText);
+
+    // Divider before schedule
+    let y = startY + HEADER_H + 10;
+    this._scroll.addChild(new Graphics()
+      .moveTo(PADDING + 8, y).lineTo(PADDING + cardW - 8, y)
+      .stroke({ color: DIVIDER_COLOR, width: 1 }));
     y += DIVIDER_H + 8;
 
-    // ── Schedule ─────────────────────────────────────────
+    y = this._appendScheduleAndFire(emp, cardW, y);
+
+    const cardH = y - startY;
+    const bg = new Graphics()
+      .roundRect(0, 0, cardW, cardH, 8)
+      .fill({ color: CARD_BG })
+      .stroke({ color: CARD_BORDER, width: 1.5 });
+    bg.position.set(PADDING, startY);
+    this._scroll.addChildAt(bg, bgIndex);
+    return cardH;
+  }
+
+  /** Shared footer: bottom divider + schedule + fire button. Returns updated y. */
+  _appendScheduleAndFire(emp, cardW, y) {
+    // Bottom divider
+    this._scroll.addChild(new Graphics()
+      .moveTo(PADDING + 8, y).lineTo(PADDING + cardW - 8, y)
+      .stroke({ color: DIVIDER_COLOR, width: 1 }));
+    y += DIVIDER_H + 8;
+
+    // Schedule label
     const schedLabelText = new Text({
       text: 'SCHEDULE',
-      style: {
-        fill: TEXT_DIM,
-        fontFamily: 'Inter, system-ui, sans-serif',
-        fontSize: 9,
-        fontWeight: '700',
-      },
+      style: { fill: TEXT_DIM, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 9, fontWeight: '700' },
     });
     schedLabelText.position.set(PADDING + INNER, y);
     this._scroll.addChild(schedLabelText);
@@ -326,25 +384,31 @@ export class EmployeesPanel extends Container {
     this._scroll.addChild(schedRow);
     y += SCHED_SECTION_H;
 
-    // ── Fire button ───────────────────────────────────────
+    // Mute logs button (left of Fire)
+    const muteBtnBg  = emp.logsMuted ? 0x2a2000 : 0x1a1a2a;
+    const muteBtnClr = emp.logsMuted ? 0xfbbf24 : 0x4a5a7a;
+    const muteBtn = this._makeButton(
+      emp.logsMuted ? 'Unmute' : 'Mute logs',
+      muteBtnBg,
+      muteBtnClr,
+      () => {
+        emp.logsMuted = !emp.logsMuted;
+        this.refresh();
+      },
+    );
+    muteBtn.position.set(PADDING + INNER, y + 6);
+    this._scroll.addChild(muteBtn);
+
+    // Fire button
     const fireBtn = this._makeButton('Fire', 0x2a1a1a, 0xf87171, () => {
       this.game.sim.fireEmployee(emp);
       this.refresh();
     });
     fireBtn.position.set(PADDING + cardW - INNER - 72, y + 6);
     this._scroll.addChild(fireBtn);
-    y += 28 + 10; // button height + bottom padding
+    y += 28 + 10;
 
-    // ── Background (drawn last so we know final height) ───
-    const cardH = y - startY;
-    const bg = new Graphics()
-      .roundRect(0, 0, cardW, cardH, 8)
-      .fill({ color: CARD_BG })
-      .stroke({ color: CARD_BORDER, width: 1.5 });
-    bg.position.set(PADDING, startY);
-    this._scroll.addChildAt(bg, bgIndex);
-
-    return cardH;
+    return y;
   }
 
   _makeSkillRow(skillKey, level, color, cardW) {

@@ -99,6 +99,20 @@ export class LeftSidebar extends Container {
     this._refreshButtonStates();
   }
 
+  /**
+   * Dynamically add a navigation button (e.g. unlocked via research).
+   * Has no effect if a button with the same id already exists.
+   * @param {{ id: string, emoji: string, label: string }} item
+   */
+  addNavItem(item) {
+    if (this._buttons.some((b) => b.id === item.id)) return;
+    const btn = this._makeButton(item);
+    this._buttons.push(btn);
+    this.addChild(btn.container);
+    this._repositionButtons();
+    this._refreshButtonStates();
+  }
+
   _makeSaveButton() {
     const container = new Container();
     container.eventMode = 'static';

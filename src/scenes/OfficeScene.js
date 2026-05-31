@@ -33,11 +33,12 @@ import { EmployeesPanel } from '../ui/panels/EmployeesPanel.js';
 import { HiringPanel } from '../ui/panels/HiringPanel.js';
 import { ResearchPanel } from '../ui/panels/ResearchPanel.js';
 import { AssignmentPanel } from '../ui/panels/AssignmentPanel.js';
+import { TeamsPanel } from '../ui/panels/TeamsPanel.js';
 
 import { DeskEntity, DESK_W, DESK_H } from '../entities/DeskEntity.js';
 import { EmployeeEntity } from '../entities/EmployeeEntity.js';
 import { FurnitureEntity } from '../entities/FurnitureEntity.js';
-import { SCHEDULE_CYCLE } from '../state/Employee.js';
+import { SCHEDULE_CYCLE, isProgrammer } from '../state/Employee.js';
 import { getFurnitureType } from '../data/furnitureTypes.js';
 
 const TILE = 64;
@@ -50,6 +51,7 @@ const PANEL_TITLES = {
   hiring: 'Hiring',
   assignment: 'Project Assignments',
   research: 'Research Tree',
+  teams: 'Teams',
 };
 
 export class OfficeScene extends BaseScene {
@@ -218,8 +220,8 @@ export class OfficeScene extends BaseScene {
       }
       if (this._activeView === 'staff') this._modal.refresh();
     });
-    this.listen('notification:add', ({ text, type }) => {
-      this._spawnToast(text, type);
+    this.listen('notification:add', ({ text, type, silent, suppress }) => {
+      if (!silent && !suppress) this._spawnToast(text, type);
       this._widgetBar.refresh(true);
     });
     this.listen('research:unlocked', () => {
@@ -234,6 +236,18 @@ export class OfficeScene extends BaseScene {
       this._rebuildOffice();
       this._rebuildFurniture();
       this._navigate('office');
+      // Restore Teams nav button if already researched in the loaded save.
+      const company = this.game.sim?.company;
+      if (company?.unlockedResearch?.includes('team_management')) {
+        this._leftSidebar.addNavItem({ id: 'teams', emoji: '👥', label: 'Teams' });
+      }
+    });
+
+    // Unlock Teams nav button when team_management is researched.
+    this.listen('research:unlocked', ({ nodeId }) => {
+      if (nodeId === 'team_management') {
+        this._leftSidebar.addNavItem({ id: 'teams', emoji: '👥', label: 'Teams' });
+      }
     });
 
     // Build panel drag start → scene handles the drag.
@@ -275,7 +289,7 @@ export class OfficeScene extends BaseScene {
       if (slot !== this._prevSlot && this._prevSlot >= 0) {
         const prevState = SCHEDULE_CYCLE[this._prevSlot % SCHEDULE_CYCLE.length];
         if (prevState === 'WORK') {
-          const totals = this.game.sim.projects.flushWorkPeriod(company);
+          const totals = this.game.sim.projects.flushWorkPeriod(company, this.game.sim.teamSystem);
           let periodTotal = 0;
           totals.forEach((pts, empIdx) => {
             if (pts > 0) {
@@ -284,6 +298,7 @@ export class OfficeScene extends BaseScene {
             }
           });
           recordSpPeriod(company, periodTotal);
+          this.game.sim.pmAssignment.runAfterWorkPeriod(company, this.game.sim);
         }
       }
       this._prevSlot = slot;
@@ -297,7 +312,7 @@ export class OfficeScene extends BaseScene {
             : 'idle'
           : 'idle';
         ee.setState(state);
-        ee.setHasProject(emp.pinnedProjectId !== null);
+        ee.setHasProject(!isProgrammer(emp) || emp.pinnedProjectId !== null);
         ee.setScheduleState(emp.scheduleState);
         ee.update(dt);
       });
@@ -497,6 +512,8 @@ export class OfficeScene extends BaseScene {
       panel = new AssignmentPanel(this.game);
     } else if (viewId === 'research') {
       panel = new ResearchPanel(this.game);
+    } else if (viewId === 'teams') {
+      panel = new TeamsPanel(this.game);
     } else {
       return;
     }
