@@ -9,17 +9,32 @@
  *   - Each skill level is random in [1, maxSkillLevel] (currently 5).
  *   - Salary = median value from computeMedianSalary(), rounded to $10.
  *   - dualSkillChance controls how often a second skill is added.
+ *   - Every candidate receives a random archetype profile (60/25/15).
  */
 import { createCandidate } from '../state/Candidate.js';
 import { pickRandomCharacterIndex } from '../utils/characterSprite.js';
 import { randomName } from '../data/namePool.js';
 import { computeMedianSalary, randomInt } from '../economy/balance.js';
 import { STAFF_ROLES } from '../data/staffRoles.js';
+import { ALL_ARCHETYPE_IDS } from '../data/archetypes.js';
 import employeeCatalog from '../data/employeeCatalog.json';
 import economyBalance from '../data/economyBalance.json';
 
 const { maxSkillLevel, maxSkills, dualSkillChance } = economyBalance.employeeGeneration;
 const { projectManagerSalary, teamLeadSalary } = economyBalance.otherStaffGeneration;
+
+/**
+ * Generate a random archetype profile for a candidate.
+ * Picks 3 distinct archetypes and assigns weights 60 / 25 / 15.
+ *
+ * @param {() => number} [rng]
+ * @returns {{ [archetypeId: string]: number }}
+ */
+export function generateArchetypes(rng = Math.random) {
+  const shuffled = [...ALL_ARCHETYPE_IDS].sort(() => rng() - 0.5);
+  const [primary, secondary, tertiary] = shuffled;
+  return { [primary]: 60, [secondary]: 25, [tertiary]: 15 };
+}
 
 /**
  * Generate a single random Candidate from the current unlocked skill pool.
@@ -33,7 +48,13 @@ export function generateCandidate({ allowedSkills, rng = Math.random } = {}) {
   const pool = allowedSkills ? [...allowedSkills] : [];
 
   if (pool.length === 0) {
-    return createCandidate({ name: randomName(rng), skills: [], salary: 0, rng });
+    return createCandidate({
+      name: randomName(rng),
+      skills: [],
+      salary: 0,
+      archetypes: generateArchetypes(rng),
+      rng,
+    });
   }
 
   const shuffled = [...pool].sort(() => rng() - 0.5);
@@ -46,7 +67,13 @@ export function generateCandidate({ allowedSkills, rng = Math.random } = {}) {
 
   const salary = computeMedianSalary(skills);
 
-  return createCandidate({ name: randomName(rng), skills, salary, rng });
+  return createCandidate({
+    name: randomName(rng),
+    skills,
+    salary,
+    archetypes: generateArchetypes(rng),
+    rng,
+  });
 }
 
 /**
@@ -63,6 +90,7 @@ export function generateProjectManagerCandidate({ rng = Math.random } = {}) {
     salary: projectManagerSalary,
     characterIndex: pickRandomCharacterIndex(rng),
     role: STAFF_ROLES.PROJECT_MANAGER,
+    archetypes: generateArchetypes(rng),
     rng,
   });
 }
@@ -106,6 +134,7 @@ export function generateTeamLeadCandidate({ rng = Math.random } = {}) {
     characterIndex: pickRandomCharacterIndex(rng),
     role: STAFF_ROLES.TEAM_LEAD,
     level,
+    archetypes: generateArchetypes(rng),
     rng,
   });
 }
@@ -115,7 +144,7 @@ export function generateTeamLeadCandidate({ rng = Math.random } = {}) {
  * The starter always receives a single frontend skill at level 1 to keep the tutorial coherent.
  *
  * @param {string} frontendSkillId  The frontendDevelopment skill string constant.
- * @returns {{ name: string, skills: Array<{skill: string, level: number}>, salary: number }}
+ * @returns {{ name: string, skills: Array<{skill: string, level: number}>, salary: number, archetypes: object }}
  */
 export function generateStarterEmployee(frontendSkillId) {
   const skills = [{ skill: frontendSkillId, level: 1 }];
@@ -124,6 +153,7 @@ export function generateStarterEmployee(frontendSkillId) {
     skills,
     salary: computeMedianSalary(skills),
     characterIndex: pickRandomCharacterIndex(),
+    archetypes: generateArchetypes(),
   };
 }
 
@@ -133,7 +163,7 @@ export function generateStarterEmployee(frontendSkillId) {
  *
  * @param {string} frontendSkillId
  * @param {() => number} [rng]
- * @returns {Array<{ name: string, skills: Array<{skill: string, level: number}>, salary: number }>}
+ * @returns {Array<{ name: string, skills: Array<{skill: string, level: number}>, salary: number, archetypes: object }>}
  */
 export function generateStarterCandidates(frontendSkillId, rng = Math.random) {
   return employeeCatalog.starterCandidates.map(({ name }) => {
@@ -143,6 +173,7 @@ export function generateStarterCandidates(frontendSkillId, rng = Math.random) {
       skills,
       salary: computeMedianSalary(skills),
       characterIndex: pickRandomCharacterIndex(rng),
+      archetypes: generateArchetypes(rng),
     };
   });
 }

@@ -13,6 +13,7 @@
  */
 import { createTeam } from '../state/Team.js';
 import { STAFF_ROLES } from '../data/staffRoles.js';
+import { archetypeCompat, ARCHETYPES, CATEGORY_EFFECTS } from '../data/archetypes.js';
 
 export class TeamSystem {
   /**
@@ -112,5 +113,117 @@ export class TeamSystem {
     for (const t of company.teams) {
       t.memberIds = t.memberIds.filter((id) => id !== employeeId);
     }
+  }
+
+  // ── Archetype / Chemistry methods ──────────────────────────────────────────
+
+  /**
+   * Calculate raw pair compatibility between two employees.
+   * For each combination of (archA in empA) × (archB in empB), add COMPAT[a][b].
+   * Returns a raw score in [-45, +45].
+   *
+   * @param {import('../state/Employee.js').Employee} empA
+   * @param {import('../state/Employee.js').Employee} empB
+   * @returns {number}
+   */
+  pairCompatibility(empA, empB) {
+    const archsA = Object.keys(empA.archetypes ?? {});
+    const archsB = Object.keys(empB.archetypes ?? {});
+    if (archsA.length === 0 || archsB.length === 0) return 0;
+
+    let score = 0;
+    for (const a of archsA) {
+      for (const b of archsB) {
+        score += archetypeCompat(a, b);
+      }
+    }
+    return score;
+  }
+
+  /**
+   * Calculate the normalised team compatibility score for a team.
+   * Includes the Team Lead and all members.
+   * Returns a value in [-100, +100].
+   *
+   * @param {import('../state/Company.js').Company} company
+   * @param {import('../state/Team.js').Team} team
+   * @returns {number}
+   */
+  teamCompatibility(company, team) {
+    const lead = this.getTeamLead(company, team);
+    const members = team.memberIds
+      .map((id) => company.employees.find((e) => e.id === id))
+      .filter(Boolean);
+
+    const everyone = lead ? [lead, ...members] : members;
+    if (everyone.length < 2) return 50; // single employee — neutral
+
+    let total = 0;
+    let pairCount = 0;
+    for (let i = 0; i < everyone.length; i++) {
+      for (let j = i + 1; j < everyone.length; j++) {
+        total += this.pairCompatibility(everyone[i], everyone[j]);
+        pairCount += 1;
+      }
+    }
+
+    const avg = total / pairCount;
+    // Normalise from [-45, +45] → [-100, +100] then clamp
+    const normalised = (avg / 45) * 100;
+    return Math.max(-100, Math.min(100, Math.round(normalised)));
+  }
+
+  /**
+   * Derive a stress label and modifier from a team compatibility score.
+   *
+   * @param {number} score  Normalised value in [-100, +100]
+   * @returns {{ label: string, modifier: number }}
+   */
+  teamStressLabel(score) {
+    // Map from [-100, +100] to [0, 100] for table lookup
+    const shifted = (score + 100) / 2; // 0–100
+    if (shifted >= 80) return { label: 'Low Stress',      modifier: -20 };
+    if (shifted >= 60) return { label: 'Reduced Stress',  modifier: -10 };
+    if (shifted >= 40) return { label: 'Neutral',         modifier:   0 };
+    if (shifted >= 20) return { label: 'Elevated Stress', modifier: +10 };
+    return                    { label: 'High Stress',     modifier: +20 };
+  }
+
+  /**
+   * Determine the team effect label based on dominant archetype category.
+   * Presence is weighted by each employee's archetype percentages.
+   *
+   * @param {import('../state/Company.js').Company} company
+   * @param {import('../state/Team.js').Team} team
+   * @returns {string}
+   */
+  teamEffect(company, team) {
+    const lead = this.getTeamLead(company, team);
+    const members = team.memberIds
+      .map((id) => company.employees.find((e) => e.id === id))
+      .filter(Boolean);
+
+    const everyone = lead ? [lead, ...members] : members;
+    if (everyone.length === 0) return 'Balanced Team';
+
+    const categoryTotals = {};
+    for (const emp of everyone) {
+      for (const [archId, weight] of Object.entries(emp.archetypes ?? {})) {
+        const category = ARCHETYPES[archId]?.category;
+        if (!category) continue;
+        categoryTotals[category] = (categoryTotals[category] ?? 0) + weight;
+      }
+    }
+
+    if (Object.keys(categoryTotals).length === 0) return 'Balanced Team';
+
+    const sorted = Object.entries(categoryTotals).sort((a, b) => b[1] - a[1]);
+    const topWeight   = sorted[0][1];
+    const secondWeight = sorted[1]?.[1] ?? 0;
+
+    // Must be strictly dominant (not a tie)
+    if (topWeight === secondWeight) return 'Balanced Team';
+
+    return CATEGORY_EFFECTS[sorted[0][0]] ?? 'Balanced Team';
   }
 }

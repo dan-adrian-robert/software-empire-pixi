@@ -18,6 +18,7 @@ import { Container, Graphics, Sprite, Text } from 'pixi.js';
 import { getCharacterAvatarTex } from '@utils/characterSprite.js';
 import { SKILL_COLORS } from '@/data/skills.js';
 import { isProgrammer } from '@/state/Employee.js';
+import { CATEGORY_COLORS } from '@/data/archetypes.js';
 
 // ── Palette ────────────────────────────────────────────────────────────────
 const BG_PANEL        = 0x0d1526;
@@ -205,8 +206,14 @@ export class TeamsPanel extends Container {
       .map((id) => company.employees.find((e) => e.id === id))
       .filter(Boolean);
 
-    const chipsH  = CHIP_H;
-    const rowH    = SECTION_H + ROW_PAD_Y * 2 + chipsH;
+    // Compute team metrics (only meaningful when there are 2+ people)
+    const totalMembers = (lead ? 1 : 0) + members.length;
+    const compatScore  = totalMembers >= 2 ? teamSystem.teamCompatibility(company, team) : null;
+    const stressInfo   = compatScore !== null ? teamSystem.teamStressLabel(compatScore) : null;
+    const effectLabel  = totalMembers >= 1 ? teamSystem.teamEffect(company, team) : null;
+
+    // Row height accommodates the extended lead info column
+    const rowH    = 112;
     const isTarget = this._selected !== null;
 
     // Clickable card background
@@ -216,14 +223,13 @@ export class TeamsPanel extends Container {
       .stroke({ color: isTarget ? CHIP_ASS_BORDER : ROW_BORDER, width: 1.5 });
     bg.position.set(0, startY);
     bg.eventMode = 'static';
-    bg.cursor = isTarget ? 'pointer' : 'default';
+    bg.cursor    = 'pointer';
 
     bg.on('pointerover', () => {
-      if (!this._selected) return;
       bg.clear()
         .roundRect(0, 0, this._width, rowH, ROW_RADIUS)
         .fill({ color: 0x1e3050 })
-        .stroke({ color: CHIP_ASS_BORDER, width: 1.5 });
+        .stroke({ color: isTarget ? CHIP_ASS_BORDER : ROW_BORDER, width: 1.5 });
     });
     bg.on('pointerout', () => {
       bg.clear()
@@ -232,57 +238,95 @@ export class TeamsPanel extends Container {
         .stroke({ color: isTarget ? CHIP_ASS_BORDER : ROW_BORDER, width: 1.5 });
     });
     bg.on('pointerup', () => {
-      if (!this._selected) return;
-      teamSystem.assignToTeam(company, this._selected.id, team.id);
-      this._selected = null;
-      this.refresh();
+      if (this._selected) {
+        teamSystem.assignToTeam(company, this._selected.id, team.id);
+        this._selected = null;
+        this.refresh();
+      } else {
+        this.game.events.emit('team:open-detail', team.id);
+      }
     });
 
     this._scroll.addChild(bg);
 
     // ── Lead info column ────────────────────────────────────────────────────
-    const buffPct = lead ? Math.round(lead.level * 5) : 0;
+    const buffPct   = lead ? Math.round(lead.level * 5) : 0;
     const leadLevel = lead ? lead.level : '?';
+    let lx = ROW_PAD_X;
+    let ly = startY + ROW_PAD_Y;
 
+    // Team name
     const teamNameText = new Text({
       text: team.name,
-      style: {
-        fill: TEXT_BRIGHT,
-        fontFamily: 'Inter, system-ui, sans-serif',
-        fontSize: 13,
-        fontWeight: '700',
-      },
+      style: { fill: TEXT_BRIGHT, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 13, fontWeight: '700' },
     });
-    teamNameText.position.set(ROW_PAD_X, startY + ROW_PAD_Y);
+    teamNameText.position.set(lx, ly);
     this._scroll.addChild(teamNameText);
+    ly += 18;
 
+    // Lead name + level
     const leadInfoText = new Text({
       text: lead ? `${lead.name}  Lv.${leadLevel}` : 'Lead missing',
-      style: {
-        fill: TEXT_DIM,
-        fontFamily: 'Inter, system-ui, sans-serif',
-        fontSize: 11,
-      },
+      style: { fill: TEXT_DIM, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 11 },
     });
-    leadInfoText.position.set(ROW_PAD_X, startY + ROW_PAD_Y + SECTION_H);
+    leadInfoText.position.set(lx, ly);
     this._scroll.addChild(leadInfoText);
+    ly += 15;
 
     // EXP buff badge
     const buffText = new Text({
       text: `+${buffPct}% EXP`,
-      style: {
-        fill: BUFF_COLOR,
-        fontFamily: 'Inter, system-ui, sans-serif',
-        fontSize: 10,
-        fontWeight: '700',
-      },
+      style: { fill: BUFF_COLOR, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 10, fontWeight: '700' },
     });
-    buffText.position.set(ROW_PAD_X, startY + ROW_PAD_Y + SECTION_H + 16);
+    buffText.position.set(lx, ly);
     this._scroll.addChild(buffText);
+    ly += 15;
 
-    // ── Member chips ────────────────────────────────────────────────────────
+    // ── Chemistry, Stress, Effect ────────────────────────────────────────────
+    if (compatScore !== null) {
+      // Colour the chemistry score by range
+      const chemColor = compatScore >= 60 ? 0x4ade80 : compatScore >= 20 ? 0xfbbf24 : 0xf87171;
+      const chemText = new Text({
+        text: `Chemistry: ${compatScore}`,
+        style: { fill: chemColor, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 10, fontWeight: '700' },
+      });
+      chemText.position.set(lx, ly);
+      this._scroll.addChild(chemText);
+      ly += 14;
+    }
+
+    if (stressInfo) {
+      const stressColor = stressInfo.modifier < 0 ? 0x4ade80 : stressInfo.modifier > 0 ? 0xf87171 : 0x7a86a3;
+      const stressText = new Text({
+        text: `Stress: ${stressInfo.label}`,
+        style: { fill: stressColor, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 10 },
+      });
+      stressText.position.set(lx, ly);
+      this._scroll.addChild(stressText);
+      ly += 14;
+    }
+
+    if (effectLabel) {
+      // Pick accent colour based on effect category
+      const effectColorMap = {
+        'Leadership Team': CATEGORY_COLORS.structure,
+        'Research Team':   CATEGORY_COLORS.paradise,
+        'High Risk Team':  CATEGORY_COLORS.mark,
+        'Social Team':     CATEGORY_COLORS.connection,
+        'Balanced Team':   0x7a86a3,
+      };
+      const effectColor = effectColorMap[effectLabel] ?? 0x7a86a3;
+      const effectText = new Text({
+        text: effectLabel,
+        style: { fill: effectColor, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 10, fontStyle: 'italic' },
+      });
+      effectText.position.set(lx, ly);
+      this._scroll.addChild(effectText);
+    }
+
+    // ── Member chips — vertically centred in the row ────────────────────────
     const chipsStartX = ROW_PAD_X + LEAD_COL_W;
-    const chipY       = startY + ROW_PAD_Y + SECTION_H;
+    const chipY       = startY + Math.round((rowH - CHIP_H) / 2);
     let chipX         = chipsStartX;
 
     if (members.length === 0) {

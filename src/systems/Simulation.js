@@ -152,10 +152,16 @@ export class Simulation {
     for (const emp of company.employees) {
       if (!emp.role) emp.role = STAFF_ROLES.PROGRAMMER;
       if (emp.logsMuted === undefined) emp.logsMuted = false;
+      // archetypes added with Archetype System feature
+      if (!emp.archetypes) emp.archetypes = {};
     }
     for (const cand of company.candidates ?? []) {
       if (!cand.role) cand.role = STAFF_ROLES.PROGRAMMER;
       if (cand.level === undefined) cand.level = null;
+      if (!cand.archetypes) cand.archetypes = {};
+    }
+    for (const cand of company.otherCandidates ?? []) {
+      if (!cand.archetypes) cand.archetypes = {};
     }
     if (!Array.isArray(company.otherCandidates)) {
       company.otherCandidates = [];

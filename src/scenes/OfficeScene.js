@@ -23,6 +23,7 @@ import { SchedulePopup } from '../ui/SchedulePopup.js';
 import { WeatherPopup } from '../ui/WeatherPopup.js';
 import { DayReportPopup } from '../ui/DayReportPopup.js';
 import { SaveSlotPopup } from '../ui/SaveSlotPopup.js';
+import { TeamInfoPopup } from '../ui/TeamInfoPopup.js';
 import { Toast } from '../ui/Toast.js';
 import { BuildOverlay } from '../ui/BuildOverlay.js';
 import { BuildPanel } from '../ui/BuildPanel.js';
@@ -115,6 +116,9 @@ export class OfficeScene extends BaseScene {
     // Save-slot popup — shown when the player clicks the Save sidebar button.
     this._saveSlotPopup = new SaveSlotPopup();
 
+    // Team info popup — opened from a team row click in TeamsPanel.
+    this._teamInfoPopup = new TeamInfoPopup(this.game);
+
     // Build mode.
     this._buildOverlay    = new BuildOverlay();
     this._buildPanel      = new BuildPanel();
@@ -169,6 +173,8 @@ export class OfficeScene extends BaseScene {
     // Modal layer sits between world and HUD so HUD elements stay interactive.
     this.root.addChild(this._modalLayer);
     this._modalLayer.addChild(this._modal);
+    // TeamInfoPopup added after the modal so it renders on top of it.
+    this._modalLayer.addChild(this._teamInfoPopup);
 
     this.root.addChild(this._hudLayer);
     this.root.addChild(this._toastLayer);
@@ -227,6 +233,14 @@ export class OfficeScene extends BaseScene {
     this.listen('research:unlocked', () => {
       if (this._activeView === 'research') this._modal.refresh();
       this._topBar.refresh();
+    });
+    this.listen('team:open-detail', (teamId) => {
+      const company = this.game.sim?.company;
+      if (!company) return;
+      const team = company.teams.find((t) => t.id === teamId);
+      if (!team) return;
+      const { width, height } = this.game.screen;
+      this._teamInfoPopup.open(team, company, width, height);
     });
     this.listen('day:report', (snapshot) => {
       const { width, height } = this.game.screen;

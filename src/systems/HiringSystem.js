@@ -68,6 +68,7 @@ export class HiringSystem {
       characterIndex: candidate.characterIndex,
       role: candidate.role,
       startingLevel: candidate.level ?? null,
+      archetypes: candidate.archetypes ?? {},
     });
     company.employees.push(employee);
 

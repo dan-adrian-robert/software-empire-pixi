@@ -21,10 +21,11 @@ const ALL_SKILL_KEYS = Object.values(SKILLS);
  * @param {number} [opts.characterIndex]  1-based index into characterN.png portraits.
  * @param {string} [opts.role]  - STAFF_ROLES value, defaults to 'programmer'.
  * @param {number} [opts.level] - Starting level override (used for Team Leads).
+ * @param {{ [archetypeId: string]: number }} [opts.archetypes] - Weighted archetype profile.
  * @param {() => number} [opts.rng]
  * @returns {Candidate}
  */
-export function createCandidate({ name, skills, salary, characterIndex, role, level, rng } = {}) {
+export function createCandidate({ name, skills, salary, characterIndex, role, level, archetypes, rng } = {}) {
   return {
     id: _nextId++,
     name: name ?? randomName(),
@@ -34,6 +35,8 @@ export function createCandidate({ name, skills, salary, characterIndex, role, le
     role: role ?? STAFF_ROLES.PROGRAMMER,
     /** Explicit starting level — only set for non-programmer roles like Team Lead. */
     level: level ?? null,
+    /** Weighted archetype profile: { [archetypeId]: number }, values sum to 100. */
+    archetypes: archetypes ?? {},
   };
 }
 

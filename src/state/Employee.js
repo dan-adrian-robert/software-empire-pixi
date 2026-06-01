@@ -22,9 +22,10 @@ export const SCHEDULE_CYCLE = ['WORK', 'BREAK', 'WORK', 'TALK'];
  * @param {number} [opts.characterIndex]  1-based index into characterN.png portraits.
  * @param {string} [opts.role]  - STAFF_ROLES value, defaults to 'programmer'.
  * @param {number|null} [opts.startingLevel]  - Explicit starting level for non-programmer roles.
+ * @param {{ [archetypeId: string]: number }} [opts.archetypes]  - Weighted archetype profile.
  * @returns {Employee}
  */
-export function createEmployee({ name, skills, salary, characterIndex = 1, role = STAFF_ROLES.PROGRAMMER, startingLevel = null }) {
+export function createEmployee({ name, skills, salary, characterIndex = 1, role = STAFF_ROLES.PROGRAMMER, startingLevel = null, archetypes = {} }) {
   const { BASE_PRODUCTIVITY_MIN, BASE_PRODUCTIVITY_MAX } = GameConfig.gameplay;
   const clampedSkills = skills.slice(0, 2);
   const derivedLevel = clampedSkills.reduce((s, sk) => s + sk.level, 0);
@@ -56,6 +57,8 @@ export function createEmployee({ name, skills, salary, characterIndex = 1, role 
     workPeriodTotal: 0,
     /** When true, notifications about this employee skip the toast popup. */
     logsMuted: false,
+    /** Weighted archetype profile: { [archetypeId]: number }, values sum to 100. */
+    archetypes,
   };
 }
 

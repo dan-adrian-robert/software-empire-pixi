@@ -18,6 +18,7 @@ import {
   MAX_SKILL_LEVEL,
 } from '@/data/skills.js';
 import { ROLE_LABELS, STAFF_ROLES } from '@/data/staffRoles.js';
+import { getDisplayName } from '@/data/archetypeDisplayNames.js';
 import { freeDesks } from '@/state/Company.js';
 import { SCHEDULE_CYCLE } from '@/state/Employee.js';
 
@@ -310,6 +311,23 @@ export class HiringPanel extends Container {
     salaryText.position.set(PADDING + cardW - INNER, textBaseY + 2);
     this._scroll.addChild(salaryText);
 
+    // Archetype display name (below the name row, right-aligned)
+    const archDisplayName = getDisplayName(candidate.archetypes ?? {});
+    if (archDisplayName && archDisplayName !== 'Unknown') {
+      const archLabel = new Text({
+        text: archDisplayName,
+        style: {
+          fill: canHire ? 0xc4b5fd : TEXT_DIM,
+          fontFamily: 'Inter, system-ui, sans-serif',
+          fontSize: 10,
+          fontStyle: 'italic',
+        },
+      });
+      archLabel.anchor.set(1, 0);
+      archLabel.position.set(PADDING + cardW - INNER, textBaseY + NAME_H + 2);
+      this._scroll.addChild(archLabel);
+    }
+
     // Top divider
     const divY1 = startY + HEADER_H;
     this._scroll.addChild(new Graphics()
@@ -387,6 +405,23 @@ export class HiringPanel extends Container {
     });
     roleLabel.position.set(PADDING + TEXT_INDENT, textBaseY + NAME_H + 2);
     this._scroll.addChild(roleLabel);
+
+    // Archetype display name (right-aligned, above salary)
+    const otherArchName = getDisplayName(candidate.archetypes ?? {});
+    if (otherArchName && otherArchName !== 'Unknown') {
+      const otherArchLabel = new Text({
+        text: otherArchName,
+        style: {
+          fill: canHire ? 0xc4b5fd : TEXT_DIM,
+          fontFamily: 'Inter, system-ui, sans-serif',
+          fontSize: 10,
+          fontStyle: 'italic',
+        },
+      });
+      otherArchLabel.anchor.set(1, 0);
+      otherArchLabel.position.set(PADDING + cardW - INNER, textBaseY + NAME_H + 2);
+      this._scroll.addChild(otherArchLabel);
+    }
 
     // Salary
     const salaryText = new Text({
