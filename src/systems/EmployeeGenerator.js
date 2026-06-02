@@ -17,6 +17,7 @@ import { randomName } from '../data/namePool.js';
 import { computeMedianSalary, randomInt } from '../economy/balance.js';
 import { STAFF_ROLES } from '../data/staffRoles.js';
 import { ALL_ARCHETYPE_IDS } from '../data/archetypes.js';
+import { generateCommunicationProfile } from './CommunicationGenerator.js';
 import employeeCatalog from '../data/employeeCatalog.json';
 import economyBalance from '../data/economyBalance.json';
 
@@ -53,6 +54,7 @@ export function generateCandidate({ allowedSkills, rng = Math.random } = {}) {
       skills: [],
       salary: 0,
       archetypes: generateArchetypes(rng),
+      communication: generateCommunicationProfile(rng),
       rng,
     });
   }
@@ -72,6 +74,7 @@ export function generateCandidate({ allowedSkills, rng = Math.random } = {}) {
     skills,
     salary,
     archetypes: generateArchetypes(rng),
+    communication: generateCommunicationProfile(rng),
     rng,
   });
 }
@@ -91,6 +94,7 @@ export function generateProjectManagerCandidate({ rng = Math.random } = {}) {
     characterIndex: pickRandomCharacterIndex(rng),
     role: STAFF_ROLES.PROJECT_MANAGER,
     archetypes: generateArchetypes(rng),
+    communication: generateCommunicationProfile(rng),
     rng,
   });
 }
@@ -135,6 +139,7 @@ export function generateTeamLeadCandidate({ rng = Math.random } = {}) {
     role: STAFF_ROLES.TEAM_LEAD,
     level,
     archetypes: generateArchetypes(rng),
+    communication: generateCommunicationProfile(rng),
     rng,
   });
 }
@@ -154,6 +159,7 @@ export function generateStarterEmployee(frontendSkillId) {
     salary: computeMedianSalary(skills),
     characterIndex: pickRandomCharacterIndex(),
     archetypes: generateArchetypes(),
+    communication: generateCommunicationProfile(),
   };
 }
 
@@ -174,6 +180,7 @@ export function generateStarterCandidates(frontendSkillId, rng = Math.random) {
       salary: computeMedianSalary(skills),
       characterIndex: pickRandomCharacterIndex(rng),
       archetypes: generateArchetypes(rng),
+      communication: generateCommunicationProfile(rng),
     };
   });
 }

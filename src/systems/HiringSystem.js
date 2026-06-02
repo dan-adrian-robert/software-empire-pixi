@@ -13,6 +13,7 @@ import { createEmployee } from '../state/Employee.js';
 import { freeDesks } from '../state/Company.js';
 import { getUnlockedSkills } from '../data/skills.js';
 import { generateCandidate, generateProjectManagerCandidate, generateTeamLeadCandidate } from './EmployeeGenerator.js';
+import { generateCommunicationProfile } from './CommunicationGenerator.js';
 import { STAFF_ROLES } from '../data/staffRoles.js';
 import economyBalance from '../data/economyBalance.json';
 
@@ -69,6 +70,7 @@ export class HiringSystem {
       role: candidate.role,
       startingLevel: candidate.level ?? null,
       archetypes: candidate.archetypes ?? {},
+      communication: candidate.communication ?? generateCommunicationProfile(),
     });
     company.employees.push(employee);
 

@@ -25,7 +25,7 @@ const ALL_SKILL_KEYS = Object.values(SKILLS);
  * @param {() => number} [opts.rng]
  * @returns {Candidate}
  */
-export function createCandidate({ name, skills, salary, characterIndex, role, level, archetypes, rng } = {}) {
+export function createCandidate({ name, skills, salary, characterIndex, role, level, archetypes, communication, rng } = {}) {
   return {
     id: _nextId++,
     name: name ?? randomName(),
@@ -37,6 +37,8 @@ export function createCandidate({ name, skills, salary, characterIndex, role, le
     level: level ?? null,
     /** Weighted archetype profile: { [archetypeId]: number }, values sum to 100. */
     archetypes: archetypes ?? {},
+    /** Communication topic scores: { [topicId]: number (1–100) }. */
+    communication: communication ?? {},
   };
 }
 

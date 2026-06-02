@@ -25,7 +25,7 @@ export const SCHEDULE_CYCLE = ['WORK', 'BREAK', 'WORK', 'TALK'];
  * @param {{ [archetypeId: string]: number }} [opts.archetypes]  - Weighted archetype profile.
  * @returns {Employee}
  */
-export function createEmployee({ name, skills, salary, characterIndex = 1, role = STAFF_ROLES.PROGRAMMER, startingLevel = null, archetypes = {} }) {
+export function createEmployee({ name, skills, salary, characterIndex = 1, role = STAFF_ROLES.PROGRAMMER, startingLevel = null, archetypes = {}, communication = {} }) {
   const { BASE_PRODUCTIVITY_MIN, BASE_PRODUCTIVITY_MAX } = GameConfig.gameplay;
   const clampedSkills = skills.slice(0, 2);
   const derivedLevel = clampedSkills.reduce((s, sk) => s + sk.level, 0);
@@ -59,6 +59,8 @@ export function createEmployee({ name, skills, salary, characterIndex = 1, role 
     logsMuted: false,
     /** Weighted archetype profile: { [archetypeId]: number }, values sum to 100. */
     archetypes,
+    /** Communication topic scores: { [topicId]: number (1–100) }. */
+    communication,
   };
 }
 

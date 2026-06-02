@@ -12,6 +12,7 @@
  */
 import { createCompany, resetDailySpProductivity } from '../state/Company.js';
 import { STAFF_ROLES } from '../data/staffRoles.js';
+import { generateCommunicationProfile } from './CommunicationGenerator.js';
 import { createFurnitureItem } from '../state/FurnitureItem.js';
 import { isPastCritical } from '../state/Project.js';
 import { syncIdCounters } from '../state/syncIdCounters.js';
@@ -154,14 +155,24 @@ export class Simulation {
       if (emp.logsMuted === undefined) emp.logsMuted = false;
       // archetypes added with Archetype System feature
       if (!emp.archetypes) emp.archetypes = {};
+      // communication added with Communication Tab feature
+      if (!emp.communication || Object.keys(emp.communication).length === 0) {
+        emp.communication = generateCommunicationProfile();
+      }
     }
     for (const cand of company.candidates ?? []) {
       if (!cand.role) cand.role = STAFF_ROLES.PROGRAMMER;
       if (cand.level === undefined) cand.level = null;
       if (!cand.archetypes) cand.archetypes = {};
+      if (!cand.communication || Object.keys(cand.communication).length === 0) {
+        cand.communication = generateCommunicationProfile();
+      }
     }
     for (const cand of company.otherCandidates ?? []) {
       if (!cand.archetypes) cand.archetypes = {};
+      if (!cand.communication || Object.keys(cand.communication).length === 0) {
+        cand.communication = generateCommunicationProfile();
+      }
     }
     if (!Array.isArray(company.otherCandidates)) {
       company.otherCandidates = [];
