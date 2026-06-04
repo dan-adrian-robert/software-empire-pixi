@@ -10,7 +10,7 @@ For wiring diagrams and module structure, see [ARCHITECTURE.md](./ARCHITECTURE.m
 
 The game is built around **days**. Each day has two phases:
 
-1. **Planning phase** — The simulation is paused. The player reviews finances, hires staff, accepts projects, assigns employees, unlocks research, and adjusts the work schedule.
+1. **Planning phase** — The simulation is paused. The player reviews finances, hires staff, accepts projects, assigns employees, unlocks research, and (if the Schedule research node is unlocked) adjusts the work schedule.
 2. **Running phase** — The player unpauses (or picks a speed). Time advances, employees follow a repeating schedule, and assigned workers contribute story points to pinned projects.
 
 When the day finishes—either because real time runs out or the player clicks **End Day**—a chain of end-of-day systems runs, a **day summary** is shown, and the next day begins paused again.
@@ -73,8 +73,8 @@ At **1× speed**, one full in-game day takes **180 real seconds** (3 minutes).
 
 Day progress is stored as `dayProgress` from **0** (start) to **1** (end). The in-game clock shown in the top bar is derived from:
 
-- `company.schedule.startHour` — when the work day begins (6 AM–4 PM)
-- `company.schedule.workHours` — shift length (8, 10, 12, or 14 hours)
+- `company.schedule.startHour` — when the work day begins (default 9 AM, configurable 6 AM–4 PM after Schedule research)
+- `company.schedule.workHours` — shift length (default 12 h / 9 AM–9 PM, configurable 8 / 10 / 12 / 14 after Schedule research)
 - `dayProgress` — how far through the shift you are
 
 The displayed clock snaps to **:00, :15, :30, :45**.

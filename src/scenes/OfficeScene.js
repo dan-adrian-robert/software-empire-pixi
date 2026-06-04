@@ -41,6 +41,7 @@ import { EmployeeEntity } from '../entities/EmployeeEntity.js';
 import { FurnitureEntity } from '../entities/FurnitureEntity.js';
 import { SCHEDULE_CYCLE, isProgrammer } from '../state/Employee.js';
 import { getFurnitureType } from '../data/furnitureTypes.js';
+import { GameConfig } from '../config.js';
 
 const TILE = 64;
 const FLOOR_COLOR = 0x0f172a;
@@ -255,12 +256,20 @@ export class OfficeScene extends BaseScene {
       if (company?.unlockedResearch?.includes('team_management')) {
         this._leftSidebar.addNavItem({ id: 'teams', emoji: '👥', label: 'Teams' });
       }
+      // Restore Schedule nav button if already researched in the loaded save.
+      if (company?.unlockedResearch?.includes(GameConfig.schedule.researchNodeId)) {
+        this._leftSidebar.addNavItem({ id: 'schedule', emoji: '🕐', label: 'Schedule' });
+      }
     });
 
     // Unlock Teams nav button when team_management is researched.
+    // Unlock Schedule nav button when work_schedule is researched.
     this.listen('research:unlocked', ({ nodeId }) => {
       if (nodeId === 'team_management') {
         this._leftSidebar.addNavItem({ id: 'teams', emoji: '👥', label: 'Teams' });
+      }
+      if (nodeId === GameConfig.schedule.researchNodeId) {
+        this._leftSidebar.addNavItem({ id: 'schedule', emoji: '🕐', label: 'Schedule' });
       }
     });
 
@@ -481,11 +490,13 @@ export class OfficeScene extends BaseScene {
   }
 
   _toggleSchedule() {
+    const company = this.game.sim?.company;
+    if (!company?.unlockedResearch?.includes(GameConfig.schedule.researchNodeId)) return;
     const { width, height } = this.game.screen;
     if (this._schedulePopup.visible) {
       this._closeSchedulePopup();
     } else {
-      this._schedulePopup.open(this.game.sim?.company, width, height);
+      this._schedulePopup.open(company, width, height);
       this._leftSidebar.setActive('schedule');
     }
   }

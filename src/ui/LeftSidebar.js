@@ -21,13 +21,11 @@ const BTN_ACTIVE_BORDER = 0x4a7aff;
 const BTN_BORDER = 0x1e2d47;
 
 const NAV_ITEMS = [
-  { id: 'office', emoji: '🏢', label: 'Office' },
   { id: 'projects', emoji: '📋', label: 'Projects' },
   { id: 'employees', emoji: '👥', label: 'Staff' },
   { id: 'hiring', emoji: '➕', label: 'Hire' },
   { id: 'assignment', emoji: '📌', label: 'Assign' },
   { id: 'research', emoji: '🔬', label: 'Research' },
-  { id: 'schedule', emoji: '🕐', label: 'Schedule' },
 ];
 
 export class LeftSidebar extends Container {

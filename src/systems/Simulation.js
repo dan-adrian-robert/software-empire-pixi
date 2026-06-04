@@ -188,6 +188,10 @@ export class Simulation {
         if (!hasTeam) this.teamSystem.createTeamForLead(company, emp);
       }
     }
+    // Enforce locked schedule for saves that predate work_schedule research.
+    if (!company.unlockedResearch.includes(GameConfig.schedule.researchNodeId)) {
+      company.schedule = { ...GameConfig.schedule.locked };
+    }
   }
 
   /** @param {number} dt  Real seconds (already time-scaled by Game). */
@@ -422,11 +426,13 @@ export class Simulation {
 
   /**
    * Update the company's work schedule.
+   * No-op until the work_schedule research node is unlocked.
    * @param {number} startHour  Hour the work day starts (6–16).
    * @param {number} workHours  Duration: 8 | 10 | 12 | 14.
    */
   setSchedule(startHour, workHours) {
     if (!this.company) return;
+    if (!this.company.unlockedResearch.includes(GameConfig.schedule.researchNodeId)) return;
     this.company.schedule.startHour = Math.max(6, Math.min(24 - workHours, startHour));
     this.company.schedule.workHours = workHours;
   }

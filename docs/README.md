@@ -25,7 +25,7 @@ npm run format    # Prettier format
 - Each in-game day runs for 180 real seconds at 1× speed.
 - Speed controls: **Pause / 1× / 2× / 4× / 8×**; "End Day" button fast-forwards to midnight.
 - The day **auto-pauses** at the start of each new day so you can plan before unpausing.
-- A configurable work schedule sets the start hour (6 AM–4 PM) and shift length (8, 10, 12, or 14 hours).
+- By default the work day runs from **9 AM to 9 PM** (a fixed 12-hour shift). Once the **Schedule** research node is unlocked (after Agile Workflow), a configurable work schedule editor becomes available to set the start hour (6 AM–4 PM) and shift length (8, 10, 12, or 14 hours).
 - Every employee follows a repeating 15-minute schedule cycle: **WORK → BREAK → WORK → TALK**. Skill points only accrue during WORK slots.
 - An in-game clock (snapped to :00 :15 :30 :45) shows the current time of day.
 
@@ -67,9 +67,10 @@ npm run format    # Prettier format
 - The HUD shows current cash, daily salary cost, R&D points, and day number.
 
 ### Research Tree
-- A directed acyclic graph of **24 research nodes** spanning skill unlocks and operational upgrades.
+- A directed acyclic graph of **25 research nodes** spanning skill unlocks and operational upgrades.
 - Four skill branches: **Frontend Development** (unlocked at game start) → **Backend Development** and **Mobile Development** → **DevOps**.
 - General upgrades branch through Agile Workflow, Better Workstations, Recruitment Department, and converge toward late-game nodes like AI Assisted Development, Global Offices, and Digital Monopoly.
+- The **Schedule** node (after Agile Workflow) unlocks the shift editor so you can change the default 9 AM–9 PM work day.
 - Locked skills cannot be assigned to projects or hired for.
 
 ### Weather & Productivity
@@ -85,10 +86,10 @@ npm run format    # Prettier format
 
 ### UI / HUD
 - **Top bar**: company name, cash, salary cost, R&D points, day counter, weather chip, in-game clock, speed controls, progress bar.
-- **Left sidebar**: navigation to Office / Projects / Staff / Hiring / Assignments / Research / Schedule.
+- **Left sidebar**: navigation to Office / Projects / Staff / Hiring / Assignments / Research. The Schedule and Teams buttons appear after the corresponding research nodes are unlocked.
 - **Right widget bar**: Activity feed (last 20 notifications) and active project cards with quick-collect buttons.
 - **Toast notifications**: transient banners for key events (project ready, hired, salary paid, warning, etc.).
-- **Schedule popup**: graphical shift editor — pick start hour and duration.
+- **Schedule popup**: graphical shift editor — pick start hour and duration. Available after the Schedule research node is unlocked.
 - **Modal panels**: all management screens (Projects, Staff, Hiring, Assignments, Research) open in a scrollable modal overlay.
 
 ### New Game

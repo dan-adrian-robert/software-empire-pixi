@@ -100,6 +100,13 @@ export const GameConfig = Object.freeze({
     PROJECT_INSURANCE_SP_FACTOR: 2.5,
   }),
 
+  schedule: Object.freeze({
+    // Research node that must be unlocked before the player can edit the schedule.
+    researchNodeId: 'work_schedule',
+    // Fixed shift applied until that research is purchased: 9 AM–9 PM (12 hours).
+    locked: Object.freeze({ startHour: 9, workHours: 12 }),
+  }),
+
   save: Object.freeze({
     SLOT_COUNT: 5,
     STORAGE_PREFIX: 'software-empire:save:',

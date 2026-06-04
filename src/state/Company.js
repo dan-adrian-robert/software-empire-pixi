@@ -85,10 +85,12 @@ export function createCompany() {
      * Work-day schedule. Controls in-game clock display and productivity.
      * startHour: 6–16 (hour the day begins, 24h clock)
      * workHours: 8 | 10 | 12 | 14
+     * Before the work_schedule research node is unlocked this is fixed at
+     * 9 AM–9 PM (startHour: 9, workHours: 12) and cannot be changed by the player.
      */
     schedule: {
-      startHour: 8,
-      workHours: 8,
+      startHour: 9,
+      workHours: 12,
     },
 
     /** Cumulative totals for statistics. */
