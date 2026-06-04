@@ -11,6 +11,7 @@
 import { Entity } from './Entity.js';
 import { Rectangle, Sprite, Text } from 'pixi.js';
 import { getCharacterTopHalf } from '../utils/characterSprite.js';
+import { SCHEDULE_ICONS } from '../data/scheduleActivities.js';
 
 const POINTS_LABEL_START_Y = 70; // below body, floats upward during fade
 
@@ -22,7 +23,6 @@ const PERSON_W = 64;
 // Label offset = 128 - 52 + 16 = 92 → name at 16px below desk bottom.
 const NAME_OFFSET_Y = 92;
 
-const SCHEDULE_ICONS = { WORK: '💻', BREAK: '☕', TALK: '💬' };
 const WARNING_ICON = '⚠️';
 
 
@@ -40,7 +40,7 @@ export class EmployeeEntity extends Entity {
     this._state = 'idle';
     this._name = name;
     this._hasProject = false;
-    this._scheduleState = 'WORK';
+    this._scheduleState = 'WORK'; // ScheduleActivity.WORK
 
     this._sprite = new Sprite(getCharacterTopHalf(characterIndex));
     this._sprite.anchor.set(0.5, 1);
@@ -119,7 +119,7 @@ export class EmployeeEntity extends Entity {
     this._state = state;
   }
 
-  /** @param {'WORK'|'BREAK'|'TALK'} state */
+  /** @param {'WORK'|'BATHROOM_BREAK'|'TALK'} state */
   setScheduleState(state) {
     this._scheduleState = state;
     this._updateStateIcon();

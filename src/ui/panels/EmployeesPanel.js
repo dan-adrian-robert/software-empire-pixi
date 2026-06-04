@@ -23,7 +23,8 @@ import {
   SKILL_COLORS,
   MAX_SKILL_LEVEL,
 } from '@/data/skills.js';
-import { SCHEDULE_CYCLE, isProgrammer, isTeamLead } from '@/state/Employee.js';
+import { isProgrammer, isTeamLead } from '@/state/Employee.js';
+import { SCHEDULE_CYCLE, SCHEDULE_ICONS } from '@/data/scheduleActivities.js';
 import { ROLE_LABELS } from '@/data/staffRoles.js';
 
 const CARD_BG = 0x131929;
@@ -55,7 +56,6 @@ const LABEL_GAP = 12;
 
 const ALL_SKILLS = Object.values(SKILLS);
 
-const SCHEDULE_ICONS = { WORK: '💻', BREAK: '☕', TALK: '💬' };
 const SCHED_SECTION_H = 12 + 4 + 20; // label + gap + icon row
 
 // Fixed-height sections

@@ -121,6 +121,20 @@ export function createCompany() {
     teams: [],
 
     /**
+     * Pairwise employee relationships. Keys are "lowerEmpId_higherEmpId".
+     * Values are { friendship: number } where 50 is neutral.
+     * @type {{ [key: string]: { friendship: number } }}
+     */
+    relationships: {},
+
+    /**
+     * Log of TALK interactions, newest first.
+     * Capped at MAX_COMM_LOG entries.
+     * @type {Array<{day:number, empAName:string, empBName:string, topicId:string, topicLabel:string, delta:number, friendship:number}>}
+     */
+    communicationLog: [],
+
+    /**
      * SP production history for the current day.
      * Populated by recordSpPeriod() at the end of each WORK period.
      */

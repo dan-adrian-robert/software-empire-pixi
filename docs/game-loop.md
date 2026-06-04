@@ -1,4 +1,4 @@
-# Game Loop
+﻿# Game Loop
 
 This document describes how time flows in **Software Empire**: the engine tick, the day cycle, what happens while a day runs, and what happens when a day ends.
 
@@ -108,16 +108,16 @@ Both paths emit the same `day:ended` event and run the same pipeline.
 Every employee shares the same repeating 15-minute cycle:
 
 ```
-WORK → BREAK → WORK → TALK → (repeat)
+WORK → BATHROOM_BREAK → WORK → TALK → (repeat)
 ```
 
-The current slot is computed from day progress and the company’s shift length. Only employees in a **WORK** slot can contribute to projects.
+`ScheduleSystem.tick()` derives the current slot from day progress and the company's shift length, sets every employee's `scheduleState`, and fires per-activity handlers on slot transitions.
 
-| Schedule state | Can contribute to projects? |
-|----------------|----------------------------|
-| WORK | Yes (if assigned) |
-| BREAK | No |
-| TALK | No |
+| Activity | Icon | Can contribute to projects? | Slot hook |
+|----------|------|-----------------------------|-----------|
+| WORK | 💻 | Yes (if assigned) | `onPeriodEnd` → flush SP |
+| BATHROOM_BREAK | 🚻 | No | `onPeriodStart` (stub for future) |
+| TALK | 💬 | No | `onPeriodStart` → pair employees, update friendship |
 
 ### Assignment rules
 
@@ -144,7 +144,7 @@ Points are **buffered** on the employee (`workBuffer`)—they are not applied to
 
 ### WORK period flush
 
-At the end of each **WORK** slot, `OfficeScene` detects the schedule slot change and calls `flushWorkPeriod`:
+At the end of each **WORK** slot, `ScheduleSystem` detects the slot change and the `WORK` end-handler calls `flushWorkPeriod`:
 
 1. Buffered points are written to project requirements
 2. If all requirements are met, the project becomes **ready to finish** (milestone tier and payout are locked in)
@@ -279,7 +279,7 @@ The end-of-day report uses a **snapshot** of notifications taken before the log 
 | `ACTIVITY_LOG_MAX` | 100 | Max entries in live activity log |
 | `EXP_PER_TICK` | 10 | EXP per WORK flush with contribution |
 | `EXP_PER_LEVEL` | 100 | EXP needed per level |
-| Schedule cycle | 4 × 15 min | WORK → BREAK → WORK → TALK per hour block |
+| Schedule cycle | 4 × 15 min | WORK → BATHROOM_BREAK → WORK → TALK per hour block |
 | HUD refresh | every 0.2 s | Top bar, widgets, open panels |
 
 ### Example: 8-hour shift at 1× speed

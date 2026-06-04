@@ -20,6 +20,7 @@
  */
 import { GameConfig } from '../config.js';
 import { matchingSkills } from '../state/Employee.js';
+import { ScheduleActivity } from '../data/scheduleActivities.js';
 import {
   isProjectComplete,
   projectElapsedDays,
@@ -48,7 +49,7 @@ export class ProjectSystem {
 
     for (const employee of company.employees) {
       // Only WORK state employees contribute to projects.
-      if (employee.scheduleState !== 'WORK') {
+      if (employee.scheduleState !== ScheduleActivity.WORK) {
         employee.activeProjectId = null;
         continue;
       }

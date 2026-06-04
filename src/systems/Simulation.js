@@ -30,6 +30,7 @@ import { NotificationSystem } from './NotificationSystem.js';
 import { ProductivitySystem } from './ProductivitySystem.js';
 import { PmAssignmentSystem } from './PmAssignmentSystem.js';
 import { TeamSystem } from './TeamSystem.js';
+import { ScheduleSystem } from './ScheduleSystem.js';
 
 export class Simulation {
   /** @param {import('../utils/EventBus.js').EventBus} bus */
@@ -44,6 +45,7 @@ export class Simulation {
     this.notifications = new NotificationSystem(bus);
     this.productivity = new ProductivitySystem();
     this.pmAssignment = new PmAssignmentSystem(bus);
+    this.schedule = new ScheduleSystem();
 
     /** @type {import('../state/Company.js').Company} */
     this.company = null;
@@ -140,6 +142,8 @@ export class Simulation {
     this._beginDayOff = this.bus.on('day:began', () => {
       this.notifications.clear();
       resetDailySpProductivity(this.company);
+      this.schedule.resetDay();
+      this.company.communicationLog = [];
     });
   }
 
@@ -191,6 +195,13 @@ export class Simulation {
     // Enforce locked schedule for saves that predate work_schedule research.
     if (!company.unlockedResearch.includes(GameConfig.schedule.researchNodeId)) {
       company.schedule = { ...GameConfig.schedule.locked };
+    }
+    // relationships and communicationLog added with Schedule Activity System feature.
+    if (!company.relationships) company.relationships = {};
+    if (!company.communicationLog) company.communicationLog = [];
+    // Migrate any stale scheduleState values from before BATHROOM_BREAK was introduced.
+    for (const emp of company.employees) {
+      if (emp.scheduleState === 'BREAK') emp.scheduleState = 'BATHROOM_BREAK';
     }
   }
 

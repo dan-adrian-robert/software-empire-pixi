@@ -1,4 +1,4 @@
-# Software Design Document — Software Empire
+﻿# Software Design Document — Software Empire
 
 **Version:** 0.1.0  
 **Status:** Living document — updated as the codebase evolves.
@@ -131,7 +131,7 @@ Returns the root aggregate. See [Data Models — Company](#company) for field ta
 Returns an employee with randomised `baseProductivity` in `[BASE_PRODUCTIVITY_MIN, BASE_PRODUCTIVITY_MAX]`.
 
 Exports:
-- `SCHEDULE_CYCLE = ['WORK', 'BREAK', 'WORK', 'TALK']` — the repeating 15-minute pattern.
+- `SCHEDULE_CYCLE` — re-exported from `src/data/scheduleActivities.js`; the repeating 15-minute activity pattern.
 - `employeeTotalPoints(employee, pointsPerLevel)` — theoretical daily output.
 - `matchingSkills(employee, project)` — skills the employee holds that have open requirements on the project.
 
@@ -175,6 +175,40 @@ All systems are classes instantiated by `Simulation`. They receive `company` as 
 **`beginNextDay(company)`** — Increments `company.day`, resets `dayProgress = 0`, sets `gameSpeed = 0` (auto-pause), emits `day:began`.
 
 **`getCurrentTimeString(schedule)`** — Maps `dayProgress` to a 12-hour clock string snapped to 15-minute increments.
+
+---
+
+#### `src/data/scheduleActivities.js`
+
+Defines `ScheduleActivity` (frozen enum: `WORK`, `BATHROOM_BREAK`, `TALK`), `SCHEDULE_CYCLE`, `SCHEDULE_ICONS`, and `getActivityForSlot(slot)`. Single source of truth for all activity-related constants.
+
+---
+
+#### `src/state/relationships.js`
+
+Helpers for `company.relationships`. Key functions: `relationshipKey(id1, id2)`, `getOrCreateRelationship(company, id1, id2)`, `computeFriendshipDelta(scoreA, scoreB)`, `applyTalkInteraction(company, empA, empB, topicId)`.
+
+The friendship delta formula: `(50 - |scoreA - scoreB|) / 10`. Same-opinion pairs gain up to +5; polar-opposite pairs lose up to −5.
+
+---
+
+#### `src/systems/ScheduleSystem.js` — `ScheduleSystem`
+
+**`tick(company, dayProgress, sim)`** — Derives the current 15-minute slot, sets `emp.scheduleState` on every employee, fires `PERIOD_END_HANDLERS` for the outgoing activity and `PERIOD_START_HANDLERS` for the incoming activity on slot transitions. Returns `{ slot, activity, flushTotals }`.
+
+**`resetDay()`** — Resets `prevSlot` to -1 at the start of each new day. Called by `Simulation._wireDayCycle` on `day:began`.
+
+---
+
+#### `src/systems/schedule/activityHandlers.js`
+
+Exports `PERIOD_END_HANDLERS` and `PERIOD_START_HANDLERS` keyed by `ScheduleActivity`.
+
+| Activity | Hook | What it does |
+|----------|------|--------------|
+| `WORK` | `onPeriodEnd` | `flushWorkPeriod` → `recordSpPeriod` → `pmAssignment.runAfterWorkPeriod` |
+| `TALK` | `onPeriodStart` | Fisher-Yates shuffle employees; pair consecutively; pick random topic per pair; `applyTalkInteraction` |
+| `BATHROOM_BREAK` | `onPeriodStart` | Stub (reserved for future morale/needs gameplay) |
 
 ---
 
@@ -292,7 +326,7 @@ The main gameplay scene. Responsibilities:
 | Layout | Five layered containers (world, popup, modal, hud, toasts) |
 | Office grid | `_rebuildOffice()` creates/destroys entities on roster changes |
 | Frame sync | `update()` pushes schedule state and project assignment into each `EmployeeEntity` |
-| WORK flush | Detects 15-min slot change; calls `sim.projects.flushWorkPeriod` on WORK→non-WORK |
+| WORK flush | `sim.schedule.tick()` detects slot change; `WORK` end-handler calls `sim.projects.flushWorkPeriod` |
 | HUD refresh | Accumulates 0.2 s, then calls `refresh()` on all HUD widgets |
 | Navigation | `_navigate(id)` opens modal panels; sidebar calls this |
 | Toasts | `_spawnToast` / `_tickToasts` manage lifetime and layout |
@@ -322,7 +356,7 @@ Renders a stylised employee figure. Public API:
 |---|---|
 | `setState('idle'\|'typing')` | Body color: grey vs blue |
 | `setHasProject(bool)` | `false` → ⚠ icon; `true` → schedule icon |
-| `setScheduleState('WORK'\|'BREAK'\|'TALK')` | Updates 💻/☕/💬 icon (when assigned) |
+| `setScheduleState('WORK'\|'BATHROOM_BREAK'\|'TALK')` | Updates 💻/🚻/💬 icon (when assigned) |
 | `setSelected(bool)` | Name label highlight |
 | `setOnClick(cb)` | Registers pointer handlers |
 | `showPoints(n)` | Spawns floating "+N pts" label |
@@ -400,6 +434,7 @@ Widgets are persistent Pixi objects owned by `OfficeScene` (not re-created per s
 | `schedule` | `{startHour, workHours}` | `Simulation.setSchedule` |
 | `stats` | `{totalRevenue, totalSalariesPaid, projectsCompleted}` | `EconomySystem`, `Simulation.finishProject` |
 | `currentWeather` | `WeatherType \| null` | `ProductivitySystem.rollDailyWeather` |
+| `relationships` | `{ [key: string]: { friendship: number } }` | `activityHandlers` (TALK) |
 
 ### Employee
 
@@ -412,7 +447,7 @@ Widgets are persistent Pixi objects owned by `OfficeScene` (not re-created per s
 | `baseProductivity` | `number` | Set once (random in config range) |
 | `activeProjectId` | `number \| null` | `ProjectSystem.update`, `Simulation.unassignEmployee/finishProject`, `HiringSystem.fire` |
 | `pinnedProjectId` | `number \| null` | `Simulation.assignEmployee/unassignEmployee/finishProject`, `HiringSystem.fire` |
-| `scheduleState` | `'WORK'\|'BREAK'\|'TALK'` | `OfficeScene.update` |
+| `scheduleState` | `'WORK'\|'BATHROOM_BREAK'\|'TALK'` | `ScheduleSystem.tick` |
 | `workBuffer` | `{[projectId]: {[skill]: number}}` | `ProjectSystem.update/flushWorkPeriod` |
 | `workPeriodTotal` | `number` | `ProjectSystem.update/flushWorkPeriod` |
 
@@ -494,11 +529,11 @@ Widgets are persistent Pixi objects owned by `OfficeScene` (not re-created per s
 ```
 totalMinutes = dayProgress × schedule.workHours × 60
 slot         = floor(totalMinutes / 15)
-state        = SCHEDULE_CYCLE[slot % 4]
-              // SCHEDULE_CYCLE = ['WORK', 'BREAK', 'WORK', 'TALK']
+activity     = SCHEDULE_CYCLE[slot % 4]
+              // SCHEDULE_CYCLE = ['WORK', 'BATHROOM_BREAK', 'WORK', 'TALK']
 ```
 
-`OfficeScene.update()` computes `slot` every frame and pushes the resulting `state` into every employee via `emp.scheduleState`. It also detects when `slot` changes and the *outgoing* state was `WORK`, triggering `flushWorkPeriod`.
+`ScheduleSystem.tick()` (called from `OfficeScene.update()`) computes `slot` every frame, sets `emp.scheduleState` on every employee, and on slot transitions fires `PERIOD_END_HANDLERS` (for outgoing activity) and `PERIOD_START_HANDLERS` (for incoming activity). The `WORK` end-handler triggers `flushWorkPeriod`; the `TALK` start-handler runs employee pairing and updates `company.relationships`.
 
 ### SP Accrual
 
@@ -520,7 +555,7 @@ The contribution is **buffered** in `employee.workBuffer[projectId][skill]` and 
 
 ### Work Period Flush
 
-Called by `OfficeScene` when the schedule slot transitions out of WORK:
+Called by the WORK `PERIOD_END_HANDLER` (`activityHandlers.js`) when the schedule slot transitions out of WORK:
 
 ```
 for each employee:

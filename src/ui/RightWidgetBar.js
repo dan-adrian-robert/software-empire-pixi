@@ -77,11 +77,21 @@ const SP_TRACK    = 0x1a2336;
 const SP_BAR      = 0x4a7acc;
 const SP_BAR_LIVE = 0x2a4a6a;
 
+// Communication widget
+const COMM_ROW_H   = 44;
+const COMM_ROW_GAP = 2;
+const COMM_PADDING = 10;
+const COMM_MAX_H   = 360;
+
+const DELTA_POS = 0x4ade80; // green for positive friendship delta
+const DELTA_NEG = 0xf87171; // red for negative
+
 // ── Widget definitions ─────────────────────────────────────────────────────────
 const WIDGETS = [
   { id: 'sp_productivity', label: 'SP Prod' },
   { id: 'activity',        label: 'Activity' },
   { id: 'projects',        label: 'Projects' },
+  { id: 'communication',   label: 'Comm' },
 ];
 
 export class RightWidgetBar extends Container {
@@ -94,7 +104,7 @@ export class RightWidgetBar extends Container {
     this.addChild(this._bg);
 
     // Per-widget visibility state (all on by default)
-    this._visible = { activity: true, projects: true, sp_productivity: true };
+    this._visible = { activity: true, projects: true, sp_productivity: true, communication: true };
 
     // Containers filled during refresh
     this._toggleHeader = new Container();
@@ -106,7 +116,9 @@ export class RightWidgetBar extends Container {
     this._lastCount        = -1;  // notifications length cache
     this._lastProjectsKey  = '';  // fingerprint of active project progress
     this._lastSpKey        = '';  // fingerprint of SP productivity state
+    this._lastCommKey      = '';  // fingerprint of communication log
     this._activityScrollY  = 0;   // current scroll offset for the activity viewport
+    this._commScrollY      = 0;   // current scroll offset for the comm viewport
   }
 
   init(screenWidth, screenHeight) {
@@ -146,17 +158,22 @@ export class RightWidgetBar extends Container {
     const liveSp = company ? currentPeriodSp(company) : 0;
     const spKey  = prod ? `${prod.total}:${prod.periods.length}:${liveSp.toFixed(1)}` : '';
 
+    const commLog = company?.communicationLog ?? [];
+    const commKey = `${commLog.length}:${commLog[0]?.friendship ?? ''}`;
+
     const unchanged =
       notifs.length  === this._lastCount &&
       projectsKey    === this._lastProjectsKey &&
-      spKey          === this._lastSpKey;
+      spKey          === this._lastSpKey &&
+      commKey        === this._lastCommKey;
 
     if (!force && unchanged) return;
 
     this._lastCount       = notifs.length;
     this._lastProjectsKey = projectsKey;
     this._lastSpKey       = spKey;
-    this._buildContent(notifs, projects);
+    this._lastCommKey     = commKey;
+    this._buildContent(notifs, projects, commLog);
   }
 
   // ── Private ────────────────────────────────────────────────────────────────
@@ -226,7 +243,7 @@ export class RightWidgetBar extends Container {
     });
   }
 
-  _buildContent(notifs, projects) {
+  _buildContent(notifs, projects, commLog = []) {
     this._content.removeChildren();
     this._content.y = TOGGLE_H;
 
@@ -243,6 +260,10 @@ export class RightWidgetBar extends Container {
     }
     if (this._visible.projects) {
       y = this._buildProjectsSection(projects, y, anyAbove);
+      anyAbove = true;
+    }
+    if (this._visible.communication) {
+      y = this._buildCommunicationSection(commLog, y, anyAbove);
     }
   }
 
@@ -648,6 +669,132 @@ export class RightWidgetBar extends Container {
     }
 
     return startY + cardH;
+  }
+
+  // ── Communication section ────────────────────────────────────────────────────
+
+  _buildCommunicationSection(commLog, startY, hasAbove = false) {
+    let y = startY;
+
+    if (hasAbove) {
+      const sep = new Graphics().rect(0, 0, RIGHT_SIDEBAR_WIDTH, 1).fill({ color: BORDER });
+      sep.y = y;
+      this._content.addChild(sep);
+      y += 6;
+    }
+
+    const header = this._makeLabel('COMMUNICATION', COMM_PADDING, y);
+    this._content.addChild(header);
+    y += 18;
+
+    if (commLog.length === 0) {
+      const empty = this._makeDimText('No conversations yet.', COMM_PADDING, y);
+      this._content.addChild(empty);
+      return y + 20;
+    }
+
+    const rows = new Container();
+
+    commLog.forEach((entry, i) => {
+      const rowY = i * (COMM_ROW_H + COMM_ROW_GAP);
+      const deltaPositive = entry.delta >= 0;
+      const deltaColor = deltaPositive ? DELTA_POS : DELTA_NEG;
+      const deltaSign  = deltaPositive ? '+' : '';
+
+      // Row background
+      const rowBg = new Graphics()
+        .rect(COMM_PADDING / 2, 0, RIGHT_SIDEBAR_WIDTH - COMM_PADDING, COMM_ROW_H)
+        .fill({ color: 0x0e1a2e });
+      rowBg.y = rowY;
+      rows.addChild(rowBg);
+
+      // Left accent bar — colour matches delta direction
+      const accent = new Graphics()
+        .rect(COMM_PADDING / 2, 0, 2, COMM_ROW_H)
+        .fill({ color: deltaColor });
+      accent.y = rowY;
+      rows.addChild(accent);
+
+      // "Alex & Sarah" names line
+      const namesText = new Text({
+        text: `${entry.empAName} & ${entry.empBName}`,
+        style: {
+          fill:       TEXT_BRIGHT,
+          fontFamily: 'Inter, system-ui, sans-serif',
+          fontSize:   11,
+          fontWeight: '700',
+        },
+      });
+      namesText.position.set(COMM_PADDING + 6, rowY + 5);
+      rows.addChild(namesText);
+
+      // Day badge (top-right)
+      const dayText = new Text({
+        text: `Day ${entry.day}`,
+        style: {
+          fill:       TEXT_DIM,
+          fontFamily: 'Inter, system-ui, sans-serif',
+          fontSize:   9,
+        },
+      });
+      dayText.anchor.set(1, 0);
+      dayText.position.set(RIGHT_SIDEBAR_WIDTH - COMM_PADDING / 2 - 2, rowY + 5);
+      rows.addChild(dayText);
+
+      // Topic line
+      const topicText = new Text({
+        text: `💬 ${entry.topicLabel}`,
+        style: {
+          fill:       TEXT_DIM,
+          fontFamily: 'Inter, system-ui, sans-serif',
+          fontSize:   10,
+        },
+      });
+      topicText.position.set(COMM_PADDING + 6, rowY + 19);
+      rows.addChild(topicText);
+
+      // Delta + resulting friendship (bottom-right)
+      const friendshipText = new Text({
+        text: `${deltaSign}${entry.delta} → ♥ ${entry.friendship}`,
+        style: {
+          fill:       deltaColor,
+          fontFamily: 'Inter, system-ui, sans-serif',
+          fontSize:   10,
+          fontWeight: '700',
+        },
+      });
+      friendshipText.anchor.set(1, 0);
+      friendshipText.position.set(RIGHT_SIDEBAR_WIDTH - COMM_PADDING / 2 - 2, rowY + 19);
+      rows.addChild(friendshipText);
+    });
+
+    const contentH  = commLog.length * (COMM_ROW_H + COMM_ROW_GAP);
+    const viewportH = Math.min(COMM_MAX_H, contentH);
+
+    const maxScroll = -(contentH - viewportH);
+    this._commScrollY = Math.max(maxScroll, Math.min(0, this._commScrollY));
+    rows.y = this._commScrollY;
+
+    const mask = new Graphics()
+      .rect(0, y, RIGHT_SIDEBAR_WIDTH, viewportH)
+      .fill({ color: 0xffffff });
+    this._content.addChild(mask);
+
+    const viewport = new Container();
+    viewport.eventMode = 'static';
+    viewport.hitArea   = new Rectangle(0, 0, RIGHT_SIDEBAR_WIDTH, viewportH);
+    viewport.y         = y;
+    viewport.mask      = mask;
+    viewport.addChild(rows);
+
+    viewport.on('wheel', (e) => {
+      const maxS = -(contentH - viewportH);
+      this._commScrollY = Math.max(maxS, Math.min(0, this._commScrollY - e.deltaY * 0.5));
+      rows.y = this._commScrollY;
+    });
+
+    this._content.addChild(viewport);
+    return y + viewportH + 4;
   }
 
   // ── Helpers ─────────────────────────────────────────────────────────────────

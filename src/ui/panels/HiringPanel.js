@@ -20,7 +20,7 @@ import {
 import { ROLE_LABELS, STAFF_ROLES } from '@/data/staffRoles.js';
 import { getDisplayName } from '@/data/archetypeDisplayNames.js';
 import { freeDesks } from '@/state/Company.js';
-import { SCHEDULE_CYCLE } from '@/state/Employee.js';
+import { SCHEDULE_CYCLE, SCHEDULE_ICONS } from '@/data/scheduleActivities.js';
 import { Tabs, Button } from '../framework/index.js';
 
 // ── Palette ────────────────────────────────────────────────────────────────
@@ -55,7 +55,6 @@ const LABEL_GAP = 12;
 
 const ALL_SKILLS = Object.values(SKILLS);
 
-const SCHEDULE_ICONS = { WORK: '💻', BREAK: '☕', TALK: '💬' };
 const SCHED_SECTION_H = 12 + 4 + 20; // label + gap + icon row
 
 // Programmer card measurements

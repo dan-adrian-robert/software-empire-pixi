@@ -12,7 +12,6 @@
 import { Container, Graphics } from 'pixi.js';
 
 import { BaseScene } from './BaseScene.js';
-import { recordSpPeriod } from '../state/Company.js';
 
 import { TopBarHUD, TOP_BAR_HEIGHT } from '../ui/TopBarHUD.js';
 import { LeftSidebar, LEFT_SIDEBAR_WIDTH } from '../ui/LeftSidebar.js';
@@ -39,7 +38,7 @@ import { TeamsPanel } from '../ui/panels/TeamsPanel.js';
 import { DeskEntity, DESK_W, DESK_H } from '../entities/DeskEntity.js';
 import { EmployeeEntity } from '../entities/EmployeeEntity.js';
 import { FurnitureEntity } from '../entities/FurnitureEntity.js';
-import { SCHEDULE_CYCLE, isProgrammer } from '../state/Employee.js';
+import { isProgrammer } from '../state/Employee.js';
 import { getFurnitureType } from '../data/furnitureTypes.js';
 import { GameConfig } from '../config.js';
 
@@ -144,8 +143,6 @@ export class OfficeScene extends BaseScene {
     // HUD refresh accumulator.
     this._hudRefreshAcc = 0;
 
-    // Last known 15-minute slot index — used to detect WORK period end.
-    this._prevSlot = -1;
 
     // Last dimensions used for layout — used to detect stale layout.
     this._layoutWidth = 0;
@@ -301,30 +298,16 @@ export class OfficeScene extends BaseScene {
       const speed = this.game.sim.time.gameSpeed;
       const working = speed > 0;
 
-      // Compute current schedule state from the 15-min clock slot.
+      // Advance the 15-minute slot cycle; handlers fire on slot transitions.
       const { dayProgress } = this.game.sim.time;
-      const totalMinutes = dayProgress * company.schedule.workHours * 60;
-      const slot = Math.floor(totalMinutes / 15);
-      const scheduleState = SCHEDULE_CYCLE[slot % SCHEDULE_CYCLE.length];
-      company.employees.forEach((emp) => { emp.scheduleState = scheduleState; });
+      const { flushTotals } = this.game.sim.schedule.tick(company, dayProgress, this.game.sim);
 
-      // Detect WORK period end: slot changed and the outgoing slot was WORK.
-      if (slot !== this._prevSlot && this._prevSlot >= 0) {
-        const prevState = SCHEDULE_CYCLE[this._prevSlot % SCHEDULE_CYCLE.length];
-        if (prevState === 'WORK') {
-          const totals = this.game.sim.projects.flushWorkPeriod(company, this.game.sim.teamSystem);
-          let periodTotal = 0;
-          totals.forEach((pts, empIdx) => {
-            if (pts > 0) {
-              this._employeeEntities[empIdx]?.showPoints(pts);
-              periodTotal += pts;
-            }
-          });
-          recordSpPeriod(company, periodTotal);
-          this.game.sim.pmAssignment.runAfterWorkPeriod(company, this.game.sim);
-        }
+      // Show floating "+pts" labels when WORK period SP were flushed.
+      if (flushTotals) {
+        flushTotals.forEach((pts, empIdx) => {
+          if (pts > 0) this._employeeEntities[empIdx]?.showPoints(pts);
+        });
       }
-      this._prevSlot = slot;
 
       this._employeeEntities.forEach((ee, idx) => {
         const emp = company.employees[idx];
@@ -414,7 +397,6 @@ export class OfficeScene extends BaseScene {
     this._toasts = [];
     this._initialized = false;
     this._activeView = 'office';
-    this._prevSlot = -1;
     this._statsPopup.close();
     this._schedulePopup.close();
     this._weatherPopup.close();
@@ -972,7 +954,6 @@ export class OfficeScene extends BaseScene {
   // -----------------------------------------------------------------------
 
   _onDayBegan() {
-    this._prevSlot = -1;
     this._topBar.refresh();
     this._modal.refresh();
     this._statsPopup.close();

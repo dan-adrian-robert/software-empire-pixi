@@ -26,6 +26,7 @@ import {
   CATEGORY_COLORS as COMM_CATEGORY_COLORS,
 } from '../data/communicationTopics.js';
 import { getScoreColor, getTopTopics, getBottomTopics } from '../utils/communicationScores.js';
+import { relationshipKey } from '../state/relationships.js';
 import { PopupShell } from './screens/PopupShell.js';
 import { Tabs } from './widgets/Tabs.js';
 import { Label } from './widgets/Label.js';
@@ -44,6 +45,27 @@ const ARCH_LEFT_W  = 240;
 const ARCH_DIV_X   = ARCH_LEFT_X + ARCH_LEFT_W + 8;  // 260
 const ARCH_RIGHT_X = ARCH_DIV_X + 8;                 // 268
 const ARCH_RIGHT_W = POPUP_W - ARCH_RIGHT_X - P;     // 640
+
+// INTERACTIONS tab — 2-column grid of relationship cards
+const INT_COL_GAP = P;
+const INT_COL_W   = Math.floor((POPUP_W - P * 2 - INT_COL_GAP) / 2);
+const INT_CARD_H  = 64;
+const INT_CARD_R  = 6;
+const INT_BAR_H   = 5;
+const INT_AVATAR  = 36;
+
+/** Friendship thresholds → display metadata. */
+const FRIENDSHIP_TIERS = [
+  { min: 70,  label: 'Close Friend',  color: 0x4ade80 },
+  { min: 55,  label: 'Friendly',      color: 0x84cc16 },
+  { min: 45,  label: 'Neutral',       color: 0x7a86a3 },
+  { min: 30,  label: 'Cold',          color: 0xf59e0b },
+  { min: -Infinity, label: 'Hostile', color: 0xf87171 },
+];
+
+function friendshipTier(score) {
+  return FRIENDSHIP_TIERS.find((t) => score >= t.min) ?? FRIENDSHIP_TIERS[FRIENDSHIP_TIERS.length - 1];
+}
 
 // COMMUNICATION tab — 4 equal cards
 const COMM_CARD_GAP  = P;
@@ -135,6 +157,8 @@ export class EmployeeStatsPopup extends Container {
 
     if (this._activeTab === 'ARCHETYPES') {
       this._drawArchetypesTab(emp, company);
+    } else if (this._activeTab === 'INTERACTIONS') {
+      this._drawInteractionsTab(emp, company);
     } else {
       this._drawCommunicationTab(emp);
     }
@@ -222,7 +246,7 @@ export class EmployeeStatsPopup extends Container {
 
     // Tabs widget (replaces manual tab text + click handlers)
     const tabs = new Tabs({
-      tabs: ['ARCHETYPES', 'COMMUNICATION'],
+      tabs: ['ARCHETYPES', 'COMMUNICATION', 'INTERACTIONS'],
       active: this._activeTab,
       gap: 22,
       onChange: (tab) => {
@@ -425,6 +449,120 @@ export class EmployeeStatsPopup extends Container {
     const lbl = new Label({ text: 'BEST WORK ENVIRONMENT', variant: 'sectionHeader' });
     lbl.position.set(ARCH_RIGHT_X + 4, y);
     this._content.addChild(lbl);
+  }
+
+  // ── INTERACTIONS tab ─────────────────────────────────────────────────────────
+
+  _drawInteractionsTab(emp, company) {
+    const others = company.employees.filter((e) => e.id !== emp.id);
+    const tabY   = HEADER_H + P * 2;
+    const font   = Theme.typography.fontFamily;
+
+    if (others.length === 0) {
+      const empty = new Text({
+        text: 'No other employees hired yet.',
+        style: { fill: Theme.colors.textDim, fontFamily: font, fontSize: 13 },
+      });
+      empty.anchor.set(0.5, 0.5);
+      empty.position.set(POPUP_W / 2, POPUP_H / 2);
+      this._content.addChild(empty);
+      return;
+    }
+
+    // Sort by friendship descending (best relationships first).
+    const sorted = [...others].sort((a, b) => {
+      const fa = (company.relationships[relationshipKey(emp.id, a.id)]?.friendship ?? 50);
+      const fb = (company.relationships[relationshipKey(emp.id, b.id)]?.friendship ?? 50);
+      return fb - fa;
+    });
+
+    let col = 0;
+    let row = 0;
+
+    for (const other of sorted) {
+      const friendship = Math.round(
+        (company.relationships[relationshipKey(emp.id, other.id)]?.friendship ?? 50) * 10,
+      ) / 10;
+      const tier = friendshipTier(friendship);
+
+      const cardX = P + col * (INT_COL_W + INT_COL_GAP);
+      const cardY = tabY + row * (INT_CARD_H + 8);
+
+      // Card background
+      this._content.addChild(
+        new Graphics()
+          .roundRect(cardX, cardY, INT_COL_W, INT_CARD_H, INT_CARD_R)
+          .fill({ color: Theme.colors.bgCard })
+          .stroke({ color: tier.color, width: 1, alpha: 0.3 }),
+      );
+
+      // Left accent strip (tier colour)
+      this._content.addChild(
+        new Graphics()
+          .roundRect(cardX, cardY, 3, INT_CARD_H, INT_CARD_R)
+          .fill({ color: tier.color }),
+      );
+
+      // Avatar
+      const avatarTex = getCharacterAvatarTex(other.characterIndex ?? 1);
+      const avatar    = new Sprite(avatarTex);
+      avatar.width    = INT_AVATAR;
+      avatar.height   = INT_AVATAR;
+      avatar.position.set(cardX + 10, cardY + (INT_CARD_H - INT_AVATAR) / 2);
+      this._content.addChild(avatar);
+
+      const textX = cardX + 10 + INT_AVATAR + 8;
+
+      // Name
+      const nameT = new Text({
+        text: other.name,
+        style: { fill: Theme.colors.textBright, fontFamily: font, fontSize: 12, fontWeight: '700' },
+      });
+      nameT.position.set(textX, cardY + 8);
+      this._content.addChild(nameT);
+
+      // Tier label
+      const tierT = new Text({
+        text: tier.label,
+        style: { fill: tier.color, fontFamily: font, fontSize: 10, fontWeight: '600' },
+      });
+      tierT.position.set(textX, cardY + 24);
+      this._content.addChild(tierT);
+
+      // Friendship bar
+      const barX = textX;
+      const barW = INT_COL_W - (textX - cardX) - 52;
+      const barY = cardY + 40;
+
+      // Normalise: 0 maps to 0%, 100 maps to 100% (bar can overflow but is clamped).
+      const fillPct = Math.min(1, Math.max(0, friendship / 100));
+
+      this._content.addChild(
+        new Graphics()
+          .roundRect(barX, barY, barW, INT_BAR_H, 2)
+          .fill({ color: Theme.colors.divider }),
+      );
+      if (fillPct > 0) {
+        this._content.addChild(
+          new Graphics()
+            .roundRect(barX, barY, Math.max(2, Math.round(barW * fillPct)), INT_BAR_H, 2)
+            .fill({ color: tier.color }),
+        );
+      }
+
+      // Numeric score (right-aligned in card)
+      const scoreT = new Text({
+        text: String(friendship),
+        style: { fill: tier.color, fontFamily: font, fontSize: 14, fontWeight: '700' },
+      });
+      scoreT.anchor.set(1, 0.5);
+      scoreT.position.set(cardX + INT_COL_W - 8, cardY + INT_CARD_H / 2);
+      this._content.addChild(scoreT);
+
+      // Advance grid position
+      col++;
+      if (col >= 2) { col = 0; row++; }
+    }
   }
 
   // ── COMMUNICATION tab ────────────────────────────────────────────────────────

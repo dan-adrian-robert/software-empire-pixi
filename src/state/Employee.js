@@ -6,13 +6,11 @@
  */
 import { GameConfig } from '../config.js';
 import { STAFF_ROLES } from '../data/staffRoles.js';
+export { SCHEDULE_CYCLE } from '../data/scheduleActivities.js';
 
 let _nextId = 1;
 export function peekNextId() { return _nextId; }
 export function setNextId(n) { _nextId = n; }
-
-/** Repeating 15-minute schedule cycle for every employee. */
-export const SCHEDULE_CYCLE = ['WORK', 'BREAK', 'WORK', 'TALK'];
 
 /**
  * @param {object} opts
@@ -49,7 +47,7 @@ export function createEmployee({ name, skills, salary, characterIndex = 1, role 
     activeProjectId: null,
     /** Manually pinned project id, or null for automatic greedy assignment. */
     pinnedProjectId: null,
-    /** Current schedule state — one of SCHEDULE_CYCLE entries. */
+    /** Current schedule state — one of ScheduleActivity values. */
     scheduleState: 'WORK',
     /** Points buffered during the current WORK period, keyed by projectId → skill → points. */
     workBuffer: {},
