@@ -15,6 +15,7 @@
  * does not leave a blank gap on cards that don't need it.
  */
 import { Container, Graphics, Sprite, Text } from 'pixi.js';
+import { Button } from '../framework/index.js';
 import { getCharacterAvatarTex } from '@utils/characterSprite.js';
 import {
   SKILLS,
@@ -384,25 +385,29 @@ export class EmployeesPanel extends Container {
     this._scroll.addChild(schedRow);
     y += SCHED_SECTION_H;
 
-    // Mute logs button (left of Fire)
-    const muteBtnBg  = emp.logsMuted ? 0x2a2000 : 0x1a1a2a;
-    const muteBtnClr = emp.logsMuted ? 0xfbbf24 : 0x4a5a7a;
-    const muteBtn = this._makeButton(
-      emp.logsMuted ? 'Unmute' : 'Mute logs',
-      muteBtnBg,
-      muteBtnClr,
-      () => {
+    const muteBtn = new Button({
+      label: emp.logsMuted ? 'Unmute' : 'Mute logs',
+      variant: emp.logsMuted ? 'warning' : 'secondary',
+      width: 72,
+      height: 26,
+      fontSize: 11,
+      onClick: () => {
         emp.logsMuted = !emp.logsMuted;
         this.refresh();
       },
-    );
+    });
     muteBtn.position.set(PADDING + INNER, y + 6);
     this._scroll.addChild(muteBtn);
 
-    // Fire button
-    const fireBtn = this._makeButton('Fire', 0x2a1a1a, 0xf87171, () => {
-      this.game.sim.fireEmployee(emp);
-      this.refresh();
+    const fireBtn = new Button({
+      label: 'Fire',
+      variant: 'danger',
+      width: 72,
+      height: 26,
+      onClick: () => {
+        this.game.sim.fireEmployee(emp);
+        this.refresh();
+      },
     });
     fireBtn.position.set(PADDING + cardW - INNER - 72, y + 6);
     this._scroll.addChild(fireBtn);
@@ -493,35 +498,4 @@ export class EmployeesPanel extends Container {
     return row;
   }
 
-  _makeButton(label, bgColor, textColor, onClick) {
-    const container = new Container();
-    container.eventMode = 'static';
-    container.cursor = 'pointer';
-
-    const bg = new Graphics()
-      .roundRect(0, 0, 72, 26, 5)
-      .fill({ color: bgColor })
-      .stroke({ color: textColor, width: 1, alpha: 0.5 });
-    container.addChild(bg);
-
-    const text = new Text({
-      text: label,
-      style: {
-        fill: textColor,
-        fontFamily: 'Inter, system-ui, sans-serif',
-        fontSize: 12,
-        fontWeight: '600',
-      },
-    });
-    text.anchor.set(0.5);
-    text.position.set(36, 13);
-    text.eventMode = 'none';
-    container.addChild(text);
-
-    container.on('pointerup', onClick);
-    container.on('pointerover', () => { bg.alpha = 0.8; });
-    container.on('pointerout', () => { bg.alpha = 1; });
-
-    return container;
-  }
 }

@@ -46,17 +46,20 @@ const FOOTER_H = 52;
 
 export class PopupShell extends Component {
   /**
-   * @param {object} props
+   * @param {object}   props
    * @param {number}   props.width
    * @param {number}   props.height
    * @param {string}   [props.title]
    * @param {Function} [props.onClose]
    * @param {boolean}  [props.hasFooter]
+   * @param {boolean}  [props.noHeader]  skip built-in header row and body slot;
+   *                                     callers add content to `this.window` directly
    */
   constructor(props = {}) {
     super({
       title: '',
       hasFooter: false,
+      noHeader: false,
       ...props,
     });
 
@@ -95,6 +98,7 @@ export class PopupShell extends Component {
    * @param {import('pixi.js').Container} child  any display object
    */
   setBody(child) {
+    if (!this._bodySlot) return;
     this._bodySlot.clearChildren();
     this._bodySlot.add(child);
   }
@@ -104,21 +108,29 @@ export class PopupShell extends Component {
    * @param {import('pixi.js').Container} child
    */
   setFooter(child) {
-    if (this._footerSlot) {
+    if (this._footerSlot && child) {
       this._footerSlot.clearChildren();
       this._footerSlot.add(child);
     }
   }
 
-  /** Update the popup title text. */
+  /** Update the popup title text. No-op when noHeader is true. */
   setTitle(title) {
-    this._titleLabel.setProps({ text: title });
+    if (this._titleLabel) this._titleLabel.setProps({ text: title });
   }
+
+  // ── Window accessor ──────────────────────────────────────────────────────────
+
+  /**
+   * The inner window Panel, for callers that add content directly at
+   * window-local coordinates (e.g. when noHeader: true is used).
+   */
+  get window() { return this._window; }
 
   // ── Internal ─────────────────────────────────────────────────────────────────
 
   _buildChrome() {
-    const { width, height, title, hasFooter } = this.props;
+    const { width, height, title, hasFooter, noHeader } = this.props;
 
     // Full-screen dim overlay
     this._backdrop = new Graphics();
@@ -137,6 +149,8 @@ export class PopupShell extends Component {
     this._window.eventMode = 'static';
     this._window.on('pointerdown', (e) => e.stopPropagation());
     this.addChild(this._window);
+
+    if (noHeader) return; // caller adds content directly to this.window
 
     // Header row: title | spacer | close button
     this._titleLabel = new Label({ text: title ?? '', variant: 'title' });

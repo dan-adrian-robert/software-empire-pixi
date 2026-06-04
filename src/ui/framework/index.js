@@ -25,6 +25,7 @@ export { Row } from '../layouts/Row.js';
 export { Stack } from '../layouts/Stack.js';
 export { Grid } from '../layouts/Grid.js';
 export { Spacer } from '../layouts/Spacer.js';
+export { ScrollColumn } from '../layouts/ScrollColumn.js';
 
 // ── Widgets ───────────────────────────────────────────────────────────────────
 export { Label } from '../widgets/Label.js';
@@ -38,6 +39,7 @@ export { Tooltip } from '../widgets/Tooltip.js';
 
 // ── Screens ───────────────────────────────────────────────────────────────────
 export { PopupShell } from '../screens/PopupShell.js';
+export { PanelShell } from '../screens/PanelShell.js';
 
 // ── Utils ─────────────────────────────────────────────────────────────────────
 export { measureText, clearMeasureCache } from '../utils/measure.js';

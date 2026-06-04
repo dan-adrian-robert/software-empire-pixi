@@ -336,11 +336,11 @@ Interactive tile shown at the end of the desk row when all desks are occupied. C
 
 ### 4.6 UI Panels
 
-Panels are Pixi `Container` subclasses loaded into `Modal`. They implement the `init / resize / refresh` contract.
+Panels are Pixi `Container` subclasses hosted by `ModalHost` (see §4.7). They implement the `init(x,y,w,h) / resize(x,y,w,h) / refresh()` contract so `ModalHost` can swap them without touching `OfficeScene`.
 
 #### `ProjectsPanel`
 
-Two-column grid of active and available projects. Each active card shows per-skill progress bars; if `isReadyToFinish`, shows a **Collect** button → `sim.finishProject`. Available cards have Accept / Reject buttons.
+Two-column grid of active and available projects. Each active card shows per-skill progress bars; if `isReadyToFinish`, shows a **Collect** button → `sim.finishProject`. Available cards use framework `Button` (success/danger variants) for Accept / Reject.
 
 #### `AssignmentPanel`
 
@@ -348,15 +348,15 @@ Chip-based assignment UI. One "Available" row lists unassigned employees as sele
 
 #### `HiringPanel`
 
-Candidate cards with Hire buttons. Validates desk availability before calling `sim.hireCandidate`.
+Uses the framework `Tabs` widget (Programmers / Other). Candidate cards with framework `Button` (success variant for Hire, secondary+disabled when no desks free). Validates desk availability before calling `sim.hireCandidate`.
 
 #### `EmployeesPanel`
 
-Roster cards with Fire buttons → `sim.fireEmployee`. Each card also shows the employee's available skill points and, when skill points are available, displays upgrade buttons for each skill — identical functionality to the `EmployeeStatsPopup` skill upgrade section. Cards use dynamic height to accommodate the variable-length upgrade section.
+Roster cards with framework `Button` (danger for Fire, warning for Mute logs). Each card shows skill points and, when available, custom-colored upgrade buttons per skill. Cards use dynamic height to accommodate the variable-length upgrade section.
 
 #### `ResearchPanel`
 
-Renders the research DAG. Each node shows cost, icon, name, unlock status, and dependency state. Click unlockable node → `sim.unlockResearch`.
+Renders the research DAG. Each node shows cost, icon, name, unlock status, and dependency state. Click unlockable node → `sim.unlockResearch`. Kept legacy (DAG layout algorithm + connection lines are not layout-tree shaped).
 
 ---
 
@@ -369,7 +369,7 @@ Widgets are persistent Pixi objects owned by `OfficeScene` (not re-created per s
 | `TopBarHUD` | `ui/TopBarHUD.js` | Cash, day, R&D, weather chip, speed controls, progress bar |
 | `LeftSidebar` | `ui/LeftSidebar.js` | Navigation buttons; `setActive(id)` highlights current view |
 | `RightWidgetBar` | `ui/RightWidgetBar.js` | Activity feed + in-progress project cards with quick-collect |
-| `Modal` | `ui/Modal.js` | Backdrop + titled scrollable window; forwards wheel events |
+| `ModalHost` | `ui/screens/ModalHost.js` | Backdrop + titled scrollable panel window; composes `PanelShell` + `ScrollColumn`; forwards wheel events; drop-in replacement for the removed `Modal.js` |
 | `EmployeeStatsPopup` | `ui/EmployeeStatsPopup.js` | Per-employee detail card; positioned near clicked desk |
 | `SchedulePopup` | `ui/SchedulePopup.js` | Shift editor; calls `onChange(startHour, workHours)` |
 | `WeatherPopup` | `ui/WeatherPopup.js` | Weather description + full modifier table |
@@ -640,11 +640,11 @@ Renderer and loop tunables:
 | Area | Issue | Suggested Fix |
 |---|---|---|
 | `DeskEntity.setActive` | Method body is empty — the desk glow for active employees is not rendered. | Implement glow with a `Graphics` blur or drop shadow in `setActive(true)`. |
-| `BottomControlBar.js` | The file exists with speed buttons and an End Day button but is not imported anywhere. It would conflict with the existing `TopBarHUD` speed controls if added. | Decide whether to replace `TopBarHUD` controls with this component or delete the file. |
+| ~~`BottomControlBar.js`~~ | ~~The file exists with speed buttons and an End Day button but is not imported anywhere.~~ | Resolved: file deleted. |
 | Office tier upgrade | `OFFICE_TIERS` defines five tiers with upgrade costs, and `getNextOfficeTier` is exported, but no upgrade action exists in `Simulation` and no upgrade button exists in the UI. | Add `Simulation.upgradeOffice()`, deduct cost, increment `tierIndex`, update `desks`, and add a UI trigger. |
 | `economy:bankrupt` | `EconomySystem` emits this event but no listener exists. The game continues running after bankruptcy. | Add a listener in `OfficeScene` (or `Simulation`) that pauses the game and shows a game-over screen or reset prompt. |
 | `project:completed` naming | The same event name covers both "project ready to collect" (mid-day) and "payout collected" (player action), making it impossible to distinguish between the two in a listener. | Rename the mid-day ready event to `project:ready` to eliminate ambiguity. |
-| `ProgressBar.js` | `src/ui/ProgressBar.js` is a standalone horizontal bar widget but is not referenced by any other file. | Use it in `ProjectsPanel` and `TopBarHUD` instead of inline `Graphics` bars, or remove it. |
-| `BottomControlBar` speed values | The file hard-codes speed `16`, which is not in `SPEED_PRESETS = [0,1,2,4,8]` — calling `sim.setSpeed(16)` would silently no-op. | Align the component with `SPEED_PRESETS` or remove it. |
+| ~~`ProgressBar.js`~~ | ~~`src/ui/ProgressBar.js` was a standalone horizontal bar widget not referenced by any other file.~~ | Resolved: orphaned file deleted; use `widgets/ProgressBar` from the framework instead. |
+| ~~`BottomControlBar` speed values~~ | ~~The file hard-coded speed `16`, not in `SPEED_PRESETS`.~~ | Resolved: `BottomControlBar.js` deleted. |
 | Research tree effects | Most research nodes are defined with costs and a DAG structure but unlock no mechanical effect beyond the four skill nodes. | Implement effect handlers for each node category (productivity bonuses, candidate pool size increases, etc.). |
 | Save / Load | No persistence. All state is lost on page reload. | Serialise the `Company` object to `localStorage` on `day:ended`; deserialise on load if a save is present. |

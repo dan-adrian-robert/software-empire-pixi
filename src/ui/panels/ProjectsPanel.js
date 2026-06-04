@@ -8,6 +8,7 @@
  * Re-rendered on `refresh()` which is called by OfficeScene on relevant bus events.
  */
 import { Container, Graphics, Text } from 'pixi.js';
+import { Button } from '../framework/index.js';
 import { SKILL_LABELS, SKILL_COLORS } from '@/data/skills.js';
 
 const SECTION_LABEL_COLOR = 0x7a86a3;
@@ -315,38 +316,44 @@ export class ProjectsPanel extends Container {
       const canAccept = company.activeProjects.length < company.maxActiveProjects
         && company.money >= project.insurance;
 
-      const acceptBtn = this._makeButton(
-        `Accept ($${project.insurance.toLocaleString()} ins.)`,
-        canAccept ? 0x1a3a1a : 0x1a1a1a,
-        canAccept ? 0x4ade80 : 0x4a5a6a,
-        () => {
-          if (!canAccept) return;
+      const acceptBtn = new Button({
+        label: `Accept ($${project.insurance.toLocaleString()} ins.)`,
+        variant: canAccept ? 'success' : 'secondary',
+        width: 130,
+        height: 26,
+        disabled: !canAccept,
+        fontSize: 11,
+        onClick: () => {
           this.game.sim.acceptProject(project);
           this.refresh();
         },
-        130,
-      );
+      });
       acceptBtn.position.set(startX + cardW - 210, reqY);
       this._scroll.addChild(acceptBtn);
 
-      const rejectBtn = this._makeButton('Reject', 0x2a1a1a, 0xf87171, () => {
-        this.game.sim.rejectProject(project);
-        this.refresh();
+      const rejectBtn = new Button({
+        label: 'Reject',
+        variant: 'danger',
+        width: 72,
+        height: 26,
+        onClick: () => {
+          this.game.sim.rejectProject(project);
+          this.refresh();
+        },
       });
       rejectBtn.position.set(startX + cardW - 76, reqY);
       this._scroll.addChild(rejectBtn);
 
     } else if (project.isReadyToFinish) {
+      // Collect button: tier-color is dynamic, keep as custom graphics
       const tierColor = MC[project.milestoneTier] ?? PAYOUT_COLOR;
-
-      const collectBtn = this._makeButton(
+      const collectBtn = this._makeCollectButton(
         `Collect $${project.finalPayout.toLocaleString()} (+$${project.insurance.toLocaleString()})`,
-        0x0a2a14, tierColor,
+        tierColor,
         () => {
           this.game.sim.finishProject(project);
           this.refresh();
         },
-        180,
       );
       collectBtn.position.set(startX + cardW - 190, reqY);
       this._scroll.addChild(collectBtn);
@@ -514,21 +521,23 @@ export class ProjectsPanel extends Container {
     return 'critical';
   }
 
-  _makeButton(label, bgColor, textColor, onClick, width = 72) {
+  /** Collect button: uses the milestone tier color which can't map to a static variant. */
+  _makeCollectButton(label, tierColor, onClick) {
+    const width = 180;
     const container = new Container();
     container.eventMode = 'static';
     container.cursor = 'pointer';
 
     const bg = new Graphics()
       .roundRect(0, 0, width, 26, 5)
-      .fill({ color: bgColor })
-      .stroke({ color: textColor, width: 1, alpha: 0.5 });
+      .fill({ color: 0x0a2a14 })
+      .stroke({ color: tierColor, width: 1, alpha: 0.5 });
     container.addChild(bg);
 
     const text = new Text({
       text: label,
       style: {
-        fill: textColor,
+        fill: tierColor,
         fontFamily: 'Inter, system-ui, sans-serif',
         fontSize: 12,
         fontWeight: '600',
@@ -536,6 +545,7 @@ export class ProjectsPanel extends Container {
     });
     text.anchor.set(0.5);
     text.position.set(width / 2, 13);
+    text.eventMode = 'none';
     container.addChild(text);
 
     container.on('pointerup', onClick);

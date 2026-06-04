@@ -17,7 +17,7 @@ import { recordSpPeriod } from '../state/Company.js';
 import { TopBarHUD, TOP_BAR_HEIGHT } from '../ui/TopBarHUD.js';
 import { LeftSidebar, LEFT_SIDEBAR_WIDTH } from '../ui/LeftSidebar.js';
 import { RightWidgetBar, RIGHT_SIDEBAR_WIDTH } from '../ui/RightWidgetBar.js';
-import { Modal } from '../ui/Modal.js';
+import { ModalHost } from '../ui/screens/ModalHost.js';
 import { EmployeeStatsPopup } from '../ui/EmployeeStatsPopup.js';
 import { SchedulePopup } from '../ui/SchedulePopup.js';
 import { WeatherPopup } from '../ui/WeatherPopup.js';
@@ -94,7 +94,7 @@ export class OfficeScene extends BaseScene {
     this._widgetBar = new RightWidgetBar(game);
 
     // Modal popup (shared, reused for all panel types).
-    this._modal = new Modal(() => this._onModalClosed());
+    this._modal = new ModalHost(() => this._onModalClosed());
 
     // Employee stats popup (click on world employee to open).
     this._statsPopup = new EmployeeStatsPopup(this.game);

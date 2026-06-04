@@ -11,7 +11,7 @@
 import { Container, Graphics, Text } from 'pixi.js';
 
 import { BaseScene } from './BaseScene.js';
-import { Button } from '../ui/Button.js';
+import { Button } from '../ui/framework/index.js';
 import { GameConfig } from '../config.js';
 import { getSlotMeta } from '../systems/SaveManager.js';
 
@@ -21,7 +21,6 @@ const { SLOT_COUNT } = GameConfig.save;
 const FONT = 'Inter, system-ui, sans-serif';
 const COLOR_MUTED  = 0x7a86a3;
 const COLOR_DIM    = 0x3a4a6b;
-const COLOR_TEXT   = 0xc8d4ed;
 const COLOR_WHITE  = 0xffffff;
 const COLOR_EMPTY  = 0x2a3550;
 
@@ -161,15 +160,9 @@ export class MainMenuScene extends BaseScene {
       },
     ];
 
-    this._titleBtns = actions.map(({ label, handler, disabled }) => {
-      const btn = new Button(
-        label,
-        handler,
-        disabled ? { bg: 0x111622, textColor: 0x4a5a7a, border: 0x1a2336 } : {},
-      );
-      if (disabled) btn.eventMode = 'none';
-      return btn;
-    });
+    this._titleBtns = actions.map(({ label, handler, disabled }) =>
+      new Button({ label, onClick: handler, width: 280, height: 64, fontSize: 22, disabled: !!disabled }),
+    );
 
     this._version = new Text({
       text: `v${GameConfig.meta.version}`,
@@ -198,8 +191,8 @@ export class MainMenuScene extends BaseScene {
     this._title.position.set(cx, height * 0.35);
     this._subtitle.position.set(cx, height * 0.35 + 16);
 
-    const btnH   = this._titleBtns[0]?.style.height ?? 64;
-    const btnW   = this._titleBtns[0]?.style.width  ?? 280;
+    const btnH   = 64;
+    const btnW   = 280;
     const gap    = 18;
     const startY = height * 0.5;
 
@@ -230,10 +223,7 @@ export class MainMenuScene extends BaseScene {
       this._slotRows.push(this._buildSlotRow(i));
     }
 
-    this._loadBackBtn = new Button('Back', () => this._showView('title'), {
-      bg: 0x111622, textColor: COLOR_TEXT, border: 0x1a2336,
-      width: 160, height: 48, fontSize: 18,
-    });
+    this._loadBackBtn = new Button({ label: 'Back', onClick: () => this._showView('title'), width: 160, height: 48, fontSize: 18 });
   }
 
   _buildSlotRow(index) {
@@ -338,7 +328,7 @@ export class MainMenuScene extends BaseScene {
       row.y = startY + i * (ROW_H + ROW_GAP);
     });
 
-    const backW = this._loadBackBtn.style.width ?? 160;
+    const backW = 160;
     this._loadBackBtn.position.set(cx - backW / 2, startY + totalH + 28);
   }
 }

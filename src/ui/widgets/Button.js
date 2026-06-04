@@ -38,6 +38,20 @@ const VARIANT_STYLES = {
     border: Theme.colors.border,
     text: Theme.colors.textDim,
   },
+  success: {
+    bg: 0x0a1f10,
+    bgHover: 0x163020,
+    bgPress: 0x061308,
+    border: Theme.colors.success,
+    text: Theme.colors.success,
+  },
+  warning: {
+    bg: 0x1e1400,
+    bgHover: 0x2e1e00,
+    bgPress: 0x140e00,
+    border: Theme.colors.salary,
+    text: Theme.colors.salary,
+  },
   danger: {
     bg: 0x3a1010,
     bgHover: 0x5a1a1a,

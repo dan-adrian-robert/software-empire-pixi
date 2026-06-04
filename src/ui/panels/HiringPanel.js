@@ -21,6 +21,7 @@ import { ROLE_LABELS, STAFF_ROLES } from '@/data/staffRoles.js';
 import { getDisplayName } from '@/data/archetypeDisplayNames.js';
 import { freeDesks } from '@/state/Company.js';
 import { SCHEDULE_CYCLE } from '@/state/Employee.js';
+import { Tabs, Button } from '../framework/index.js';
 
 // ── Palette ────────────────────────────────────────────────────────────────
 const CARD_BG = 0x131929;
@@ -32,12 +33,6 @@ const TEXT_DIM = 0x7a86a3;
 const SALARY_COLOR = 0xfbbf24;
 const SECTION_LABEL_COLOR = 0x7a86a3;
 const ROLE_COLOR = 0x818cf8;
-
-const TAB_ON_BG   = 0x1a2a44;
-const TAB_OFF_BG  = 0x0d1526;
-const TAB_ON_CLR  = 0xe6e8ef;
-const TAB_OFF_CLR = 0x4a5a7a;
-const TAB_BORDER  = 0x2a4a8a;
 
 const PADDING = 12;
 const INNER = 14;
@@ -75,14 +70,8 @@ const PROG_CARD_H = HEADER_H + DIVIDER_H + 8 + SKILLS_H + PROG_FOOTER_H;
 const OTHER_FOOTER_H = 10 + DIVIDER_H + 8 + SCHED_SECTION_H + 10 + 28 + 10;
 const OTHER_CARD_H = HEADER_H + OTHER_FOOTER_H;
 
-// Tab bar
-const TAB_H = 32;
-const TAB_GAP = 4;
-
-const TABS = [
-  { id: 'programmers', label: 'Programmers' },
-  { id: 'other',       label: 'Other' },
-];
+// Tabs bar height + padding below it
+const TABS_BAR_H = 28;
 
 export class HiringPanel extends Container {
   /** @param {import('../../Game.js').Game} game */
@@ -90,16 +79,24 @@ export class HiringPanel extends Container {
     super();
     this.game = game;
 
-    this._tabBar    = new Container();
-    this._scroll    = new Container();
-    this._activeTab = 'programmers';
+    this._tabs = new Tabs({
+      tabs: ['Programmers', 'Other'],
+      active: 'Programmers',
+      onChange: (label) => {
+        this._activeTab = label;
+        this.refresh();
+      },
+    });
+    this._tabs.position.set(PADDING, 0);
+    this.addChild(this._tabs);
 
-    this.addChild(this._tabBar);
+    this._scroll = new Container();
+    this._scroll.position.set(0, TABS_BAR_H);
     this.addChild(this._scroll);
 
+    this._activeTab = 'Programmers';
     this._width  = 600;
     this._height = 500;
-    this._tabBarH = TAB_H + 8;
   }
 
   init(x, y, width, height) {
@@ -118,13 +115,10 @@ export class HiringPanel extends Container {
 
   refresh() {
     this._scroll.removeChildren();
-    this._tabBar.removeChildren();
+    this._tabs.setProps({ active: this._activeTab });
 
     const company = this.game.sim?.company;
     if (!company) return;
-
-    this._buildTabBar();
-    this._scroll.position.set(0, this._tabBarH);
 
     const free = freeDesks(company);
     let y = 0;
@@ -144,53 +138,11 @@ export class HiringPanel extends Container {
     this._scroll.addChild(header);
     y += 24;
 
-    if (this._activeTab === 'programmers') {
+    if (this._activeTab === 'Programmers') {
       this._buildProgrammersContent(company, y, free);
     } else {
       this._buildOtherContent(company, y, free);
     }
-  }
-
-  // ── Tab bar ───────────────────────────────────────────────────────────────
-
-  _buildTabBar() {
-    const tabW = Math.floor((this._width - PADDING * 2 - TAB_GAP) / 2);
-
-    TABS.forEach((tab, i) => {
-      const isOn = this._activeTab === tab.id;
-      const x    = PADDING + i * (tabW + TAB_GAP);
-
-      const bg = new Graphics()
-        .roundRect(0, 0, tabW, TAB_H, 6)
-        .fill({ color: isOn ? TAB_ON_BG : TAB_OFF_BG })
-        .stroke({ color: TAB_BORDER, width: 1.5, alpha: isOn ? 1 : 0.4 });
-      bg.position.set(x, 0);
-      bg.eventMode = 'static';
-      bg.cursor = 'pointer';
-      bg.on('pointerup', () => {
-        if (this._activeTab !== tab.id) {
-          this._activeTab = tab.id;
-          this.refresh();
-        }
-      });
-      bg.on('pointerover', () => { if (!isOn) bg.alpha = 0.8; });
-      bg.on('pointerout',  () => { bg.alpha = 1; });
-      this._tabBar.addChild(bg);
-
-      const label = new Text({
-        text: tab.label,
-        style: {
-          fill: isOn ? TAB_ON_CLR : TAB_OFF_CLR,
-          fontFamily: 'Inter, system-ui, sans-serif',
-          fontSize: 12,
-          fontWeight: isOn ? '700' : '400',
-        },
-      });
-      label.anchor.set(0.5, 0.5);
-      label.position.set(x + tabW / 2, TAB_H / 2);
-      label.eventMode = 'none';
-      this._tabBar.addChild(label);
-    });
   }
 
   // ── Programmers tab ───────────────────────────────────────────────────────
@@ -294,7 +246,7 @@ export class HiringPanel extends Container {
       },
     });
     levelBadge.anchor.set(1, 0);
-    levelBadge.position.set(PADDING + cardW - INNER - 72, textBaseY + 2);
+    levelBadge.position.set(PADDING + cardW - INNER - 80, textBaseY + 2);
     this._scroll.addChild(levelBadge);
 
     // Salary
@@ -406,7 +358,7 @@ export class HiringPanel extends Container {
     roleLabel.position.set(PADDING + TEXT_INDENT, textBaseY + NAME_H + 2);
     this._scroll.addChild(roleLabel);
 
-    // Archetype display name (right-aligned, above salary)
+    // Archetype display name (right-aligned)
     const otherArchName = getDisplayName(candidate.archetypes ?? {});
     if (otherArchName && otherArchName !== 'Unknown') {
       const otherArchLabel = new Text({
@@ -461,16 +413,18 @@ export class HiringPanel extends Container {
     schedLabelText.position.set(PADDING + INNER, schedLabelY);
     this._scroll.addChild(schedLabelText);
 
-    const schedRow = this._makeScheduleRow(canHire);
+    const schedRow = this._makeScheduleRow();
     schedRow.position.set(PADDING + INNER, schedLabelY + 16);
     this._scroll.addChild(schedRow);
 
-    const hireBtn = this._makeButton(
-      canHire ? 'Hire' : 'No Desk',
-      canHire ? 0x0f1f14 : 0x1a1a2a,
-      canHire ? 0x4ade80 : 0x4a5a6a,
-      () => {
-        if (!canHire) return;
+    const hireBtn = new Button({
+      label: canHire ? 'Hire' : 'No Desk',
+      variant: canHire ? 'success' : 'secondary',
+      width: 80,
+      height: 26,
+      disabled: !canHire,
+      fontSize: 12,
+      onClick: () => {
         const result = this.game.sim.hireCandidate(candidate);
         if (!result.ok) {
           this.game.events.emit('notification:add', {
@@ -480,7 +434,7 @@ export class HiringPanel extends Container {
         }
         this.refresh();
       },
-    );
+    });
     hireBtn.position.set(PADDING + cardW - INNER - 80, divY2 + 8 + SCHED_SECTION_H + 10);
     this._scroll.addChild(hireBtn);
   }
@@ -537,15 +491,14 @@ export class HiringPanel extends Container {
     return row;
   }
 
-  _makeScheduleRow(active) {
+  _makeScheduleRow() {
     const row = new Container();
-    const color = active ? TEXT_DIM : TEXT_DIM;
     let x = 0;
     SCHEDULE_CYCLE.forEach((state, i) => {
       if (i > 0) {
         const arrow = new Text({
           text: '→',
-          style: { fill: color, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 10 },
+          style: { fill: TEXT_DIM, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 10 },
         });
         arrow.anchor.set(0, 0.5);
         arrow.position.set(x, 9);
@@ -559,7 +512,7 @@ export class HiringPanel extends Container {
       cell.addChild(icon);
       const lbl = new Text({
         text: state[0] + state.slice(1).toLowerCase(),
-        style: { fill: color, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 9 },
+        style: { fill: TEXT_DIM, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 9 },
       });
       lbl.anchor.set(0.5, 0);
       lbl.position.set(9, 18);
@@ -569,36 +522,5 @@ export class HiringPanel extends Container {
       x += 42;
     });
     return row;
-  }
-
-  _makeButton(label, bgColor, textColor, onClick) {
-    const container = new Container();
-    container.eventMode = 'static';
-    container.cursor = 'pointer';
-
-    const bg = new Graphics()
-      .roundRect(0, 0, 80, 26, 5)
-      .fill({ color: bgColor })
-      .stroke({ color: textColor, width: 1, alpha: 0.5 });
-    container.addChild(bg);
-
-    const text = new Text({
-      text: label,
-      style: {
-        fill: textColor,
-        fontFamily: 'Inter, system-ui, sans-serif',
-        fontSize: 12,
-        fontWeight: '600',
-      },
-    });
-    text.anchor.set(0.5);
-    text.position.set(40, 13);
-    container.addChild(text);
-
-    container.on('pointerup', onClick);
-    container.on('pointerover', () => { bg.alpha = 0.8; });
-    container.on('pointerout',  () => { bg.alpha = 1; });
-
-    return container;
   }
 }
