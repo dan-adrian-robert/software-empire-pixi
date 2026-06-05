@@ -34,6 +34,7 @@ import { HiringPanel } from '../ui/panels/HiringPanel.js';
 import { ResearchPanel } from '../ui/panels/ResearchPanel.js';
 import { AssignmentPanel } from '../ui/panels/AssignmentPanel.js';
 import { TeamsPanel } from '../ui/panels/TeamsPanel.js';
+import { InfoPanel } from '../ui/panels/InfoPanel.js';
 
 import { DeskEntity, DESK_W, DESK_H } from '../entities/DeskEntity.js';
 import { EmployeeEntity } from '../entities/EmployeeEntity.js';
@@ -53,6 +54,7 @@ const PANEL_TITLES = {
   assignment: 'Project Assignments',
   research: 'Research Tree',
   teams: 'Teams',
+  info: 'Game Guide',
 };
 
 export class OfficeScene extends BaseScene {
@@ -530,6 +532,8 @@ export class OfficeScene extends BaseScene {
       panel = new ResearchPanel(this.game);
     } else if (viewId === 'teams') {
       panel = new TeamsPanel(this.game);
+    } else if (viewId === 'info') {
+      panel = new InfoPanel(this.game);
     } else {
       return;
     }

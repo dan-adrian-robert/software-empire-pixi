@@ -119,6 +119,12 @@ export class ModalHost extends Container {
   /** Forward wheel events from the canvas into the scroll column. */
   handleWheel(deltaY, deltaX = 0, shiftKey = false) {
     if (!this._shell.visible) return;
+    // Panels that implement handleWheel manage their own scroll (e.g. InfoPanel
+    // with a nested right-pane scroll column); defer to them when present.
+    if (this._activePanel?.handleWheel) {
+      this._activePanel.handleWheel(deltaY, deltaX, shiftKey);
+      return;
+    }
     this._scroll.handleWheel(deltaY);
   }
 

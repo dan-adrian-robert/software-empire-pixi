@@ -336,12 +336,19 @@ export class ProjectsPanel extends Container {
 
     // Compute elapsed / fill position
     const isActive     = currentDay !== null && project.startedDay !== null;
+    // 1-indexed elapsed — used for tier label highlighting (consistent with game logic)
     const elapsed      = isActive ? currentDay - project.startedDay + 1 : 0;
     const lockedElapsed = (project.finishedDay !== null && project.startedDay !== null)
       ? project.finishedDay - project.startedDay + 1
       : null;
     const displayElapsed = lockedElapsed ?? elapsed;
-    const fillFrac       = isActive ? Math.min(1, displayElapsed / total) : 0;
+    // 0-indexed timeline days — marker starts at the left edge on the day of acceptance
+    const timelineDays       = isActive ? currentDay - project.startedDay : 0;
+    const lockedTimelineDays = (project.finishedDay !== null && project.startedDay !== null)
+      ? project.finishedDay - project.startedDay
+      : null;
+    const displayTimelineDays = lockedTimelineDays ?? timelineDays;
+    const fillFrac            = isActive ? Math.min(1, displayTimelineDays / total) : 0;
 
     const segments = [
       { key: 'ahead',    label: ML.ahead,    from: 0,                  to: milestones.ahead,    color: MC.ahead },
@@ -430,10 +437,10 @@ export class ProjectsPanel extends Container {
     }
 
     // Position marker (dot + short vertical stem) for active projects
-    if (isActive && displayElapsed > 0) {
-      const markerFrac  = Math.min(displayElapsed / total, 1);
+    if (isActive) {
+      const markerFrac  = Math.min(displayTimelineDays / total, 1);
       const markerX     = Math.round(markerFrac * sliderW);
-      const markerColor = lockedElapsed !== null
+      const markerColor = lockedTimelineDays !== null
         ? (MC[project.milestoneTier] ?? 0xffffff)
         : 0xffffff;
 

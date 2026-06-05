@@ -28,6 +28,11 @@ const NAV_ITEMS = [
   { id: 'research', emoji: '🔬', label: 'Research' },
 ];
 
+// Buttons pinned to the bottom of the sidebar, ordered bottom-up (last = closest to Save).
+const BOTTOM_NAV_ITEMS = [
+  { id: 'info', emoji: 'ℹ️', label: 'Info' },
+];
+
 export class LeftSidebar extends Container {
   /**
    * @param {(id: string) => void} onNavigate
@@ -44,6 +49,8 @@ export class LeftSidebar extends Container {
     this._activeView = 'office';
     /** @type {Array<{id:string, container:Container, bg:Graphics}>} */
     this._buttons = [];
+    /** @type {Array<{id:string, container:Container, bg:Graphics}>} */
+    this._bottomButtons = [];
 
     /** @type {Container|null} */
     this._saveBtn = null;
@@ -89,6 +96,13 @@ export class LeftSidebar extends Container {
       this.addChild(btn.container);
     }
 
+    // Bottom-pinned navigation buttons (e.g. Info), ordered bottom-up.
+    for (const item of BOTTOM_NAV_ITEMS) {
+      const btn = this._makeButton(item);
+      this._bottomButtons.push(btn);
+      this.addChild(btn.container);
+    }
+
     // Save button pinned to the bottom of the sidebar.
     this._saveBtn = this._makeSaveButton();
     this.addChild(this._saveBtn);
@@ -103,7 +117,7 @@ export class LeftSidebar extends Container {
    * @param {{ id: string, emoji: string, label: string }} item
    */
   addNavItem(item) {
-    if (this._buttons.some((b) => b.id === item.id)) return;
+    if ([...this._buttons, ...this._bottomButtons].some((b) => b.id === item.id)) return;
     const btn = this._makeButton(item);
     this._buttons.push(btn);
     this.addChild(btn.container);
@@ -224,10 +238,18 @@ export class LeftSidebar extends Container {
     if (this._saveBtn) {
       this._saveBtn.position.set(cx, this._height - BTN_SIZE - 16);
     }
+
+    // Bottom-pinned nav buttons sit directly above the Save button, ordered bottom-up.
+    const saveY = this._height - BTN_SIZE - 16;
+    this._bottomButtons.forEach((btn, i) => {
+      const y = saveY - (i + 1) * (BTN_SIZE + gap);
+      btn.container.position.set(cx, y);
+    });
   }
 
   _refreshButtonStates() {
-    for (const btn of this._buttons) {
+    const allButtons = [...this._buttons, ...this._bottomButtons];
+    for (const btn of allButtons) {
       btn.drawBg(btn.id === this._activeView, false);
       btn.label.style.fill = btn.id === this._activeView ? 0xe6e8ef : 0x7a86a3;
     }
