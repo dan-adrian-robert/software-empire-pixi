@@ -14,6 +14,7 @@ import { TOP_BAR_HEIGHT } from './TopBarHUD.js';
 import { SKILL_LABELS, SKILL_COLORS } from '../data/skills.js';
 import { getActiveMilestoneStatus } from '../state/Project.js';
 import { currentPeriodSp } from '../state/Company.js';
+import { getProjectDifficultyStyle } from './projectDifficulty.js';
 
 export const RIGHT_SIDEBAR_WIDTH = 260;
 
@@ -514,13 +515,15 @@ export class RightWidgetBar extends Container {
   _buildProjectCard(project, startY, cardW) {
     const company  = this.game.sim?.company;
     const reqCount = project.requirements.length;
-    // Height: header(28) + milestone row(18) + reqs(22 each) + optional collect(32)
-    const cardH = 46 + reqCount * 22 + (project.isReadyToFinish ? 32 : 0);
+    // Height: header(42) + rarity row(10) + milestone row(18) + reqs(22 each) + optional collect(32)
+    const cardH = 60 + reqCount * 22 + (project.isReadyToFinish ? 32 : 0);
+
+    const rarityStyle = getProjectDifficultyStyle(project.difficulty);
 
     const bg = new Graphics()
       .roundRect(0, 0, cardW, cardH, PROJ_CARD_RADIUS)
-      .fill({ color: PROJ_CARD_BG })
-      .stroke({ color: PROJ_CARD_BORDER, width: 1 });
+      .fill({ color: rarityStyle.bg })
+      .stroke({ color: rarityStyle.border, width: 1 });
     bg.position.set(PROJ_PADDING, startY);
     this._content.addChild(bg);
 
@@ -560,6 +563,20 @@ export class RightWidgetBar extends Container {
     badgeText.position.set(PROJ_PADDING + cardW - 6, startY + 8);
     this._content.addChild(badgeText);
 
+    // Rarity label
+    const rarityText = new Text({
+      text: rarityStyle.label.toUpperCase(),
+      style: {
+        fill:        rarityStyle.text,
+        fontFamily:  'Inter, system-ui, sans-serif',
+        fontSize:    9,
+        fontWeight:  '700',
+        letterSpacing: 1,
+      },
+    });
+    rarityText.position.set(PROJ_PADDING + 8, startY + 28);
+    this._content.addChild(rarityText);
+
     // Milestone status / elapsed row
     let infoLabel = '';
     if (project.isReadyToFinish) {
@@ -584,12 +601,12 @@ export class RightWidgetBar extends Container {
           fontSize:   10,
         },
       });
-      infoText.position.set(PROJ_PADDING + 8, startY + 24);
+      infoText.position.set(PROJ_PADDING + 8, startY + 38);
       this._content.addChild(infoText);
     }
 
     // Per-requirement progress bars
-    let reqY = startY + 38;
+    let reqY = startY + 52;
     const barW = Math.floor(cardW * 0.46);
 
     for (const req of project.requirements) {

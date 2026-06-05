@@ -256,6 +256,57 @@ export class Simulation {
     this.bus.emit('project:rejected', { project, company });
   }
 
+  /**
+   * Replace the available project pool immediately.
+   * Requires the 'project_refresh' research node and costs $500.
+   */
+  refreshAvailableProjects() {
+    const { company } = this;
+    if (!company.unlockedResearch.includes('project_refresh')) return false;
+    const COST = 500;
+    if (company.money < COST) {
+      this.bus.emit('notification:add', {
+        text: `Need $${COST} to refresh the project pool.`,
+        type: 'warning',
+      });
+      return false;
+    }
+    company.money -= COST;
+    this._refreshProjectPool(company);
+    this.bus.emit('notification:add', {
+      text: `Project pool refreshed! (-$${COST.toLocaleString()})`,
+      type: 'success',
+    });
+    this.bus.emit('project:pool_refreshed', { company });
+    return true;
+  }
+
+  /**
+   * Replace the available candidate pools immediately.
+   * Requires the 'hire_refresh' research node and costs $500.
+   */
+  refreshAvailableCandidates() {
+    const { company } = this;
+    if (!company.unlockedResearch.includes('hire_refresh')) return false;
+    const COST = 500;
+    if (company.money < COST) {
+      this.bus.emit('notification:add', {
+        text: `Need $${COST} to refresh the candidate pool.`,
+        type: 'warning',
+      });
+      return false;
+    }
+    company.money -= COST;
+    this.hiring.refreshCandidates(company);
+    this.hiring.refreshOtherCandidates(company);
+    this.bus.emit('notification:add', {
+      text: `Candidate pool refreshed! (-$${COST.toLocaleString()})`,
+      type: 'success',
+    });
+    this.bus.emit('hiring:pool_refreshed', { company });
+    return true;
+  }
+
   /** Proxy for hiring a candidate via the HiringSystem. */
   hireCandidate(candidate) {
     return this.hiring.hire(this.company, candidate);

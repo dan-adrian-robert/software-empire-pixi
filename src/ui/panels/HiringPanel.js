@@ -135,6 +135,23 @@ export class HiringPanel extends Container {
     });
     header.position.set(PADDING, y);
     this._scroll.addChild(header);
+
+    // Refresh Pool button — shown only when hire_refresh research is unlocked
+    if (company.unlockedResearch.includes('hire_refresh')) {
+      const canAfford = (company.money ?? 0) >= 500;
+      const refreshBtn = new Button({
+        label:    'Refresh Pool ($500)',
+        variant:  'secondary',
+        width:    150,
+        height:   20,
+        disabled: !canAfford,
+        fontSize: 10,
+        onClick:  () => { this.game.sim.refreshAvailableCandidates(); },
+      });
+      refreshBtn.position.set(this._width - PADDING - 150, y);
+      this._scroll.addChild(refreshBtn);
+    }
+
     y += 24;
 
     if (this._activeTab === 'Programmers') {

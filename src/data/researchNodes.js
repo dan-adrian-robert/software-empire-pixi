@@ -50,6 +50,20 @@ export const RESEARCH_NODES = [
     dependencies: [],
   },
   {
+    id: 'project_refresh',
+    name: 'Project Refresh',
+    icon: '🔃',
+    cost: 100,
+    dependencies: ['agile_workflow'],
+  },
+  {
+    id: 'hire_refresh',
+    name: 'Refresh Hire',
+    icon: '🔃',
+    cost: 100,
+    dependencies: ['agile_workflow'],
+  },
+  {
     id: 'work_schedule',
     name: 'Schedule',
     icon: '🕐',

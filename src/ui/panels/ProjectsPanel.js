@@ -8,14 +8,11 @@
  * Re-rendered on `refresh()` which is called by OfficeScene on relevant bus events.
  */
 import { Container, Graphics, Text } from 'pixi.js';
-import { Button } from '../framework/index.js';
+import { Button, Column, Row, Label, Panel, ProgressBar } from '../framework/index.js';
 import { SKILL_LABELS, SKILL_COLORS } from '@/data/skills.js';
+import { getProjectDifficultyStyle } from '../projectDifficulty.js';
 
 const SECTION_LABEL_COLOR = 0x7a86a3;
-const CARD_BG             = 0x131929;
-const CARD_BORDER         = 0x1e3050;
-const ACTIVE_CARD_BORDER  = 0x2a5090;
-const TEXT_BRIGHT         = 0xe6e8ef;
 const TEXT_DIM            = 0x7a86a3;
 const PAYOUT_COLOR        = 0x4ade80;
 const PADDING             = 12;
@@ -90,6 +87,7 @@ export class ProjectsPanel extends Container {
 
   _buildSection(title, projects, startY, isActive) {
     let y = startY;
+    const company = this.game.sim?.company;
 
     const header = new Text({
       text: title.toUpperCase(),
@@ -103,7 +101,24 @@ export class ProjectsPanel extends Container {
     });
     header.position.set(PADDING, y);
     this._scroll.addChild(header);
-    y += 22;
+
+    // Refresh Pool button — shown only when project_refresh research is unlocked
+    if (!isActive && company?.unlockedResearch.includes('project_refresh')) {
+      const canAfford = (company.money ?? 0) >= 500;
+      const refreshBtn = new Button({
+        label:    'Refresh Pool ($500)',
+        variant:  'secondary',
+        width:    150,
+        height:   20,
+        disabled: !canAfford,
+        fontSize: 10,
+        onClick:  () => { this.game.sim.refreshAvailableProjects(); },
+      });
+      refreshBtn.position.set(this._width - PADDING - 150, y);
+      this._scroll.addChild(refreshBtn);
+    }
+
+    y += 32;
 
     if (projects.length === 0) {
       const empty = new Text({
@@ -135,229 +150,158 @@ export class ProjectsPanel extends Container {
   /** @returns {number} card height (px) */
   _buildProjectCard(project, startY, isActive, startX = PADDING, cardW = null) {
     if (cardW === null) cardW = this._width - PADDING * 2;
-    const company  = this.game.sim.company;
-    const reqCount = project.requirements.length;
+    const company     = this.game.sim.company;
+    const rarityStyle = getProjectDifficultyStyle(project.difficulty);
+    // Inner width available inside the column's horizontal padding (10 each side)
+    const innerW = cardW - 20;
 
-    // Layout constants — all derived from startY + req area.
-    // Header occupies 46px before requirements (name row + desc/day row).
-    // Requirements: reqCount × 20px.
-    // Below requirements:
-    //   Available   → ins row (18) + gap (6) + slider (SLIDER_TOTAL_H) + gap (6) + btn (26) + pad (8)
-    //   Active      → gap (4) + slider + gap (6) + [btn (26) + pad (8) if ready] + pad (8)
-    const HEADER_H = 46;
-    const REQ_H    = reqCount * 20;
-
-    let cardH;
-    if (!isActive) {
-      cardH = HEADER_H + REQ_H + 18 + 6 + SLIDER_TOTAL_H + 6 + 26 + 8;
-    } else if (project.isReadyToFinish) {
-      cardH = HEADER_H + REQ_H + 4 + SLIDER_TOTAL_H + 6 + 26 + 8;
-    } else {
-      cardH = HEADER_H + REQ_H + 4 + SLIDER_TOTAL_H + 8;
-    }
-
-    // ── Card background ────────────────────────────────────────────────────
-
-    const bg = new Graphics()
-      .roundRect(0, 0, cardW, cardH, CARD_RADIUS)
-      .fill({ color: CARD_BG })
-      .stroke({ color: isActive ? ACTIVE_CARD_BORDER : CARD_BORDER, width: 1.5 });
-    bg.position.set(startX, startY);
-    this._scroll.addChild(bg);
-
-    // ── Row 1: Name + right badge ──────────────────────────────────────────
-
-    const nameText = new Text({
-      text: project.name,
-      style: {
-        fill: TEXT_BRIGHT,
-        fontFamily: 'Inter, system-ui, sans-serif',
-        fontSize: 14,
-        fontWeight: '700',
-        wordWrap: true,
-        wordWrapWidth: cardW - 110,
-      },
+    // ── Content column (auto-height) ───────────────────────────────────────
+    const col = new Column({
+      width:   cardW,
+      height:  'auto',
+      padding: 10,
+      gap:     4,
     });
-    nameText.position.set(startX + 10, startY + 10);
-    this._scroll.addChild(nameText);
+
+    // ── Header: name (left) + payout/badge (right) ─────────────────────────
+    const headerRow = new Row({ width: innerW, justify: 'spaceBetween', align: 'start', gap: 0 });
+
+    headerRow.add(new Label({
+      text:          project.name,
+      variant:       'title',
+      fontSize:      14,
+      wordWrap:      true,
+      wordWrapWidth: innerW - 105,
+      width:         innerW - 105,
+    }));
 
     if (!isActive) {
-      // Available: base payout on the right
-      const payoutText = new Text({
-        text: `$${project.basePayout.toLocaleString()} base`,
-        style: {
-          fill: PAYOUT_COLOR,
-          fontFamily: 'Inter, system-ui, sans-serif',
-          fontSize: 12,
-          fontWeight: '700',
-        },
-      });
-      payoutText.anchor.set(1, 0);
-      payoutText.position.set(startX + cardW - 10, startY + 10);
-      this._scroll.addChild(payoutText);
+      headerRow.add(new Label({
+        text:       `$${project.basePayout.toLocaleString()} base`,
+        color:      PAYOUT_COLOR,
+        fontSize:   12,
+        fontWeight: '700',
+      }));
     } else {
-      // Active: milestone tier badge, colour-coded
       const tier  = project.isReadyToFinish ? project.milestoneTier : this._currentTier(project, company.day);
       const color = MC[tier] ?? TEXT_DIM;
-      const label = (tier === 'ahead' ? 'Ahead of Schedule'
-        : tier === 'onTrack'  ? 'On Track'
-        : tier === 'delayed'  ? 'Delayed'
-        : tier === 'critical' ? 'Critical!'
-        : '').toUpperCase();
-
-      if (label) {
-        const badge = new Text({
-          text: label,
-          style: {
-            fill: color,
-            fontFamily: 'Inter, system-ui, sans-serif',
-            fontSize: 10,
-            fontWeight: '700',
-          },
-        });
-        badge.anchor.set(1, 0);
-        badge.position.set(startX + cardW - 10, startY + 12);
-        this._scroll.addChild(badge);
-      }
+      const lbl   = (tier === 'ahead'    ? 'Ahead of Schedule'
+                   : tier === 'onTrack'  ? 'On Track'
+                   : tier === 'delayed'  ? 'Delayed'
+                   : tier === 'critical' ? 'Critical!'
+                   : '').toUpperCase();
+      headerRow.add(new Label({ text: lbl, color, fontSize: 10, fontWeight: '700' }));
     }
+    col.add(headerRow);
 
-    // ── Row 2: Description (available) or day info (active) ───────────────
+    // ── Rarity label ───────────────────────────────────────────────────────
+    col.add(new Label({
+      text:       rarityStyle.label.toUpperCase(),
+      color:      rarityStyle.text,
+      fontSize:   10,
+      fontWeight: '700',
+    }));
 
+    // ── Description (available) or day-info (active) ───────────────────────
     if (!isActive) {
-      const descText = new Text({
-        text: project.description,
-        style: {
-          fill: TEXT_DIM,
-          fontFamily: 'Inter, system-ui, sans-serif',
-          fontSize: 11,
-          wordWrap: true,
-          wordWrapWidth: cardW - 20,
-        },
-      });
-      descText.position.set(startX + 10, startY + 28);
-      this._scroll.addChild(descText);
+      col.add(new Label({
+        text:          project.description,
+        variant:       'caption',
+        fontSize:      11,
+        wordWrap:      true,
+        wordWrapWidth: innerW,
+      }));
     } else {
       const elapsed  = company.day - project.startedDay + 1;
       const dayLabel = project.isReadyToFinish
         ? `Started day ${project.startedDay} · Finished day ${project.finishedDay}`
         : `Started day ${project.startedDay} · Day ${elapsed} of project`;
-      const dayText = new Text({
-        text: dayLabel,
-        style: { fill: TEXT_DIM, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 11 },
-      });
-      dayText.position.set(startX + 10, startY + 28);
-      this._scroll.addChild(dayText);
+      col.add(new Label({ text: dayLabel, variant: 'caption', fontSize: 11 }));
     }
 
     // ── Skill requirements ─────────────────────────────────────────────────
-
-    let reqY = startY + HEADER_H;
+    // bar width = innerW minus fixed skill label (75) + pts label (38) + two gaps (6×2)
+    const barW = innerW - 75 - 38 - 12;
     for (const req of project.requirements) {
       const pct        = Math.min(1, req.current / req.points);
-      const barW       = Math.floor(cardW * 0.45);
       const skillColor = SKILL_COLORS[req.skill] ?? 0x4a9eff;
 
-      const skillLabel = new Text({
-        text: SKILL_LABELS[req.skill] ?? req.skill,
-        style: { fill: TEXT_DIM, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 11 },
-      });
-      skillLabel.position.set(startX + 10, reqY);
-      this._scroll.addChild(skillLabel);
-
-      const trackBg = new Graphics()
-        .roundRect(0, 0, barW, 10, 3)
-        .fill({ color: PROGRESS_TRACK });
-      trackBg.position.set(startX + cardW - barW - 48, reqY + 1);
-      this._scroll.addChild(trackBg);
-
-      if (pct > 0) {
-        const fill = new Graphics()
-          .roundRect(0, 0, Math.max(0, barW * pct), 10, 3)
-          .fill({ color: skillColor });
-        fill.position.set(startX + cardW - barW - 48, reqY + 1);
-        this._scroll.addChild(fill);
-      }
-
-      const ptText = new Text({
-        text: `${Math.floor(req.current)}/${req.points}`,
-        style: { fill: TEXT_DIM, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 10 },
-      });
-      ptText.anchor.set(1, 0);
-      ptText.position.set(startX + cardW - 10, reqY);
-      this._scroll.addChild(ptText);
-
-      reqY += 20;
+      const reqRow = new Row({ width: innerW, gap: 6, align: 'center' });
+      reqRow.add(new Label({ text: SKILL_LABELS[req.skill] ?? req.skill, variant: 'caption', fontSize: 11, width: 75 }));
+      reqRow.add(new ProgressBar({ width: barW, height: 8, value: pct, fillColor: skillColor, trackColor: PROGRESS_TRACK }));
+      reqRow.add(new Label({ text: `${Math.floor(req.current)}/${req.points}`, variant: 'caption', width: 38, align: 'right' }));
+      col.add(reqRow);
     }
 
-    // ── Insurance info row (available only) ───────────────────────────────
-
+    // ── Insurance row (available only) ────────────────────────────────────
     if (!isActive) {
-      const insText = new Text({
-        text: `Insurance: $${project.insurance.toLocaleString()}  ·  $${project.basePayout.toLocaleString()} base (if done in \u2264${project.milestones.onTrack}d)`,
-        style: { fill: TEXT_DIM, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 11 },
-      });
-      insText.position.set(startX + 10, reqY + 4);
-      this._scroll.addChild(insText);
-      reqY += 18 + 6;
-    } else {
-      reqY += 4;
+      col.add(new Label({
+        text:    `Insurance: $${project.insurance.toLocaleString()}  ·  $${project.basePayout.toLocaleString()} base (if done in \u2264${project.milestones.onTrack}d)`,
+        variant: 'caption',
+        fontSize: 11,
+      }));
     }
 
-    // ── Milestone slider ──────────────────────────────────────────────────
+    // ── Milestone slider (custom Graphics — unchanged logic) ──────────────
+    const sliderContainer = new Container();
+    sliderContainer.measure = () => ({ width: innerW, height: SLIDER_TOTAL_H });
+    this._buildMilestoneSlider(project, 0, 0, innerW, isActive ? company.day : null, sliderContainer);
+    col.add(sliderContainer);
 
-    const sliderX = startX + 10;
-    const sliderW = cardW - 20;
-    this._buildMilestoneSlider(project, sliderX, reqY, sliderW, isActive ? company.day : null);
-    reqY += SLIDER_TOTAL_H + 6;
-
-    // ── Buttons ──────────────────────────────────────────────────────────
-
+    // ── Buttons ───────────────────────────────────────────────────────────
     if (!isActive) {
       const canAccept = company.activeProjects.length < company.maxActiveProjects
         && company.money >= project.insurance;
 
-      const acceptBtn = new Button({
-        label: `Accept ($${project.insurance.toLocaleString()} ins.)`,
-        variant: canAccept ? 'success' : 'secondary',
-        width: 130,
-        height: 26,
+      const btnRow = new Row({ width: innerW, justify: 'end', gap: 8 });
+      btnRow.add(new Button({
+        label:    `Accept ($${project.insurance.toLocaleString()} ins.)`,
+        variant:  canAccept ? 'success' : 'secondary',
+        width:    130,
+        height:   26,
         disabled: !canAccept,
         fontSize: 11,
-        onClick: () => {
-          this.game.sim.acceptProject(project);
-          this.refresh();
-        },
-      });
-      acceptBtn.position.set(startX + cardW - 210, reqY);
-      this._scroll.addChild(acceptBtn);
-
-      const rejectBtn = new Button({
-        label: 'Reject',
+        onClick:  () => { this.game.sim.acceptProject(project); this.refresh(); },
+      }));
+      btnRow.add(new Button({
+        label:   'Reject',
         variant: 'danger',
-        width: 72,
-        height: 26,
-        onClick: () => {
-          this.game.sim.rejectProject(project);
-          this.refresh();
-        },
-      });
-      rejectBtn.position.set(startX + cardW - 76, reqY);
-      this._scroll.addChild(rejectBtn);
-
+        width:   72,
+        height:  26,
+        onClick: () => { this.game.sim.rejectProject(project); this.refresh(); },
+      }));
+      col.add(btnRow);
     } else if (project.isReadyToFinish) {
-      // Collect button: tier-color is dynamic, keep as custom graphics
-      const tierColor = MC[project.milestoneTier] ?? PAYOUT_COLOR;
+      const tierColor  = MC[project.milestoneTier] ?? PAYOUT_COLOR;
       const collectBtn = this._makeCollectButton(
         `Collect $${project.finalPayout.toLocaleString()} (+$${project.insurance.toLocaleString()})`,
         tierColor,
-        () => {
-          this.game.sim.finishProject(project);
-          this.refresh();
-        },
+        () => { this.game.sim.finishProject(project); this.refresh(); },
       );
-      collectBtn.position.set(startX + cardW - 190, reqY);
-      this._scroll.addChild(collectBtn);
+      // Provide a measure shim so Column can size this raw Container correctly.
+      collectBtn.measure = () => ({ width: 180, height: 26 });
+      // Wrap in a right-aligned Row so the button sits flush-right.
+      const collectRow = new Row({ width: innerW, justify: 'end' });
+      collectRow.add(collectBtn);
+      col.add(collectRow);
     }
+
+    // ── Assemble: Panel background + Column content ───────────────────────
+    const cardH = col.measure().height;
+    const panel = new Panel({
+      width:       cardW,
+      height:      cardH,
+      bg:          rarityStyle.bg,
+      border:      rarityStyle.border,
+      borderWidth: 1.5,
+      radius:      CARD_RADIUS,
+    });
+
+    const card = new Container();
+    card.addChild(panel);  // background first
+    card.addChild(col);    // content on top
+    card.position.set(startX, startY);
+    this._scroll.addChild(card);
 
     return cardH;
   }
@@ -376,13 +320,15 @@ export class ProjectsPanel extends Container {
    * elapsed day.  For projects that are ready to collect the marker uses the
    * milestone tier colour and sits at the locked finishedDay.
    *
-   * @param {object}      project    - project state object
-   * @param {number}      startX     - left edge of the slider (absolute)
-   * @param {number}      startY     - top edge of the slider (absolute)
-   * @param {number}      sliderW    - total width in pixels
-   * @param {number|null} currentDay - company.day for active projects; null for available
+   * @param {object}           project    - project state object
+   * @param {number}           startX     - left edge of the slider
+   * @param {number}           startY     - top edge of the slider
+   * @param {number}           sliderW    - total width in pixels
+   * @param {number|null}      currentDay - company.day for active projects; null for available
+   * @param {Container|null}   target     - container to add children to; defaults to this._scroll
    */
-  _buildMilestoneSlider(project, startX, startY, sliderW, currentDay) {
+  _buildMilestoneSlider(project, startX, startY, sliderW, currentDay, target = null) {
+    const dest = target ?? this._scroll;
     const { milestones } = project;
     const total  = milestones.critical;
     const barY   = startY + SLIDER_TOP_H;
@@ -408,7 +354,7 @@ export class ProjectsPanel extends Container {
       .roundRect(0, 0, sliderW, SLIDER_BAR_H, 3)
       .fill({ color: 0x0d1526 });
     trackBg.position.set(startX, barY);
-    this._scroll.addChild(trackBg);
+    dest.addChild(trackBg);
 
     // Coloured segments
     for (const seg of segments) {
@@ -422,7 +368,7 @@ export class ProjectsPanel extends Container {
         .roundRect(segX, 0, segW, SLIDER_BAR_H, 2)
         .fill({ color: seg.color, alpha: 0.18 });
       dimBg.position.set(startX, barY);
-      this._scroll.addChild(dimBg);
+      dest.addChild(dimBg);
 
       // Bright fill — only for the elapsed portion
       if (isActive && fillFrac > 0) {
@@ -432,7 +378,7 @@ export class ProjectsPanel extends Container {
             .roundRect(segX, 0, fillEndX - segX, SLIDER_BAR_H, 2)
             .fill({ color: seg.color, alpha: 0.80 });
           brightFill.position.set(startX, barY);
-          this._scroll.addChild(brightFill);
+          dest.addChild(brightFill);
         }
       }
 
@@ -450,7 +396,7 @@ export class ProjectsPanel extends Container {
       });
       tierTxt.anchor.set(0.5, 0);
       tierTxt.position.set(startX + segMidX, barY + SLIDER_BAR_H + 4);
-      this._scroll.addChild(tierTxt);
+      dest.addChild(tierTxt);
     }
 
     // Day tick marks + number labels at each segment boundary (top of bar)
@@ -467,7 +413,7 @@ export class ProjectsPanel extends Container {
         .rect(0, 0, 1, SLIDER_BAR_H + 3)
         .fill({ color: 0x1a2b44 });
       tick.position.set(startX + tickX, barY - 1);
-      this._scroll.addChild(tick);
+      dest.addChild(tick);
 
       const dayTxt = new Text({
         text: `${day}d`,
@@ -479,7 +425,7 @@ export class ProjectsPanel extends Container {
       });
       dayTxt.anchor.set(0.5, 1);
       dayTxt.position.set(startX + tickX, barY - 2);
-      this._scroll.addChild(dayTxt);
+      dest.addChild(dayTxt);
     }
 
     // Position marker (dot + short vertical stem) for active projects
@@ -495,14 +441,14 @@ export class ProjectsPanel extends Container {
         .rect(-1, 0, 2, SLIDER_BAR_H + 6)
         .fill({ color: markerColor });
       stem.position.set(startX + markerX, barY - 3);
-      this._scroll.addChild(stem);
+      dest.addChild(stem);
 
       // Dot on top of the stem
       const dot = new Graphics()
         .circle(0, 0, 4)
         .fill({ color: markerColor });
       dot.position.set(startX + markerX, barY - 3);
-      this._scroll.addChild(dot);
+      dest.addChild(dot);
     }
   }
 

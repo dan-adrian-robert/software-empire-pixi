@@ -218,6 +218,14 @@ export class OfficeScene extends BaseScene {
       if (this._activeView === 'projects') this._modal.refresh();
       this._widgetBar.refresh(true);
     });
+    this.listen('project:pool_refreshed', () => {
+      if (this._activeView === 'projects') this._modal.refresh();
+      this._widgetBar.refresh(true);
+    });
+    this.listen('hiring:pool_refreshed', () => {
+      if (this._activeView === 'hiring') this._modal.refresh();
+      this._widgetBar.refresh(true);
+    });
     this.listen('employee:levelup', ({ employee }) => {
       if (this._statsPopup?.currentEmp?.id === employee.id) {
         this._statsPopup.refresh(this.game.sim?.company);
@@ -337,7 +345,8 @@ export class OfficeScene extends BaseScene {
       this._hudRefreshAcc = 0;
       this._topBar.refresh();
       this._widgetBar.refresh();
-      this._modal.refresh();
+      // Modal panels refresh via _onDayBegan and event listeners; polling
+      // here would destroy buttons mid-click (pointerdown → rebuild → pointerup miss).
       this._statsPopup.refresh(this.game.sim?.company);
       this._schedulePopup.refresh(this.game.sim?.company);
       this._weatherPopup.refresh(this.game.sim?.company);
