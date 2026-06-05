@@ -5,7 +5,8 @@
  *
  * Layout:
  *   Row 0  – AVAILABLE: chips for every unassigned (pinnedProjectId === null) employee.
- *   Row 1+ – One row per active project: project name on the left, assigned chips on the right.
+ *   Row 1+ – One row per active project: name, skill requirements (progress bars),
+ *            then assigned employee chips.
  *
  * Interaction:
  *   • Click an unassigned chip → select it (gold highlight).
@@ -44,10 +45,13 @@ const ROW_PAD_Y       = 12;
 const CHIP_H          = 32;   // taller chip to accommodate face avatar
 const CHIP_R          = 5;
 const CHIP_GAP        = 6;
-const LABEL_W         = 120;   // width reserved for the project name column
 const SECTION_H       = 20;    // height of the section label row
 const FACE_SIZE       = 24;    // square avatar size inside chip
 const FACE_GAP        = 6;     // gap between avatar and name text
+const REQ_ROW_H       = 14;    // height per skill requirement row
+const REQ_GAP         = 4;     // gap between requirement rows
+const REQ_DOT_R       = 4;     // skill color dot radius
+const REQ_COMPLETE    = 0x4ade80;
 
 export class AssignmentPanel extends Container {
   /**
@@ -196,8 +200,10 @@ export class AssignmentPanel extends Container {
   _buildProjectRow(company, project, startY) {
     const assigned = company.employees.filter((e) => isProgrammer(e) && e.pinnedProjectId === project.id);
 
-    const chipsH = CHIP_H;
-    const rowH   = SECTION_H + ROW_PAD_Y * 2 + chipsH;
+    const reqCount  = project.requirements.length;
+    const reqBlockH = reqCount > 0 ? 6 + reqCount * REQ_ROW_H + (reqCount - 1) * REQ_GAP : 0;
+    const chipsH    = CHIP_H;
+    const rowH      = ROW_PAD_Y + 18 + reqBlockH + 8 + chipsH + ROW_PAD_Y;
 
     const isTarget = this._selected !== null;
 
@@ -245,9 +251,14 @@ export class AssignmentPanel extends Container {
     nameText.position.set(ROW_PAD_X, startY + ROW_PAD_Y);
     this._scroll.addChild(nameText);
 
+    // Skill requirements — progress bars so the player can match the right people
+    const chipsY = reqCount > 0
+      ? this._buildRequirementRows(project, startY + ROW_PAD_Y + 20, this._selected)
+      : startY + ROW_PAD_Y + 20;
+
     // Chips area: assigned employees
-    const chipsStartX = ROW_PAD_X + LABEL_W;
-    const chipY       = startY + ROW_PAD_Y + SECTION_H;
+    const chipsStartX = ROW_PAD_X;
+    const chipY       = chipsY + 8;
     let chipX         = chipsStartX;
 
     if (assigned.length === 0) {
@@ -281,6 +292,50 @@ export class AssignmentPanel extends Container {
     }
 
     return startY + rowH;
+  }
+
+  /**
+   * Renders per-skill requirement rows: colored dot + current/points.
+   * Highlights rows the selected employee can contribute to.
+   *
+   * @returns {number} y position after the last requirement row
+   */
+  _buildRequirementRows(project, startY, selectedEmp) {
+    const textX = ROW_PAD_X + REQ_DOT_R * 2 + 6;
+    let y       = startY;
+
+    for (const req of project.requirements) {
+      const done       = req.current >= req.points;
+      const skillColor = done ? REQ_COMPLETE : (SKILL_COLORS[req.skill] ?? 0x4a9eff);
+      const empSkill   = selectedEmp?.skills?.find((s) => s.skill === req.skill);
+      const isMatch    = !done && empSkill != null;
+
+      const dot = new Graphics()
+        .circle(0, 0, REQ_DOT_R)
+        .fill({ color: skillColor });
+      dot.position.set(ROW_PAD_X + REQ_DOT_R, y + REQ_ROW_H / 2);
+      this._scroll.addChild(dot);
+
+      let labelText = `${Math.floor(req.current)}/${req.points}`;
+      if (isMatch) labelText += `  Lv.${empSkill.level}`;
+      if (done) labelText += '  ✓';
+
+      const skillLabel = new Text({
+        text: labelText,
+        style: {
+          fill:       isMatch ? skillColor : (done ? REQ_COMPLETE : TEXT_DIM),
+          fontFamily: 'Inter, system-ui, sans-serif',
+          fontSize:   10,
+          fontWeight: isMatch || done ? '700' : '500',
+        },
+      });
+      skillLabel.position.set(textX, y);
+      this._scroll.addChild(skillLabel);
+
+      y += REQ_ROW_H + REQ_GAP;
+    }
+
+    return y - REQ_GAP;
   }
 
   // ── Chip builder ──────────────────────────────────────────────────────────

@@ -8,14 +8,13 @@
  * Candidate quality scales with the company's current tier
  * (approximated by office tier index).
  */
-import { GameConfig } from '../config.js';
 import { createEmployee } from '../state/Employee.js';
 import { freeDesks } from '../state/Company.js';
 import { getUnlockedSkills } from '../data/skills.js';
 import { generateCandidate, generateProjectManagerCandidate, generateTeamLeadCandidate } from './EmployeeGenerator.js';
 import { generateCommunicationProfile } from './CommunicationGenerator.js';
 import { STAFF_ROLES } from '../data/staffRoles.js';
-import economyBalance from '../data/economyBalance.json';
+import { getCandidatePoolSize } from '../data/hiringResearch.js';
 
 export class HiringSystem {
   /**
@@ -29,10 +28,11 @@ export class HiringSystem {
 
   /**
    * Replace the programmer candidate pool for the new day.
+   * Pool size scales with HR Leads research.
    * @param {import('../state/Company.js').Company} company
    */
   refreshCandidates(company) {
-    const count = GameConfig.gameplay.CANDIDATE_POOL_SIZE;
+    const count = getCandidatePoolSize(company.unlockedResearch);
     const allowedSkills = getUnlockedSkills(company.unlockedResearch);
     company.candidates = Array.from({ length: count }, () =>
       generateCandidate({ allowedSkills }),
@@ -41,14 +41,51 @@ export class HiringSystem {
 
   /**
    * Replace the Other (non-programmer) candidate pool for the new day.
-   * Alternates between PM and Team Lead candidates so each day offers one of each type.
+   * Team Leads require team_management research; PMs require project_management.
+   * Pool size per role scales with HR Leads research.
    * @param {import('../state/Company.js').Company} company
    */
   refreshOtherCandidates(company) {
-    company.otherCandidates = [
-      generateProjectManagerCandidate(),
-      generateTeamLeadCandidate(),
-    ];
+    const pool = [];
+    if (company.unlockedResearch.includes('team_management')) {
+      pool.push(...this._generateRoleCandidates(company, STAFF_ROLES.TEAM_LEAD));
+    }
+    if (company.unlockedResearch.includes('project_management')) {
+      pool.push(...this._generateRoleCandidates(company, STAFF_ROLES.PROJECT_MANAGER));
+    }
+    company.otherCandidates = pool;
+  }
+
+  /**
+   * Replace only one non-programmer role pool, keeping other roles intact.
+   * @param {import('../state/Company.js').Company} company
+   * @param {string} role  STAFF_ROLES.TEAM_LEAD | STAFF_ROLES.PROJECT_MANAGER
+   */
+  refreshOtherCandidatesByRole(company, role) {
+    const kept = (company.otherCandidates ?? []).filter((c) => c.role !== role);
+    company.otherCandidates = [...kept, ...this._generateRoleCandidates(company, role)];
+  }
+
+  /** Rebuild programmer and non-programmer pools to match current research. */
+  refreshAllPools(company) {
+    this.refreshCandidates(company);
+    this.refreshOtherCandidates(company);
+  }
+
+  /**
+   * @param {import('../state/Company.js').Company} company
+   * @param {string} role
+   * @returns {import('../state/Candidate.js').Candidate[]}
+   */
+  _generateRoleCandidates(company, role) {
+    const poolSize = getCandidatePoolSize(company.unlockedResearch);
+    const fresh = [];
+    if (role === STAFF_ROLES.TEAM_LEAD && company.unlockedResearch.includes('team_management')) {
+      for (let i = 0; i < poolSize; i++) fresh.push(generateTeamLeadCandidate());
+    } else if (role === STAFF_ROLES.PROJECT_MANAGER && company.unlockedResearch.includes('project_management')) {
+      for (let i = 0; i < poolSize; i++) fresh.push(generateProjectManagerCandidate());
+    }
+    return fresh;
   }
 
   /**
@@ -59,7 +96,9 @@ export class HiringSystem {
    */
   hire(company, candidate) {
     if (freeDesks(company) <= 0) {
-      return { ok: false, reason: 'No desk space available. Upgrade your office first.' };
+      const reason = 'No desk space available. Upgrade your office first.';
+      this.bus.emit('notification:add', { text: reason, type: 'critical' });
+      return { ok: false, reason };
     }
 
     const employee = createEmployee({

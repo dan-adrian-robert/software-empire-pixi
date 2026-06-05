@@ -12,6 +12,7 @@
  */
 import { createCompany, resetDailySpProductivity } from '../state/Company.js';
 import { STAFF_ROLES } from '../data/staffRoles.js';
+import { getCandidatePoolSize, shouldRefreshHiringPoolsOnUnlock } from '../data/hiringResearch.js';
 import { generateCommunicationProfile } from './CommunicationGenerator.js';
 import { createFurnitureItem } from '../state/FurnitureItem.js';
 import { isPastCritical } from '../state/Project.js';
@@ -181,6 +182,37 @@ export class Simulation {
     if (!Array.isArray(company.otherCandidates)) {
       company.otherCandidates = [];
     }
+    // Strip role candidates if the gating research isn't unlocked.
+    if (!company.unlockedResearch.includes('project_management')) {
+      company.otherCandidates = company.otherCandidates.filter(
+        (c) => c.role !== STAFF_ROLES.PROJECT_MANAGER,
+      );
+    }
+    if (!company.unlockedResearch.includes('team_management')) {
+      company.otherCandidates = company.otherCandidates.filter(
+        (c) => c.role !== STAFF_ROLES.TEAM_LEAD,
+      );
+    }
+    // Trim pools to current pool size to avoid stale oversized pools from old saves.
+    const poolSize = getCandidatePoolSize(company.unlockedResearch);
+    if (company.candidates.length > poolSize) {
+      company.candidates = company.candidates.slice(0, poolSize);
+    }
+    const countByRole = (role) => company.otherCandidates.filter((c) => c.role === role).length;
+    if (countByRole(STAFF_ROLES.TEAM_LEAD) > poolSize) {
+      let kept = 0;
+      company.otherCandidates = company.otherCandidates.filter((c) => {
+        if (c.role !== STAFF_ROLES.TEAM_LEAD) return true;
+        return kept++ < poolSize;
+      });
+    }
+    if (countByRole(STAFF_ROLES.PROJECT_MANAGER) > poolSize) {
+      let kept = 0;
+      company.otherCandidates = company.otherCandidates.filter((c) => {
+        if (c.role !== STAFF_ROLES.PROJECT_MANAGER) return true;
+        return kept++ < poolSize;
+      });
+    }
     // teams array added with Team Lead feature
     if (!Array.isArray(company.teams)) {
       company.teams = [];
@@ -282,10 +314,11 @@ export class Simulation {
   }
 
   /**
-   * Replace the available candidate pools immediately.
+   * Replace candidates for the active hiring tab only.
    * Requires the 'hire_refresh' research node and costs $500.
+   * @param {'all'|'programmers'|'other'|'team_lead'|'project_manager'} scope
    */
-  refreshAvailableCandidates() {
+  refreshAvailableCandidates(scope = 'all') {
     const { company } = this;
     if (!company.unlockedResearch.includes('hire_refresh')) return false;
     const COST = 500;
@@ -297,10 +330,36 @@ export class Simulation {
       return false;
     }
     company.money -= COST;
-    this.hiring.refreshCandidates(company);
-    this.hiring.refreshOtherCandidates(company);
+
+    switch (scope) {
+      case 'programmers':
+        this.hiring.refreshCandidates(company);
+        break;
+      case 'other':
+        this.hiring.refreshOtherCandidates(company);
+        break;
+      case 'team_lead':
+        this.hiring.refreshOtherCandidatesByRole(company, STAFF_ROLES.TEAM_LEAD);
+        break;
+      case 'project_manager':
+        this.hiring.refreshOtherCandidatesByRole(company, STAFF_ROLES.PROJECT_MANAGER);
+        break;
+      default:
+        this.hiring.refreshCandidates(company);
+        this.hiring.refreshOtherCandidates(company);
+        break;
+    }
+
+    const scopeLabel = {
+      all: 'Candidate pool',
+      programmers: 'Programmer candidates',
+      other: 'Other candidates',
+      team_lead: 'Team Lead candidates',
+      project_manager: 'Project Manager candidates',
+    }[scope] ?? 'Candidate pool';
+
     this.bus.emit('notification:add', {
-      text: `Candidate pool refreshed! (-$${COST.toLocaleString()})`,
+      text: `${scopeLabel} refreshed! (-$${COST.toLocaleString()})`,
       type: 'success',
     });
     this.bus.emit('hiring:pool_refreshed', { company });
@@ -442,6 +501,12 @@ export class Simulation {
       type: 'success',
     });
     this.bus.emit('research:unlocked', { nodeId, company });
+
+    if (shouldRefreshHiringPoolsOnUnlock(nodeId)) {
+      this.hiring.refreshAllPools(company);
+      this.bus.emit('hiring:pool_refreshed', { company });
+    }
+
     return true;
   }
 

@@ -1,7 +1,7 @@
 /**
  * EmployeesPanel
  *
- * Lists current employees. Each card layout (single column):
+ * Lists current employees in a 2-column grid. Each card layout:
  *   Name + level + salary
  *   Activity (working on / idle)
  *   ── divider ──
@@ -37,22 +37,23 @@ const ACTIVITY_COLOR = 0x4ade80;
 const SECTION_LABEL_COLOR = 0x7a86a3;
 const PADDING = 12;
 const INNER = 14;
+const COL_COUNT = 2;
+const COL_GAP = 8;
+const ROW_GAP = 8;
 
 // Character avatar shown in each card header
-const AVATAR_SIZE = 44;   // square display size (px)
-const AVATAR_GAP  = 10;   // gap between avatar and text column
-const TEXT_INDENT = INNER + AVATAR_SIZE + AVATAR_GAP; // x offset for name / activity
+const AVATAR_SIZE = 36;   // square display size (px) — compact for 2-column grid
+const AVATAR_GAP  = 8;    // gap between avatar and text column
 
-// Skill bar cells
-const BAR_CELL = 13;
-const BAR_GAP = 3;
-const BAR_TRACK_W = MAX_SKILL_LEVEL * BAR_CELL + (MAX_SKILL_LEVEL - 1) * BAR_GAP;
+// Skill bar cells — sized to fit half-width cards
+const BAR_CELL = 10;
+const BAR_GAP = 2;
 const BAR_EMPTY_COLOR = 0x1f2a44;
 const BAR_EMPTY_BORDER = 0x2a3554;
 
 const SKILL_ROW_H = 22;
-const LABEL_W = 72;
-const LABEL_GAP = 12;
+const LABEL_W = 56;
+const LABEL_GAP = 8;
 
 const ALL_SKILLS = Object.values(SKILLS);
 
@@ -127,9 +128,16 @@ export class EmployeesPanel extends Container {
       return;
     }
 
-    for (const emp of company.employees) {
-      const cardH = this._buildCard(emp, company, y);
-      y += cardH + 8;
+    const cardW = Math.floor((this._width - PADDING * 2 - COL_GAP * (COL_COUNT - 1)) / COL_COUNT);
+
+    for (let i = 0; i < company.employees.length; i += COL_COUNT) {
+      let rowH = 0;
+      for (let col = 0; col < COL_COUNT && i + col < company.employees.length; col++) {
+        const startX = PADDING + col * (cardW + COL_GAP);
+        const cardH  = this._buildCard(company.employees[i + col], company, y, startX, cardW);
+        rowH = Math.max(rowH, cardH);
+      }
+      y += rowH + ROW_GAP;
     }
   }
 
@@ -142,47 +150,49 @@ export class EmployeesPanel extends Container {
    * @param {object} emp
    * @param {object} company
    * @param {number} startY
+   * @param {number} startX
+   * @param {number} cardW
    * @returns {number} card height in pixels
    */
-  _buildCard(emp, company, startY) {
+  _buildCard(emp, company, startY, startX, cardW) {
     return isProgrammer(emp)
-      ? this._buildProgrammerCard(emp, company, startY)
-      : this._buildOtherCard(emp, company, startY);
+      ? this._buildProgrammerCard(emp, company, startY, startX, cardW)
+      : this._buildOtherCard(emp, company, startY, startX, cardW);
   }
 
-  _buildProgrammerCard(emp, company, startY) {
-    const cardW = this._width - PADDING * 2;
+  _buildProgrammerCard(emp, company, startY, startX, cardW) {
+    const textIndent = INNER + AVATAR_SIZE + AVATAR_GAP;
     const bgIndex = this._scroll.children.length;
 
     // ── Avatar ────────────────────────────────────────────
     const avatarSprite = new Sprite(getCharacterAvatarTex(emp.characterIndex));
     avatarSprite.width  = AVATAR_SIZE;
     avatarSprite.height = AVATAR_SIZE;
-    avatarSprite.position.set(PADDING + INNER, startY + 10);
+    avatarSprite.position.set(startX + INNER, startY + 10);
     this._scroll.addChild(avatarSprite);
 
     // ── Name ─────────────────────────────────────────────
     const nameText = new Text({
       text: emp.name,
-      style: { fill: TEXT_BRIGHT, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 14, fontWeight: '700' },
+      style: { fill: TEXT_BRIGHT, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 13, fontWeight: '700' },
     });
-    nameText.position.set(PADDING + TEXT_INDENT, startY + 12);
+    nameText.position.set(startX + textIndent, startY + 12);
     this._scroll.addChild(nameText);
 
     const levelBadge = new Text({
       text: `Lv. ${emp.level ?? 0}`,
-      style: { fill: 0x818cf8, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 11, fontWeight: '700' },
+      style: { fill: 0x818cf8, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 10, fontWeight: '700' },
     });
     levelBadge.anchor.set(1, 0);
-    levelBadge.position.set(PADDING + cardW - INNER - 72, startY + 14);
+    levelBadge.position.set(startX + cardW - INNER - 62, startY + 13);
     this._scroll.addChild(levelBadge);
 
     const salaryText = new Text({
       text: `$${emp.salary}/day`,
-      style: { fill: SALARY_COLOR, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 12, fontWeight: '600' },
+      style: { fill: SALARY_COLOR, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 11, fontWeight: '600' },
     });
     salaryText.anchor.set(1, 0);
-    salaryText.position.set(PADDING + cardW - INNER, startY + 14);
+    salaryText.position.set(startX + cardW - INNER, startY + 13);
     this._scroll.addChild(salaryText);
 
     // ── Activity ─────────────────────────────────────────
@@ -194,30 +204,33 @@ export class EmployeesPanel extends Container {
       style: {
         fill: proj ? ACTIVITY_COLOR : TEXT_DIM,
         fontFamily: 'Inter, system-ui, sans-serif',
-        fontSize: 11,
+        fontSize: 10,
         fontWeight: proj ? '600' : '400',
+        wordWrap: true,
+        wordWrapWidth: cardW - textIndent - INNER,
       },
     });
-    activityText.position.set(PADDING + TEXT_INDENT, startY + 12 + NAME_H + 6);
+    activityText.position.set(startX + textIndent, startY + 12 + NAME_H + 4);
     this._scroll.addChild(activityText);
 
     // ── Top divider ──────────────────────────────────────
     const divY1 = startY + HEADER_H;
     this._scroll.addChild(new Graphics()
-      .moveTo(PADDING + 8, divY1).lineTo(PADDING + cardW - 8, divY1)
+      .moveTo(startX + 8, divY1).lineTo(startX + cardW - 8, divY1)
       .stroke({ color: DIVIDER_COLOR, width: 1 }));
 
     // ── Skills ───────────────────────────────────────────
     const levelBySkill = Object.create(null);
     for (const sk of emp.skills) levelBySkill[sk.skill] = sk.level;
+    const contentW = cardW - INNER * 2;
 
     const skillStartY = divY1 + 8;
     ALL_SKILLS.forEach((skillKey, i) => {
       const rowY = skillStartY + i * SKILL_ROW_H;
       const level = levelBySkill[skillKey] ?? 0;
       const color = SKILL_COLORS[skillKey] ?? 0x4a9eff;
-      const row = this._makeSkillRow(skillKey, level, color, cardW);
-      row.position.set(PADDING + INNER, rowY);
+      const row = this._makeSkillRow(skillKey, level, color, contentW);
+      row.position.set(startX + INNER, rowY);
       this._scroll.addChild(row);
     });
 
@@ -231,16 +244,16 @@ export class EmployeesPanel extends Container {
         text: `SKILL UPGRADE  (${emp.pendingSkillPoints} available)`,
         style: { fill: UPGRADE_HEADER_COLOR, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 9, fontWeight: '700' },
       });
-      upgradeHeader.position.set(PADDING + INNER, y);
+      upgradeHeader.position.set(startX + INNER, y);
       this._scroll.addChild(upgradeHeader);
       y += 16;
 
       const btnCount = Math.max(1, upgradable.length);
-      const BTN_GAP = 8;
-      const BTN_W = Math.floor((cardW - INNER * 2 - BTN_GAP * (btnCount - 1)) / btnCount);
+      const BTN_GAP = 6;
+      const BTN_W = Math.floor((contentW - BTN_GAP * (btnCount - 1)) / btnCount);
 
       upgradable.forEach((sk, i) => {
-        const btnX = PADDING + INNER + i * (BTN_W + BTN_GAP);
+        const btnX = startX + INNER + i * (BTN_W + BTN_GAP);
         const skColor = SKILL_COLORS[sk.skill] ?? 0x4a9eff;
 
         const btnBg = new Graphics()
@@ -269,51 +282,51 @@ export class EmployeesPanel extends Container {
       y += UPGRADE_BTN_H + 10;
     }
 
-    y = this._appendScheduleAndFire(emp, cardW, y);
+    y = this._appendScheduleAndFire(emp, startX, cardW, y);
 
     const cardH = y - startY;
     const bg = new Graphics()
       .roundRect(0, 0, cardW, cardH, 8)
       .fill({ color: CARD_BG })
       .stroke({ color: CARD_BORDER, width: 1.5 });
-    bg.position.set(PADDING, startY);
+    bg.position.set(startX, startY);
     this._scroll.addChildAt(bg, bgIndex);
     return cardH;
   }
 
-  _buildOtherCard(emp, company, startY) {
-    const cardW   = this._width - PADDING * 2;
+  _buildOtherCard(emp, company, startY, startX, cardW) {
+    const textIndent = INNER + AVATAR_SIZE + AVATAR_GAP;
     const bgIndex = this._scroll.children.length;
 
     // ── Avatar ────────────────────────────────────────────
     const avatarSprite = new Sprite(getCharacterAvatarTex(emp.characterIndex));
     avatarSprite.width  = AVATAR_SIZE;
     avatarSprite.height = AVATAR_SIZE;
-    avatarSprite.position.set(PADDING + INNER, startY + 10);
+    avatarSprite.position.set(startX + INNER, startY + 10);
     this._scroll.addChild(avatarSprite);
 
     // ── Name ─────────────────────────────────────────────
     const nameText = new Text({
       text: emp.name,
-      style: { fill: TEXT_BRIGHT, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 14, fontWeight: '700' },
+      style: { fill: TEXT_BRIGHT, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 13, fontWeight: '700' },
     });
-    nameText.position.set(PADDING + TEXT_INDENT, startY + 12);
+    nameText.position.set(startX + textIndent, startY + 12);
     this._scroll.addChild(nameText);
 
     // Role label beneath name
     const roleText = new Text({
       text: ROLE_LABELS[emp.role] ?? emp.role,
-      style: { fill: 0x818cf8, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 11, fontWeight: '600' },
+      style: { fill: 0x818cf8, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 10, fontWeight: '600' },
     });
-    roleText.position.set(PADDING + TEXT_INDENT, startY + 12 + NAME_H + 2);
+    roleText.position.set(startX + textIndent, startY + 12 + NAME_H + 2);
     this._scroll.addChild(roleText);
 
     const salaryText = new Text({
       text: `$${emp.salary}/day`,
-      style: { fill: SALARY_COLOR, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 12, fontWeight: '600' },
+      style: { fill: SALARY_COLOR, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 11, fontWeight: '600' },
     });
     salaryText.anchor.set(1, 0);
-    salaryText.position.set(PADDING + cardW - INNER, startY + 14);
+    salaryText.position.set(startX + cardW - INNER, startY + 13);
     this._scroll.addChild(salaryText);
 
     // Activity line: role-specific text
@@ -342,33 +355,33 @@ export class EmployeesPanel extends Container {
         fontWeight: '600',
       },
     });
-    activityText.position.set(PADDING + TEXT_INDENT, startY + 12 + NAME_H + 6 + 16);
+    activityText.position.set(startX + textIndent, startY + 12 + NAME_H + 6 + 16);
     this._scroll.addChild(activityText);
 
     // Divider before schedule
     let y = startY + HEADER_H + 10;
     this._scroll.addChild(new Graphics()
-      .moveTo(PADDING + 8, y).lineTo(PADDING + cardW - 8, y)
+      .moveTo(startX + 8, y).lineTo(startX + cardW - 8, y)
       .stroke({ color: DIVIDER_COLOR, width: 1 }));
     y += DIVIDER_H + 8;
 
-    y = this._appendScheduleAndFire(emp, cardW, y);
+    y = this._appendScheduleAndFire(emp, startX, cardW, y);
 
     const cardH = y - startY;
     const bg = new Graphics()
       .roundRect(0, 0, cardW, cardH, 8)
       .fill({ color: CARD_BG })
       .stroke({ color: CARD_BORDER, width: 1.5 });
-    bg.position.set(PADDING, startY);
+    bg.position.set(startX, startY);
     this._scroll.addChildAt(bg, bgIndex);
     return cardH;
   }
 
   /** Shared footer: bottom divider + schedule + fire button. Returns updated y. */
-  _appendScheduleAndFire(emp, cardW, y) {
+  _appendScheduleAndFire(emp, startX, cardW, y) {
     // Bottom divider
     this._scroll.addChild(new Graphics()
-      .moveTo(PADDING + 8, y).lineTo(PADDING + cardW - 8, y)
+      .moveTo(startX + 8, y).lineTo(startX + cardW - 8, y)
       .stroke({ color: DIVIDER_COLOR, width: 1 }));
     y += DIVIDER_H + 8;
 
@@ -377,13 +390,26 @@ export class EmployeesPanel extends Container {
       text: 'SCHEDULE',
       style: { fill: TEXT_DIM, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 9, fontWeight: '700' },
     });
-    schedLabelText.position.set(PADDING + INNER, y);
+    schedLabelText.position.set(startX + INNER, y);
     this._scroll.addChild(schedLabelText);
 
     const schedRow = this._makeScheduleRow();
-    schedRow.position.set(PADDING + INNER, y + 16);
+    schedRow.position.set(startX + INNER, y + 16);
     this._scroll.addChild(schedRow);
-    y += SCHED_SECTION_H;
+    y += SCHED_SECTION_H + 10;
+
+    const fireBtn = new Button({
+      label: 'Fire',
+      variant: 'danger',
+      width: 72,
+      height: 26,
+      onClick: () => {
+        this.game.sim.fireEmployee(emp);
+        this.refresh();
+      },
+    });
+    fireBtn.position.set(startX + cardW - INNER - 72, y + 6);
+    this._scroll.addChild(fireBtn);
 
     const muteBtn = new Button({
       label: emp.logsMuted ? 'Unmute' : 'Mute logs',
@@ -396,35 +422,27 @@ export class EmployeesPanel extends Container {
         this.refresh();
       },
     });
-    muteBtn.position.set(PADDING + INNER, y + 6);
+    muteBtn.position.set(startX + INNER, y + 18);
     this._scroll.addChild(muteBtn);
 
-    const fireBtn = new Button({
-      label: 'Fire',
-      variant: 'danger',
-      width: 72,
-      height: 26,
-      onClick: () => {
-        this.game.sim.fireEmployee(emp);
-        this.refresh();
-      },
-    });
-    fireBtn.position.set(PADDING + cardW - INNER - 72, y + 6);
-    this._scroll.addChild(fireBtn);
-    y += 28 + 10;
+    y += 40 + 10;
 
     return y;
   }
 
-  _makeSkillRow(skillKey, level, color, cardW) {
+  _makeSkillRow(skillKey, level, color, contentW) {
     const row = new Container();
+    const numW = 14;
+    const barAreaW = Math.max(80, contentW - LABEL_W - LABEL_GAP - numW);
+    const cellW = Math.max(8, Math.floor((barAreaW - (MAX_SKILL_LEVEL - 1) * BAR_GAP) / MAX_SKILL_LEVEL));
+    const trackW = MAX_SKILL_LEVEL * cellW + (MAX_SKILL_LEVEL - 1) * BAR_GAP;
 
     const label = new Text({
       text: SKILL_LABELS_SHORT[skillKey] ?? skillKey,
       style: {
         fill: level > 0 ? TEXT_BRIGHT : TEXT_DIM,
         fontFamily: 'Inter, system-ui, sans-serif',
-        fontSize: 11,
+        fontSize: 10,
         fontWeight: level > 0 ? '600' : '400',
       },
     });
@@ -437,10 +455,10 @@ export class EmployeesPanel extends Container {
     const filled = Math.max(0, Math.min(MAX_SKILL_LEVEL, level));
 
     for (let i = 0; i < MAX_SKILL_LEVEL; i++) {
-      const cx = i * (BAR_CELL + BAR_GAP);
+      const cx = i * (cellW + BAR_GAP);
       const isFilled = i < filled;
       track
-        .roundRect(cx, 0, BAR_CELL, BAR_CELL, 2)
+        .roundRect(cx, 0, cellW, BAR_CELL, 2)
         .fill({ color: isFilled ? color : BAR_EMPTY_COLOR })
         .stroke({ color: isFilled ? color : BAR_EMPTY_BORDER, width: 1, alpha: isFilled ? 1 : 0.7 });
     }
@@ -458,7 +476,7 @@ export class EmployeesPanel extends Container {
         },
       });
       numText.anchor.set(0, 0.5);
-      numText.position.set(LABEL_W + LABEL_GAP + BAR_TRACK_W + 8, SKILL_ROW_H / 2);
+      numText.position.set(LABEL_W + LABEL_GAP + trackW + 6, SKILL_ROW_H / 2);
       row.addChild(numText);
     }
 
@@ -467,33 +485,34 @@ export class EmployeesPanel extends Container {
 
   _makeScheduleRow() {
     const row = new Container();
+    const cellW = 34;
     let x = 0;
     SCHEDULE_CYCLE.forEach((state, i) => {
       if (i > 0) {
         const arrow = new Text({
           text: '→',
-          style: { fill: TEXT_DIM, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 10 },
+          style: { fill: TEXT_DIM, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 9 },
         });
         arrow.anchor.set(0, 0.5);
         arrow.position.set(x, 9);
         row.addChild(arrow);
-        x += 16;
+        x += 12;
       }
       const cell = new Container();
-      const icon = new Text({ text: SCHEDULE_ICONS[state] ?? '', style: { fontSize: 13 } });
+      const icon = new Text({ text: SCHEDULE_ICONS[state] ?? '', style: { fontSize: 12 } });
       icon.anchor.set(0, 0.5);
       icon.position.set(0, 9);
       cell.addChild(icon);
       const lbl = new Text({
         text: state[0] + state.slice(1).toLowerCase(),
-        style: { fill: TEXT_DIM, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 9 },
+        style: { fill: TEXT_DIM, fontFamily: 'Inter, system-ui, sans-serif', fontSize: 8 },
       });
       lbl.anchor.set(0.5, 0);
-      lbl.position.set(9, 18);
+      lbl.position.set(8, 18);
       cell.addChild(lbl);
       cell.position.set(x, 0);
       row.addChild(cell);
-      x += 42;
+      x += cellW;
     });
     return row;
   }

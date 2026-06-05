@@ -534,7 +534,13 @@ export class OfficeScene extends BaseScene {
       return;
     }
 
-    this._modal.open(PANEL_TITLES[viewId], panel, width, height);
+    this._modal.open(
+      PANEL_TITLES[viewId],
+      panel,
+      width,
+      height,
+      viewId === 'hiring' ? { layout: 'hiring' } : undefined,
+    );
     this.game.sound.play('ui_modal_open');
   }
 
@@ -1012,6 +1018,6 @@ export class OfficeScene extends BaseScene {
   // -----------------------------------------------------------------------
 
   _handleWheel(e) {
-    this._modal.handleWheel(e.deltaY);
+    this._modal.handleWheel(e.deltaY, e.deltaX, e.shiftKey);
   }
 }

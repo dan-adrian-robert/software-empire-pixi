@@ -254,7 +254,7 @@ export class EmployeeStatsPopup extends Container {
         this._draw(this._emp, this._company);
       },
     });
-    tabs.position.set(textX, 76);
+    tabs.position.set(textX, 86);
     this._content.addChild(tabs);
 
     // Header bottom divider

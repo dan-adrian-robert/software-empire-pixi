@@ -1,18 +1,17 @@
 /**
  * ProjectsPanel
  *
- * Overlay panel listing Active projects (with progress bars, milestone slider,
- * and collect actions) and Available projects (with insurance cost, milestone
- * slider, and Accept/Reject buttons).
+ * Tabbed overlay panel:
+ *   Available Projects — insurance cost, milestone slider, Accept/Reject buttons
+ *   Active Projects   — progress bars, milestone slider, collect actions
  *
  * Re-rendered on `refresh()` which is called by OfficeScene on relevant bus events.
  */
 import { Container, Graphics, Text } from 'pixi.js';
-import { Button, Column, Row, Label, Panel, ProgressBar } from '../framework/index.js';
+import { Button, Column, Row, Label, Panel, ProgressBar, Tabs } from '../framework/index.js';
 import { SKILL_LABELS, SKILL_COLORS } from '@/data/skills.js';
 import { getProjectDifficultyStyle } from '../projectDifficulty.js';
 
-const SECTION_LABEL_COLOR = 0x7a86a3;
 const TEXT_DIM            = 0x7a86a3;
 const PAYOUT_COLOR        = 0x4ade80;
 const PADDING             = 12;
@@ -39,6 +38,8 @@ const SLIDER_TOP_H   = 16;   // room for day tick labels above the bar
 const SLIDER_BOT_H   = 14;   // room for tier labels below the bar
 const SLIDER_TOTAL_H = SLIDER_TOP_H + SLIDER_BAR_H + SLIDER_BOT_H + 4;
 
+const TABS_BAR_H = 28;
+
 export class ProjectsPanel extends Container {
   /**
    * @param {import('../../Game.js').Game} game
@@ -49,10 +50,23 @@ export class ProjectsPanel extends Container {
     this.game = game;
     this.onClose = onClose;
 
+    this._tabs = new Tabs({
+      tabs: ['Available Projects', 'Active Projects'],
+      active: 'Available Projects',
+      onChange: (label) => {
+        this._activeTab = label;
+        this.refresh();
+      },
+    });
+    this._tabs.position.set(PADDING, 0);
+    this.addChild(this._tabs);
+
     this._scroll = new Container();
+    this._scroll.position.set(0, TABS_BAR_H);
     this._mask = new Graphics();
     this.addChild(this._scroll);
 
+    this._activeTab = 'Available Projects';
     this._width = 600;
     this._height = 500;
     this._scrollY = 0;
@@ -74,35 +88,23 @@ export class ProjectsPanel extends Container {
 
   refresh() {
     this._scroll.removeChildren();
+    this._tabs.setProps({ active: this._activeTab });
+
     const company = this.game.sim?.company;
     if (!company) return;
 
-    let y = 0;
-    y = this._buildSection('Active Projects', company.activeProjects, y, true);
-    y += 8;
-    y = this._buildSection('Available Projects', company.availableProjects, y, false);
+    const isActive = this._activeTab === 'Active Projects';
+    const projects = isActive ? company.activeProjects : company.availableProjects;
+    this._buildSection(projects, 0, isActive);
   }
 
   // ─────────────────────────────────────────────────────────────────────────
 
-  _buildSection(title, projects, startY, isActive) {
+  _buildSection(projects, startY, isActive) {
     let y = startY;
     const company = this.game.sim?.company;
 
-    const header = new Text({
-      text: title.toUpperCase(),
-      style: {
-        fill: SECTION_LABEL_COLOR,
-        fontFamily: 'Inter, system-ui, sans-serif',
-        fontSize: 11,
-        fontWeight: '700',
-        letterSpacing: 1,
-      },
-    });
-    header.position.set(PADDING, y);
-    this._scroll.addChild(header);
-
-    // Refresh Pool button — shown only when project_refresh research is unlocked
+    // Refresh Pool button — shown only on Available tab when project_refresh is unlocked
     if (!isActive && company?.unlockedResearch.includes('project_refresh')) {
       const canAfford = (company.money ?? 0) >= 500;
       const refreshBtn = new Button({
@@ -116,9 +118,8 @@ export class ProjectsPanel extends Container {
       });
       refreshBtn.position.set(this._width - PADDING - 150, y);
       this._scroll.addChild(refreshBtn);
+      y += 28;
     }
-
-    y += 32;
 
     if (projects.length === 0) {
       const empty = new Text({

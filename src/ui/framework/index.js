@@ -26,6 +26,7 @@ export { Stack } from '../layouts/Stack.js';
 export { Grid } from '../layouts/Grid.js';
 export { Spacer } from '../layouts/Spacer.js';
 export { ScrollColumn } from '../layouts/ScrollColumn.js';
+export { ScrollRow } from '../layouts/ScrollRow.js';
 
 // ── Widgets ───────────────────────────────────────────────────────────────────
 export { Label } from '../widgets/Label.js';
@@ -36,6 +37,7 @@ export { ProgressBar } from '../widgets/ProgressBar.js';
 export { Tabs } from '../widgets/Tabs.js';
 export { Avatar } from '../widgets/Avatar.js';
 export { Tooltip } from '../widgets/Tooltip.js';
+export { ScrollBar } from '../widgets/ScrollBar.js';
 
 // ── Screens ───────────────────────────────────────────────────────────────────
 export { PopupShell } from '../screens/PopupShell.js';

@@ -49,8 +49,16 @@ export class PanelShell extends Component {
     this._bodyW = 0;
     this._bodyH = 0;
     this._body = null;
+    /** @type {'default'|'hiring'} */
+    this._layoutPreset = 'default';
 
     this._buildChrome();
+  }
+
+  /** @param {'default'|'hiring'} preset */
+  setLayoutPreset(preset) {
+    this._layoutPreset = preset ?? 'default';
+    if (this.visible) this._layout();
   }
 
   // ── Public lifecycle ─────────────────────────────────────────────────────────
@@ -149,8 +157,15 @@ export class PanelShell extends Component {
     const topH = this.props.topBarHeight;
     const availH = this._screenH - topH;
 
-    const winW = Math.max(480, Math.min(860, this._screenW - 160));
-    const winH = Math.round(availH * 0.86);
+    let winW;
+    let winH;
+    if (this._layoutPreset === 'hiring') {
+      winW = Math.max(640, Math.min(920, this._screenW - 120));
+      winH = Math.max(320, Math.min(520, Math.round(availH * 0.52)));
+    } else {
+      winW = Math.max(480, Math.min(860, this._screenW - 160));
+      winH = Math.round(availH * 0.86);
+    }
 
     this._bodyW = winW - PADDING * 2;
     this._bodyH = winH - HEADER_H - PADDING * 2;

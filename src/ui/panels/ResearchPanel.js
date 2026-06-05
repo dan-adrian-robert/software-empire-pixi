@@ -57,8 +57,15 @@ export class ResearchPanel extends Container {
     super();
     this.game = game;
 
+    this._mask = new Graphics();
     this._scroll = new Container();
+    this._scroll.mask = this._mask;
+    this.addChild(this._mask);
     this.addChild(this._scroll);
+
+    this._scrollX = 0;
+    this._contentWidth = 0;
+    this._contentHeight = 0;
 
     this._width = 600;
     this._height = 500;
@@ -76,6 +83,28 @@ export class ResearchPanel extends Container {
     this._height = height;
     this.position.set(x, y);
     this.refresh();
+  }
+
+  /**
+   * Returns the current horizontal scroll state for ModalHost to drive the
+   * scrollbar widget, or null when the tree fits within the viewport width.
+   * @returns {{ contentWidth: number, viewportWidth: number, scrollX: number, setScrollX: (x: number) => void } | null}
+   */
+  getHorizontalScrollState() {
+    if (this._contentWidth <= this._width) return null;
+    return {
+      contentWidth:  this._contentWidth,
+      viewportWidth: this._width,
+      scrollX:       -this._scrollX,
+      setScrollX:    (x) => this._setScrollX(x),
+    };
+  }
+
+  /** @param {number} x  scroll offset, 0 = left edge */
+  _setScrollX(x) {
+    const maxScroll = Math.max(0, this._contentWidth - this._width);
+    this._scrollX   = -Math.max(0, Math.min(maxScroll, x));
+    this._scroll.x  = this._scrollX;
   }
 
   refresh() {
@@ -97,17 +126,31 @@ export class ResearchPanel extends Container {
     // Compute pixel position (top-left corner) for every node
     const nodePos = new Map(); // id → { x, y }
     const maxDepth = Math.max(...depths.values());
+    let maxRowW = 0;
 
     for (let d = 0; d <= maxDepth; d++) {
       const row = byDepth.get(d) ?? [];
       const rowW = row.length * NODE_W + (row.length - 1) * COL_GAP;
-      const startX = PADDING + Math.max(0, Math.floor((this._width - rowW) / 2));
+      maxRowW = Math.max(maxRowW, rowW);
+    }
+
+    this._contentWidth = Math.max(this._width, maxRowW + PADDING * 2);
+    this._contentHeight = PADDING + (maxDepth + 1) * ROW_H;
+    this._updateMask();
+    this._clampScrollX();
+
+    for (let d = 0; d <= maxDepth; d++) {
+      const row = byDepth.get(d) ?? [];
+      const rowW = row.length * NODE_W + (row.length - 1) * COL_GAP;
+      const startX = PADDING + Math.floor((this._contentWidth - rowW) / 2);
       const rowY = PADDING + d * ROW_H;
 
       row.forEach((node, i) => {
         nodePos.set(node.id, { x: startX + i * (NODE_W + COL_GAP), y: rowY });
       });
     }
+
+    this._scroll.x = this._scrollX;
 
     // Draw connection lines first (so nodes render on top)
     const lines = new Graphics();
@@ -298,5 +341,15 @@ export class ResearchPanel extends Container {
     }
 
     this._scroll.addChild(container);
+  }
+
+  _updateMask() {
+    const h = Math.max(this._contentHeight, this._height);
+    this._mask.clear().rect(0, 0, this._width, h).fill({ color: 0xffffff });
+  }
+
+  _clampScrollX() {
+    const maxScroll = Math.max(0, this._contentWidth - this._width);
+    this._scrollX = Math.max(-maxScroll, Math.min(0, this._scrollX));
   }
 }

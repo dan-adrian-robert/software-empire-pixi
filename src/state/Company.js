@@ -14,8 +14,9 @@ import {
   STARTER_OFFICE_TIER_INDEX,
 } from '../data/starter.js';
 import { SKILLS } from '../data/skills.js';
-import { generateStarterEmployee, generateStarterCandidates, generateStarterPmCandidates, generateStarterTeamLeadCandidates } from '../systems/EmployeeGenerator.js';
+import { generateStarterEmployee, generateStarterCandidates } from '../systems/EmployeeGenerator.js';
 import { generateStarterPool } from '../systems/ProjectGenerator.js';
+import { STARTER_CANDIDATE_COUNT } from '../data/hiringResearch.js';
 
 /**
  * Create a fresh Company from the starter seed.
@@ -27,13 +28,12 @@ export function createCompany() {
   const starterEmpData = generateStarterEmployee(SKILLS.FRONTEND_DEVELOPMENT);
   const employees = [createEmployee(starterEmpData)];
 
-  const starterCandidateData = generateStarterCandidates(SKILLS.FRONTEND_DEVELOPMENT);
+  const starterCandidateData = generateStarterCandidates(SKILLS.FRONTEND_DEVELOPMENT)
+    .slice(0, STARTER_CANDIDATE_COUNT);
   const candidates = starterCandidateData.map((c) => createCandidate(c));
 
-  const otherCandidates = [
-    ...generateStarterPmCandidates(3),
-    ...generateStarterTeamLeadCandidates(2),
-  ];
+  // No team leads or PMs on day 1 — role research is not yet unlocked.
+  const otherCandidates = [];
 
   const availableProjects = generateStarterPool(starterResearch, 3);
 
