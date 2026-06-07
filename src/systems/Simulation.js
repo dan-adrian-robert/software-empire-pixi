@@ -18,7 +18,7 @@ import { createFurnitureItem } from '../state/FurnitureItem.js';
 import { isPastCritical } from '../state/Project.js';
 import { syncIdCounters } from '../state/syncIdCounters.js';
 import { RESEARCH_NODES } from '../data/researchNodes.js';
-import { SKILL_LABELS, MAX_SKILL_LEVEL } from '../data/skills.js';
+import { SKILL_LABELS, skillUpgradeCap } from '../data/skills.js';
 import { GameConfig } from '../config.js';
 import { generatePool } from './ProjectGenerator.js';
 import { computeTeamOutput } from '../economy/balance.js';
@@ -540,7 +540,7 @@ export class Simulation {
   upgradeEmployeeSkill(employee, skillKey) {
     if (!employee || employee.pendingSkillPoints <= 0) return false;
     const skill = employee.skills.find((s) => s.skill === skillKey && s.level >= 1);
-    if (!skill || skill.level >= MAX_SKILL_LEVEL) return false;
+    if (!skill || skill.level >= skillUpgradeCap(skill)) return false;
     skill.level += 1;
     employee.pendingSkillPoints -= 1;
     this.bus.emit('notification:add', {

@@ -18,7 +18,7 @@
  * Points are buffered during the WORK period and flushed to the project
  * when the period ends (see flushWorkPeriod).
  */
-import { GameConfig } from '../config.js';
+import { GameConfig, xpRequiredForLevel } from '../config.js';
 import { matchingSkills } from '../state/Employee.js';
 import { ScheduleActivity } from '../data/scheduleActivities.js';
 import {
@@ -152,15 +152,16 @@ export class ProjectSystem {
     });
 
     // ── EXP accrual ──────────────────────────────────────────────────────────
-    const { EXP_PER_TICK, EXP_PER_LEVEL } = GameConfig.gameplay;
+    const { EXP_PER_TICK } = GameConfig.gameplay;
     company.employees.forEach((emp, i) => {
       if ((totals.get(i) ?? 0) <= 0) return;
 
       const expMult = teamSystem ? teamSystem.expMultiplier(company, emp) : 1;
       emp.exp += EXP_PER_TICK * expMult;
 
-      while (emp.exp >= EXP_PER_LEVEL) {
-        emp.exp -= EXP_PER_LEVEL;
+      let threshold = xpRequiredForLevel(emp.level);
+      while (emp.exp >= threshold) {
+        emp.exp -= threshold;
         emp.level += 1;
         emp.pendingSkillPoints += 1;
         this.bus.emit('employee:levelup', { employee: emp, company });
@@ -169,6 +170,7 @@ export class ProjectSystem {
           type: 'success',
           suppress: emp.logsMuted,
         });
+        threshold = xpRequiredForLevel(emp.level);
       }
     });
 

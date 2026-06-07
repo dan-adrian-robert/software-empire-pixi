@@ -22,6 +22,7 @@ import {
   SKILL_LABELS_SHORT,
   SKILL_COLORS,
   MAX_SKILL_LEVEL,
+  skillUpgradeCap,
 } from '@/data/skills.js';
 import { isProgrammer, isTeamLead } from '@/state/Employee.js';
 import { SCHEDULE_CYCLE, SCHEDULE_ICONS } from '@/data/scheduleActivities.js';
@@ -221,7 +222,11 @@ export class EmployeesPanel extends Container {
 
     // ── Skills ───────────────────────────────────────────
     const levelBySkill = Object.create(null);
-    for (const sk of emp.skills) levelBySkill[sk.skill] = sk.level;
+    const potentialBySkill = Object.create(null);
+    for (const sk of emp.skills) {
+      levelBySkill[sk.skill] = sk.level;
+      potentialBySkill[sk.skill] = sk.potential;
+    }
     const contentW = cardW - INNER * 2;
 
     const skillStartY = divY1 + 8;
@@ -229,7 +234,8 @@ export class EmployeesPanel extends Container {
       const rowY = skillStartY + i * SKILL_ROW_H;
       const level = levelBySkill[skillKey] ?? 0;
       const color = SKILL_COLORS[skillKey] ?? 0x4a9eff;
-      const row = this._makeSkillRow(skillKey, level, color, contentW);
+      const potential = potentialBySkill[skillKey];
+      const row = this._makeSkillRow(skillKey, level, color, contentW, potential);
       row.position.set(startX + INNER, rowY);
       this._scroll.addChild(row);
     });
@@ -238,7 +244,7 @@ export class EmployeesPanel extends Container {
 
     // ── Skill upgrade section ─────────────────────────────
     if ((emp.pendingSkillPoints ?? 0) > 0) {
-      const upgradable = emp.skills.filter((s) => s.level >= 1 && s.level < MAX_SKILL_LEVEL);
+      const upgradable = emp.skills.filter((s) => s.level >= 1 && s.level < skillUpgradeCap(s));
 
       const upgradeHeader = new Text({
         text: `SKILL UPGRADE  (${emp.pendingSkillPoints} available)`,
@@ -430,7 +436,7 @@ export class EmployeesPanel extends Container {
     return y;
   }
 
-  _makeSkillRow(skillKey, level, color, contentW) {
+  _makeSkillRow(skillKey, level, color, contentW, potential = undefined) {
     const row = new Container();
     const numW = 14;
     const barAreaW = Math.max(80, contentW - LABEL_W - LABEL_GAP - numW);
@@ -457,10 +463,16 @@ export class EmployeesPanel extends Container {
     for (let i = 0; i < MAX_SKILL_LEVEL; i++) {
       const cx = i * (cellW + BAR_GAP);
       const isFilled = i < filled;
+      // Show potential range (attainable via skill points) only for owned skills.
+      const isAttainable = !isFilled && level > 0 && potential !== undefined && i < potential;
       track
         .roundRect(cx, 0, cellW, BAR_CELL, 2)
         .fill({ color: isFilled ? color : BAR_EMPTY_COLOR })
-        .stroke({ color: isFilled ? color : BAR_EMPTY_BORDER, width: 1, alpha: isFilled ? 1 : 0.7 });
+        .stroke({
+          color: isFilled || isAttainable ? color : BAR_EMPTY_BORDER,
+          width: 1,
+          alpha: isFilled ? 1 : isAttainable ? 0.4 : 0.7,
+        });
     }
     track.position.set(LABEL_W + LABEL_GAP, trackY);
     row.addChild(track);

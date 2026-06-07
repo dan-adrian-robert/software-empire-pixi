@@ -278,7 +278,7 @@ The end-of-day report uses a **snapshot** of notifications taken before the log 
 | `CANDIDATE_POOL_SIZE` | 4 | New hire candidates per day |
 | `ACTIVITY_LOG_MAX` | 100 | Max entries in live activity log |
 | `EXP_PER_TICK` | 10 | EXP per WORK flush with contribution |
-| `EXP_PER_LEVEL` | 100 | EXP needed per level |
+| `xpRequiredForLevel(n)` | `floor(100 × 1.25^(n-1))` | EXP needed to advance from level n (100 at lv.1, 125 at lv.2, 156 at lv.3, …) |
 | Schedule cycle | 4 × 15 min | WORK → BATHROOM_BREAK → WORK → TALK per hour block |
 | HUD refresh | every 0.2 s | Top bar, widgets, open panels |
 

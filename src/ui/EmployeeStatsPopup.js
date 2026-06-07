@@ -18,7 +18,14 @@ import { ROLE_LABELS } from '../data/staffRoles.js';
 import { ARCHETYPES, CATEGORY_COLORS as ARCH_CATEGORY_COLORS } from '../data/archetypes.js';
 import { getDisplayName } from '../data/archetypeDisplayNames.js';
 import { getCharacterAvatarTex } from '../utils/characterSprite.js';
-import { GameConfig } from '../config.js';
+import { xpRequiredForLevel, GameConfig } from '../config.js';
+import {
+  SKILLS,
+  SKILL_LABELS,
+  SKILL_COLORS,
+  MAX_SKILL_LEVEL,
+  skillUpgradeCap,
+} from '../data/skills.js';
 import {
   COMMUNICATION_CATEGORIES,
   CATEGORY_ICONS,
@@ -45,6 +52,18 @@ const ARCH_LEFT_W  = 240;
 const ARCH_DIV_X   = ARCH_LEFT_X + ARCH_LEFT_W + 8;  // 260
 const ARCH_RIGHT_X = ARCH_DIV_X + 8;                 // 268
 const ARCH_RIGHT_W = POPUP_W - ARCH_RIGHT_X - P;     // 640
+
+// SKILLS tab
+const SK_PAD       = P;
+const SK_ROW_H     = 44;
+const SK_BAR_CELL  = 12;
+const SK_BAR_GAP   = 3;
+const SK_DOT_R     = 5;
+const SK_LABEL_W   = 88;
+const SK_BTN_H     = 30;
+const SK_BTN_GAP   = 10;
+const SK_EMPTY_CLR = 0x1f2a44;
+const SK_EMPTY_BDR = 0x2a3554;
 
 // INTERACTIONS tab — 2-column grid of relationship cards
 const INT_COL_GAP = P;
@@ -157,6 +176,8 @@ export class EmployeeStatsPopup extends Container {
 
     if (this._activeTab === 'ARCHETYPES') {
       this._drawArchetypesTab(emp, company);
+    } else if (this._activeTab === 'SKILLS') {
+      this._drawSkillsTab(emp);
     } else if (this._activeTab === 'INTERACTIONS') {
       this._drawInteractionsTab(emp, company);
     } else {
@@ -200,8 +221,8 @@ export class EmployeeStatsPopup extends Container {
     this._content.addChild(infoLabel);
 
     // Level + XP bar
-    const { EXP_PER_LEVEL } = GameConfig.gameplay;
-    const expFrac  = Math.min(1, (emp.exp ?? 0) / EXP_PER_LEVEL);
+    const xpThreshold = xpRequiredForLevel(emp.level ?? 1);
+    const expFrac  = Math.min(1, (emp.exp ?? 0) / xpThreshold);
     const barX     = textX + 36;
     const barY     = 64;
     const barW     = 150;
@@ -224,7 +245,7 @@ export class EmployeeStatsPopup extends Container {
       );
     }
     const xpLbl = new Label({
-      text: `${emp.exp ?? 0} / ${EXP_PER_LEVEL} XP`,
+      text: `${emp.exp ?? 0} / ${xpThreshold} XP`,
       style: { fill: Theme.colors.textDim, fontFamily: Theme.typography.fontFamily, fontSize: 8 },
     });
     xpLbl.position.set(barX + barW + 6, 63);
@@ -246,7 +267,7 @@ export class EmployeeStatsPopup extends Container {
 
     // Tabs widget (replaces manual tab text + click handlers)
     const tabs = new Tabs({
-      tabs: ['ARCHETYPES', 'COMMUNICATION', 'INTERACTIONS'],
+      tabs: ['ARCHETYPES', 'SKILLS', 'COMMUNICATION', 'INTERACTIONS'],
       active: this._activeTab,
       gap: 22,
       onChange: (tab) => {
@@ -264,6 +285,265 @@ export class EmployeeStatsPopup extends Container {
         .lineTo(POPUP_W, HEADER_H + 16)
         .stroke({ color: Theme.colors.border, width: 1 }),
     );
+  }
+
+  // ── SKILLS tab ───────────────────────────────────────────────────────────────
+
+  _drawSkillsTab(emp) {
+    const font     = Theme.typography.fontFamily;
+    const tabY     = HEADER_H + P * 2;
+    const contentW = POPUP_W - SK_PAD * 2;
+    let y = tabY;
+
+    // ── XP PROGRESSION card ──────────────────────────────────────────────────
+    const xpThreshold = xpRequiredForLevel(emp.level ?? 1);
+    const expFrac     = Math.min(1, (emp.exp ?? 0) / xpThreshold);
+    const xpToNext    = xpThreshold - (emp.exp ?? 0);
+    const cardH       = 56;
+
+    this._content.addChild(
+      new Graphics()
+        .roundRect(SK_PAD, y, contentW, cardH, 6)
+        .fill({ color: Theme.colors.bgCard })
+        .stroke({ color: Theme.colors.borderLight, width: 1 }),
+    );
+
+    // Level badge
+    const lvlLbl = new Label({
+      text: `Lv. ${emp.level ?? 0}`,
+      style: { fill: Theme.colors.xp, fontFamily: font, fontSize: 13, fontWeight: '700' },
+    });
+    lvlLbl.position.set(SK_PAD + 12, y + 8);
+    this._content.addChild(lvlLbl);
+
+    // XP bar
+    const barX = SK_PAD + 12 + 52;
+    const barW = contentW - 52 - 12 - 92 - 12;
+    const barY = y + 10;
+
+    this._content.addChild(
+      new Graphics().roundRect(barX, barY, barW, 8, 3).fill({ color: 0x1a1a3a }),
+    );
+    if (expFrac > 0) {
+      this._content.addChild(
+        new Graphics()
+          .roundRect(barX, barY, Math.max(4, Math.round(barW * expFrac)), 8, 3)
+          .fill({ color: Theme.colors.xp, alpha: 0.9 }),
+      );
+    }
+
+    // XP label (right of bar)
+    const xpLbl = new Label({
+      text: `${emp.exp ?? 0} / ${xpThreshold} XP`,
+      style: { fill: Theme.colors.textDim, fontFamily: font, fontSize: 9 },
+    });
+    xpLbl.position.set(barX + barW + 8, y + 9);
+    this._content.addChild(xpLbl);
+
+    // Sub-line: next XP needed + productivity
+    const subLbl = new Label({
+      text: `${xpToNext} XP to next level   ·   Productivity: ${((emp.baseProductivity ?? 1) * 100).toFixed(0)}%`,
+      style: { fill: Theme.colors.textDim, fontFamily: font, fontSize: 9 },
+    });
+    subLbl.position.set(SK_PAD + 12, y + 34);
+    this._content.addChild(subLbl);
+
+    y += cardH + 14;
+
+    // ── SKILLS section ───────────────────────────────────────────────────────
+    const skillsHdr = new Label({ text: 'SKILLS', variant: 'sectionHeader' });
+    skillsHdr.position.set(SK_PAD, y);
+    this._content.addChild(skillsHdr);
+    y += 14;
+
+    // Non-programmer empty state
+    if ((emp.skills ?? []).length === 0) {
+      const emptyT = new Text({
+        text: 'This role does not have skills.',
+        style: { fill: Theme.colors.textDim, fontFamily: font, fontSize: 12 },
+      });
+      emptyT.anchor.set(0.5, 0.5);
+      emptyT.position.set(POPUP_W / 2, y + 60);
+      this._content.addChild(emptyT);
+      return;
+    }
+
+    const { SKILL_SP_TABLE } = GameConfig.gameplay;
+    const levelBySkill    = Object.create(null);
+    const potentialBySkill = Object.create(null);
+    for (const sk of emp.skills) {
+      levelBySkill[sk.skill]    = sk.level;
+      potentialBySkill[sk.skill] = sk.potential;
+    }
+
+    const ALL_SKILL_KEYS = Object.values(SKILLS);
+
+    // Right-column widths
+    const rightLblW  = 80;  // "Lv. X / Pot. Y"
+    const spLblW     = 72;  // "12 SP/period"
+    const barAreaW   = contentW - SK_LABEL_W - 14 - rightLblW - spLblW - 16;
+    const cellW      = Math.max(10, Math.floor((barAreaW - (MAX_SKILL_LEVEL - 1) * SK_BAR_GAP) / MAX_SKILL_LEVEL));
+    const trackW     = MAX_SKILL_LEVEL * cellW + (MAX_SKILL_LEVEL - 1) * SK_BAR_GAP;
+
+    for (const skillKey of ALL_SKILL_KEYS) {
+      const level     = levelBySkill[skillKey] ?? 0;
+      const potential = potentialBySkill[skillKey];
+      const color     = SKILL_COLORS[skillKey] ?? 0x4a9eff;
+      const owned     = level > 0;
+
+      // Row background (subtle on owned skills)
+      if (owned) {
+        this._content.addChild(
+          new Graphics()
+            .roundRect(SK_PAD, y, contentW, SK_ROW_H - 4, 4)
+            .fill({ color: Theme.colors.bgCard, alpha: 0.5 }),
+        );
+      }
+
+      const rowMidY = y + (SK_ROW_H - 4) / 2;
+
+      // Colored dot
+      this._content.addChild(
+        new Graphics()
+          .circle(SK_PAD + SK_DOT_R + 4, rowMidY, SK_DOT_R)
+          .fill({ color: owned ? color : Theme.colors.textMuted }),
+      );
+
+      // Skill name
+      const nameLbl = new Text({
+        text: SKILL_LABELS[skillKey] ?? skillKey,
+        style: {
+          fill: owned ? Theme.colors.textBright : Theme.colors.textDim,
+          fontFamily: font,
+          fontSize: 11,
+          fontWeight: owned ? '600' : '400',
+        },
+      });
+      nameLbl.anchor.set(0, 0.5);
+      nameLbl.position.set(SK_PAD + SK_DOT_R * 2 + 12, rowMidY);
+      this._content.addChild(nameLbl);
+
+      // 10-cell bar
+      const barTrackX = SK_PAD + SK_LABEL_W + 14;
+      const barTrackY = rowMidY - SK_BAR_CELL / 2;
+      const filled    = Math.max(0, Math.min(MAX_SKILL_LEVEL, level));
+      const track     = new Graphics();
+
+      for (let i = 0; i < MAX_SKILL_LEVEL; i++) {
+        const cx          = i * (cellW + SK_BAR_GAP);
+        const isFilled    = i < filled;
+        const isAttainable = !isFilled && owned && potential !== undefined && i < potential;
+        track
+          .roundRect(cx, 0, cellW, SK_BAR_CELL, 2)
+          .fill({ color: isFilled ? color : SK_EMPTY_CLR })
+          .stroke({
+            color: isFilled || isAttainable ? color : SK_EMPTY_BDR,
+            width: 1,
+            alpha: isFilled ? 1 : isAttainable ? 0.4 : 0.7,
+          });
+      }
+      track.position.set(barTrackX, barTrackY);
+      this._content.addChild(track);
+
+      // Lv / Pot label
+      const lvPotX = barTrackX + trackW + 10;
+      const lvPotLbl = new Text({
+        text: owned
+          ? `Lv.${level}  /  Pot.${potential ?? MAX_SKILL_LEVEL}`
+          : '—',
+        style: {
+          fill: owned ? color : Theme.colors.textMuted,
+          fontFamily: font,
+          fontSize: 10,
+          fontWeight: '600',
+        },
+      });
+      lvPotLbl.anchor.set(0, 0.5);
+      lvPotLbl.position.set(lvPotX, rowMidY);
+      this._content.addChild(lvPotLbl);
+
+      // SP/period
+      if (owned) {
+        const sp = SKILL_SP_TABLE[level] ?? 0;
+        const spLbl = new Text({
+          text: `${sp} SP/period`,
+          style: { fill: Theme.colors.textDim, fontFamily: font, fontSize: 9 },
+        });
+        spLbl.anchor.set(1, 0.5);
+        spLbl.position.set(SK_PAD + contentW, rowMidY);
+        this._content.addChild(spLbl);
+      }
+
+      y += SK_ROW_H;
+    }
+
+    y += 6;
+
+    // ── SKILL UPGRADE section ────────────────────────────────────────────────
+    const pending = emp.pendingSkillPoints ?? 0;
+    if (pending <= 0) return;
+
+    // Divider
+    this._content.addChild(
+      new Graphics()
+        .moveTo(SK_PAD, y)
+        .lineTo(SK_PAD + contentW, y)
+        .stroke({ color: Theme.colors.divider, width: 1 }),
+    );
+    y += 10;
+
+    const upgradeHdr = new Text({
+      text: `${pending} SKILL POINT${pending !== 1 ? 'S' : ''} AVAILABLE`,
+      style: { fill: Theme.colors.xp, fontFamily: font, fontSize: 10, fontWeight: '700' },
+    });
+    upgradeHdr.position.set(SK_PAD, y);
+    this._content.addChild(upgradeHdr);
+    y += 18;
+
+    const upgradable = emp.skills.filter((s) => s.level >= 1 && s.level < skillUpgradeCap(s));
+
+    if (upgradable.length === 0) {
+      const maxedLbl = new Text({
+        text: 'All skills are at their potential cap.',
+        style: { fill: Theme.colors.textDim, fontFamily: font, fontSize: 10 },
+      });
+      maxedLbl.position.set(SK_PAD, y);
+      this._content.addChild(maxedLbl);
+      return;
+    }
+
+    const btnCount = upgradable.length;
+    const BTN_W    = Math.floor((contentW - SK_BTN_GAP * (btnCount - 1)) / btnCount);
+
+    upgradable.forEach((sk, i) => {
+      const btnX   = SK_PAD + i * (BTN_W + SK_BTN_GAP);
+      const skClr  = SKILL_COLORS[sk.skill] ?? 0x4a9eff;
+
+      const btnBg = new Graphics()
+        .roundRect(0, 0, BTN_W, SK_BTN_H, 5)
+        .fill({ color: 0x0d0d22 })
+        .stroke({ color: skClr, width: 1.5, alpha: 0.8 });
+      btnBg.position.set(btnX, y);
+      btnBg.eventMode = 'static';
+      btnBg.cursor    = 'pointer';
+
+      const btnLbl = new Text({
+        text: `${SKILL_LABELS[sk.skill] ?? sk.skill}   Lv.${sk.level} → ${sk.level + 1}`,
+        style: { fill: skClr, fontFamily: font, fontSize: 11, fontWeight: '700' },
+      });
+      btnLbl.anchor.set(0.5, 0.5);
+      btnLbl.position.set(BTN_W / 2, SK_BTN_H / 2);
+      btnLbl.eventMode = 'none';
+      btnBg.addChild(btnLbl);
+
+      btnBg.on('pointerup',   () => {
+        if (this.game.sim.upgradeEmployeeSkill(emp, sk.skill)) this._draw(emp, this._company);
+      });
+      btnBg.on('pointerover', () => { btnBg.alpha = 0.75; });
+      btnBg.on('pointerout',  () => { btnBg.alpha = 1; });
+
+      this._content.addChild(btnBg);
+    });
   }
 
   // ── ARCHETYPES tab ───────────────────────────────────────────────────────────

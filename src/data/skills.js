@@ -58,6 +58,16 @@ export function getUnlockedSkills(unlockedResearch) {
   );
 }
 
+/**
+ * Returns the upgrade ceiling for a skill object.
+ * Uses the skill's stored `potential` if present, otherwise falls back to MAX_SKILL_LEVEL.
+ * @param {{ level: number, potential?: number }} skill
+ * @returns {number}
+ */
+export function skillUpgradeCap(skill) {
+  return skill.potential ?? MAX_SKILL_LEVEL;
+}
+
 /** Accent color per skill for progress bars and badges. */
 export const SKILL_COLORS = Object.freeze({
   [SKILLS.FRONTEND_DEVELOPMENT]: 0x4a9eff,

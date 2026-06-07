@@ -15,7 +15,7 @@ export function setNextId(n) { _nextId = n; }
 /**
  * @param {object} opts
  * @param {string} opts.name
- * @param {Array<{skill: string, level: number}>} opts.skills  - max two skills
+ * @param {Array<{skill: string, level: number, potential: number}>} opts.skills  - max two skills; potential is the per-skill upgrade ceiling (1–10)
  * @param {number} opts.salary  - daily salary cost
  * @param {number} [opts.characterIndex]  1-based index into characterN.png portraits.
  * @param {string} [opts.role]  - STAFF_ROLES value, defaults to 'programmer'.
@@ -32,14 +32,14 @@ export function createEmployee({ name, skills, salary, characterIndex = 1, role 
     name,
     characterIndex,
     role,
-    /** @type {Array<{skill: string, level: number}>} */
+    /** @type {Array<{skill: string, level: number, potential: number}>} */
     skills: clampedSkills,
     salary,
     /** Innate productivity multiplier [0.85, 1.05], rolled once on creation. */
     baseProductivity: BASE_PRODUCTIVITY_MIN + Math.random() * (BASE_PRODUCTIVITY_MAX - BASE_PRODUCTIVITY_MIN),
     /** Starting level = sum of all skill levels (programmers) or explicit value (non-programmers). */
     level: startingLevel ?? derivedLevel,
-    /** Accumulated EXP toward the next level (0 – EXP_PER_LEVEL-1). */
+    /** Accumulated EXP toward the next level (resets on level-up; threshold scales via xpRequiredForLevel). */
     exp: 0,
     /** Skill points earned via levelling up but not yet spent by the player. */
     pendingSkillPoints: 0,

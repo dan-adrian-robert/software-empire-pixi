@@ -90,8 +90,7 @@ export const GameConfig = Object.freeze({
     BASE_PRODUCTIVITY_MAX: 1.05,
 
     // Employee experience system.
-    EXP_PER_TICK:  10,   // EXP awarded per WORK period flush when the employee contributed
-    EXP_PER_LEVEL: 100,  // EXP required to advance one level (flat per level)
+    EXP_PER_TICK: 10,   // EXP awarded per WORK period flush when the employee contributed
 
     // Project milestone payout multipliers (applied to basePayout at completion).
     PROJECT_PAYOUT_MULTIPLIERS: Object.freeze({ ahead: 1.25, onTrack: 1.0, delayed: 0.75, critical: 0.5 }),
@@ -112,3 +111,15 @@ export const GameConfig = Object.freeze({
     STORAGE_PREFIX: 'software-empire:save:',
   }),
 });
+
+/**
+ * XP required to advance from the given level to the next.
+ * Uses an exponential curve starting at 100 XP for level 1,
+ * growing by 25% per level: xp = floor(100 × 1.25^(level-1))
+ *
+ * @param {number} level  Current employee level (1-based).
+ * @returns {number}
+ */
+export function xpRequiredForLevel(level) {
+  return Math.floor(100 * Math.pow(1.25, level - 1));
+}

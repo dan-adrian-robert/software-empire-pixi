@@ -55,7 +55,7 @@ Team Leads require the Team Management research node to hire. When a Team Lead j
 
 Project Managers require the Project Management research node. After every WORK period, each PM automatically reassigns one unassigned programmer to an eligible project — saving you from manually juggling every assignment.
 
-Skills & EXP — programmers earn EXP after any WORK period in which they produced SP. On level-up they receive one pending skill point. Visit the Staff panel and click on an employee to spend pending skill points, raising one of their existing skills by +1 (max level 10).
+Skills & EXP — programmers earn EXP after any WORK period in which they produced SP. Each level requires more EXP than the last (starting at 100, growing ~25% per level). On level-up they receive one pending skill point. Visit the Staff panel to spend pending skill points, raising one of their existing skills by +1. Each skill has a personal potential cap (1–10) set at hire — the skill bar shows filled cells for current level, outlined cells for the attainable range up to potential, and dim cells beyond it.
 
 Base Productivity — each employee has an innate productivity multiplier (roughly 0.85–1.05) set at hire. This is factored into their SP output.
 

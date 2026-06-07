@@ -62,10 +62,11 @@ export function generateCandidate({ allowedSkills, rng = Math.random } = {}) {
   const shuffled = [...pool].sort(() => rng() - 0.5);
   const numSkills = (shuffled.length > 1 && rng() < dualSkillChance) ? Math.min(2, maxSkills) : 1;
 
-  const skills = shuffled.slice(0, numSkills).map((skill) => ({
-    skill,
-    level: randomInt(1, maxSkillLevel, rng),
-  }));
+  const skills = shuffled.slice(0, numSkills).map((skill) => {
+    const level = randomInt(1, maxSkillLevel, rng);
+    const potential = Math.max(level, randomInt(1, 10, rng));
+    return { skill, level, potential };
+  });
 
   const salary = computeMedianSalary(skills);
 
@@ -152,7 +153,8 @@ export function generateTeamLeadCandidate({ rng = Math.random } = {}) {
  * @returns {{ name: string, skills: Array<{skill: string, level: number}>, salary: number, archetypes: object }}
  */
 export function generateStarterEmployee(frontendSkillId) {
-  const skills = [{ skill: frontendSkillId, level: 1 }];
+  const potential = Math.max(1, Math.floor(Math.random() * 10) + 1);
+  const skills = [{ skill: frontendSkillId, level: 1, potential }];
   return {
     name: employeeCatalog.starterEmployee.name,
     skills,
@@ -173,7 +175,9 @@ export function generateStarterEmployee(frontendSkillId) {
  */
 export function generateStarterCandidates(frontendSkillId, rng = Math.random) {
   return employeeCatalog.starterCandidates.map(({ name }) => {
-    const skills = [{ skill: frontendSkillId, level: randomInt(1, 3, rng) }];
+    const level = randomInt(1, 3, rng);
+    const potential = Math.max(level, randomInt(1, 10, rng));
+    const skills = [{ skill: frontendSkillId, level, potential }];
     return {
       name,
       skills,
