@@ -104,7 +104,7 @@ export class EmployeeStatsPopup extends Container {
     this.visible    = false;
     this._emp       = null;
     this._company   = null;
-    this._activeTab = 'ARCHETYPES';
+    this._activeTab = 'SKILLS';
 
     this._shell = new PopupShell({
       width: POPUP_W,
@@ -130,7 +130,7 @@ export class EmployeeStatsPopup extends Container {
   open(emp, company, _anchorX, _anchorY, screenW, screenH) {
     this._emp       = emp;
     this._company   = company;
-    this._activeTab = 'ARCHETYPES';
+    this._activeTab = 'SKILLS';
     this._shell.open(screenW, screenH);
     this._draw(emp, company);
     this.visible = true;
@@ -267,7 +267,7 @@ export class EmployeeStatsPopup extends Container {
 
     // Tabs widget (replaces manual tab text + click handlers)
     const tabs = new Tabs({
-      tabs: ['ARCHETYPES', 'SKILLS', 'COMMUNICATION', 'INTERACTIONS'],
+      tabs: ['SKILLS', 'ARCHETYPES', 'COMMUNICATION', 'INTERACTIONS'],
       active: this._activeTab,
       gap: 22,
       onChange: (tab) => {
@@ -369,36 +369,38 @@ export class EmployeeStatsPopup extends Container {
     }
 
     const { SKILL_SP_TABLE } = GameConfig.gameplay;
-    const levelBySkill    = Object.create(null);
-    const potentialBySkill = Object.create(null);
-    for (const sk of emp.skills) {
-      levelBySkill[sk.skill]    = sk.level;
-      potentialBySkill[sk.skill] = sk.potential;
+
+    const ownedSkills = (emp.skills ?? []).filter((s) => s.level >= 1);
+
+    if (ownedSkills.length === 0) {
+      const emptyT = new Text({
+        text: 'No skills acquired yet.',
+        style: { fill: Theme.colors.textDim, fontFamily: font, fontSize: 12 },
+      });
+      emptyT.anchor.set(0.5, 0.5);
+      emptyT.position.set(POPUP_W / 2, y + 60);
+      this._content.addChild(emptyT);
+      return;
     }
 
-    const ALL_SKILL_KEYS = Object.values(SKILLS);
-
     // Right-column widths
-    const rightLblW  = 80;  // "Lv. X / Pot. Y"
-    const spLblW     = 72;  // "12 SP/period"
-    const barAreaW   = contentW - SK_LABEL_W - 14 - rightLblW - spLblW - 16;
-    const cellW      = Math.max(10, Math.floor((barAreaW - (MAX_SKILL_LEVEL - 1) * SK_BAR_GAP) / MAX_SKILL_LEVEL));
-    const trackW     = MAX_SKILL_LEVEL * cellW + (MAX_SKILL_LEVEL - 1) * SK_BAR_GAP;
+    const rightLblW = 80;  // "Lv. X / Pot. Y"
+    const spLblW    = 72;  // "12 SP/period"
+    const barAreaW  = contentW - SK_LABEL_W - 14 - rightLblW - spLblW - 16;
 
-    for (const skillKey of ALL_SKILL_KEYS) {
-      const level     = levelBySkill[skillKey] ?? 0;
-      const potential = potentialBySkill[skillKey];
-      const color     = SKILL_COLORS[skillKey] ?? 0x4a9eff;
-      const owned     = level > 0;
+    for (const sk of ownedSkills) {
+      const { skill: skillKey, level, potential } = sk;
+      const color    = SKILL_COLORS[skillKey] ?? 0x4a9eff;
+      const barCells = skillUpgradeCap(sk);
+      const cellW    = Math.max(10, Math.floor((barAreaW - (MAX_SKILL_LEVEL - 1) * SK_BAR_GAP) / MAX_SKILL_LEVEL));
+      const trackW   = barCells * cellW + (barCells - 1) * SK_BAR_GAP;
 
-      // Row background (subtle on owned skills)
-      if (owned) {
-        this._content.addChild(
-          new Graphics()
-            .roundRect(SK_PAD, y, contentW, SK_ROW_H - 4, 4)
-            .fill({ color: Theme.colors.bgCard, alpha: 0.5 }),
-        );
-      }
+      // Row background
+      this._content.addChild(
+        new Graphics()
+          .roundRect(SK_PAD, y, contentW, SK_ROW_H - 4, 4)
+          .fill({ color: Theme.colors.bgCard, alpha: 0.5 }),
+      );
 
       const rowMidY = y + (SK_ROW_H - 4) / 2;
 
@@ -406,73 +408,53 @@ export class EmployeeStatsPopup extends Container {
       this._content.addChild(
         new Graphics()
           .circle(SK_PAD + SK_DOT_R + 4, rowMidY, SK_DOT_R)
-          .fill({ color: owned ? color : Theme.colors.textMuted }),
+          .fill({ color }),
       );
 
       // Skill name
       const nameLbl = new Text({
         text: SKILL_LABELS[skillKey] ?? skillKey,
-        style: {
-          fill: owned ? Theme.colors.textBright : Theme.colors.textDim,
-          fontFamily: font,
-          fontSize: 11,
-          fontWeight: owned ? '600' : '400',
-        },
+        style: { fill: Theme.colors.textBright, fontFamily: font, fontSize: 11, fontWeight: '600' },
       });
       nameLbl.anchor.set(0, 0.5);
       nameLbl.position.set(SK_PAD + SK_DOT_R * 2 + 12, rowMidY);
       this._content.addChild(nameLbl);
 
-      // 10-cell bar
+      // Potential-sized bar (filled = current level, outlined = attainable to cap)
       const barTrackX = SK_PAD + SK_LABEL_W + 14;
       const barTrackY = rowMidY - SK_BAR_CELL / 2;
-      const filled    = Math.max(0, Math.min(MAX_SKILL_LEVEL, level));
+      const filled    = Math.max(0, Math.min(barCells, level));
       const track     = new Graphics();
 
-      for (let i = 0; i < MAX_SKILL_LEVEL; i++) {
-        const cx          = i * (cellW + SK_BAR_GAP);
-        const isFilled    = i < filled;
-        const isAttainable = !isFilled && owned && potential !== undefined && i < potential;
+      for (let i = 0; i < barCells; i++) {
+        const cx       = i * (cellW + SK_BAR_GAP);
+        const isFilled = i < filled;
         track
           .roundRect(cx, 0, cellW, SK_BAR_CELL, 2)
           .fill({ color: isFilled ? color : SK_EMPTY_CLR })
-          .stroke({
-            color: isFilled || isAttainable ? color : SK_EMPTY_BDR,
-            width: 1,
-            alpha: isFilled ? 1 : isAttainable ? 0.4 : 0.7,
-          });
+          .stroke({ color, width: 1, alpha: isFilled ? 1 : 0.4 });
       }
       track.position.set(barTrackX, barTrackY);
       this._content.addChild(track);
 
       // Lv / Pot label
-      const lvPotX = barTrackX + trackW + 10;
       const lvPotLbl = new Text({
-        text: owned
-          ? `Lv.${level}  /  Pot.${potential ?? MAX_SKILL_LEVEL}`
-          : '—',
-        style: {
-          fill: owned ? color : Theme.colors.textMuted,
-          fontFamily: font,
-          fontSize: 10,
-          fontWeight: '600',
-        },
+        text: `Lv.${level}  /  Pot.${potential ?? MAX_SKILL_LEVEL}`,
+        style: { fill: color, fontFamily: font, fontSize: 10, fontWeight: '600' },
       });
       lvPotLbl.anchor.set(0, 0.5);
-      lvPotLbl.position.set(lvPotX, rowMidY);
+      lvPotLbl.position.set(barTrackX + trackW + 10, rowMidY);
       this._content.addChild(lvPotLbl);
 
       // SP/period
-      if (owned) {
-        const sp = SKILL_SP_TABLE[level] ?? 0;
-        const spLbl = new Text({
-          text: `${sp} SP/period`,
-          style: { fill: Theme.colors.textDim, fontFamily: font, fontSize: 9 },
-        });
-        spLbl.anchor.set(1, 0.5);
-        spLbl.position.set(SK_PAD + contentW, rowMidY);
-        this._content.addChild(spLbl);
-      }
+      const sp = SKILL_SP_TABLE[level] ?? 0;
+      const spLbl = new Text({
+        text: `${sp} SP/period`,
+        style: { fill: Theme.colors.textDim, fontFamily: font, fontSize: 9 },
+      });
+      spLbl.anchor.set(1, 0.5);
+      spLbl.position.set(SK_PAD + contentW, rowMidY);
+      this._content.addChild(spLbl);
 
       y += SK_ROW_H;
     }

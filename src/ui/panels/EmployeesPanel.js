@@ -438,10 +438,11 @@ export class EmployeesPanel extends Container {
 
   _makeSkillRow(skillKey, level, color, contentW, potential = undefined) {
     const row = new Container();
-    const numW = 14;
+    const numW     = 14;
     const barAreaW = Math.max(80, contentW - LABEL_W - LABEL_GAP - numW);
-    const cellW = Math.max(8, Math.floor((barAreaW - (MAX_SKILL_LEVEL - 1) * BAR_GAP) / MAX_SKILL_LEVEL));
-    const trackW = MAX_SKILL_LEVEL * cellW + (MAX_SKILL_LEVEL - 1) * BAR_GAP;
+    const barCells = (potential != null && potential > 0) ? potential : 1;
+    const cellW    = Math.max(8, Math.floor((barAreaW - (MAX_SKILL_LEVEL - 1) * BAR_GAP) / MAX_SKILL_LEVEL));
+    const trackW   = barCells * cellW + (barCells - 1) * BAR_GAP;
 
     const label = new Text({
       text: SKILL_LABELS_SHORT[skillKey] ?? skillKey,
@@ -458,13 +459,12 @@ export class EmployeesPanel extends Container {
 
     const track = new Graphics();
     const trackY = (SKILL_ROW_H - BAR_CELL) / 2;
-    const filled = Math.max(0, Math.min(MAX_SKILL_LEVEL, level));
+    const filled = Math.max(0, Math.min(barCells, level));
 
-    for (let i = 0; i < MAX_SKILL_LEVEL; i++) {
-      const cx = i * (cellW + BAR_GAP);
-      const isFilled = i < filled;
-      // Show potential range (attainable via skill points) only for owned skills.
-      const isAttainable = !isFilled && level > 0 && potential !== undefined && i < potential;
+    for (let i = 0; i < barCells; i++) {
+      const cx          = i * (cellW + BAR_GAP);
+      const isFilled    = i < filled;
+      const isAttainable = !isFilled && level > 0;
       track
         .roundRect(cx, 0, cellW, BAR_CELL, 2)
         .fill({ color: isFilled ? color : BAR_EMPTY_COLOR })
