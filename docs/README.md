@@ -26,7 +26,7 @@ npm run format    # Prettier format
 - Speed controls: **Pause / 1× / 2× / 4× / 8×**; "End Day" button fast-forwards to midnight.
 - The day **auto-pauses** at the start of each new day so you can plan before unpausing.
 - By default the work day runs from **9 AM to 9 PM** (a fixed 12-hour shift). Once the **Schedule** research node is unlocked (after Agile Workflow), a configurable work schedule editor becomes available to set the start hour (6 AM–4 PM) and shift length (8, 10, 12, or 14 hours).
-- Every employee follows a repeating 15-minute schedule cycle: **WORK → BREAK → WORK → TALK**. Skill points only accrue during WORK slots.
+- Every employee follows a repeating 15-minute schedule cycle: **WORK → BATHROOM_BREAK → WORK → TALK**. Skill points only accrue during WORK slots.
 - An in-game clock (snapped to :00 :15 :30 :45) shows the current time of day.
 
 ### Projects
@@ -53,10 +53,15 @@ npm run format    # Prettier format
 - A floating **+N pts** label animates above an employee when a WORK period ends and they contributed points.
 - Click any employee in the office to open their **stats popup**: skills, salary, productivity, current project. When a skill point is available, upgrade buttons appear in both the stats popup and the **Staff panel**.
 
+### Teams & Roles
+- Unlock **Team Management** to hire **Team Leads**. Each Team Lead automatically creates a team and provides an EXP bonus to members (Lv 1 lead → +5%, Lv 10 → +50%).
+- Unlock **Project Management** to hire **Project Managers**. PMs auto-assign unassigned programmers to active projects after each WORK flush, logged in the activity feed.
+- The **Teams panel** (available after Team Management is researched) shows each team's lead, members, and archetype compatibility.
+
 ### Hiring & Firing
-- The **Hiring panel** shows up to **4 candidates** per day; the pool refreshes each new day.
-- Hire a candidate to fill an empty desk; fire an existing employee from the Employees panel.
-- Desk slots are limited; buy additional desks for **$1,000** each via the in-world purchase tile.
+- The **Hiring panel** shows programmer candidates each day. The pool size starts at **3** and grows to **4** after researching HR Leads 1, and **5** after HR Leads 2. Researching HR Basics and HR Organised splits the panel into tabs for Programmers, Team Leads, and Project Managers.
+- Hire a candidate to occupy a desk; fire an existing employee from the Employees panel.
+- Desk slots are limited; add desks via **Build mode** for **$1,000** each (see Office below).
 
 ### Economy
 - Employee salaries are deducted at end-of-day. Salary is set at hire time based on the employee's skills: `dailySP × $100 × 40%` (median market rate from the PLOT.md balance table).
@@ -67,10 +72,17 @@ npm run format    # Prettier format
 - The HUD shows current cash, daily salary cost, R&D points, and day number.
 
 ### Research Tree
-- A directed acyclic graph of **25 research nodes** spanning skill unlocks and operational upgrades.
+- A directed acyclic graph of **15 research nodes** spanning skill unlocks, team management, HR upgrades, and operational improvements.
 - Four skill branches: **Frontend Development** (unlocked at game start) → **Backend Development** and **Mobile Development** → **DevOps**.
-- General upgrades branch through Agile Workflow, Better Workstations, Recruitment Department, and converge toward late-game nodes like AI Assisted Development, Global Offices, and Digital Monopoly.
-- The **Schedule** node (after Agile Workflow) unlocks the shift editor so you can change the default 9 AM–9 PM work day.
+- Additional branches and their mechanical effects:
+
+  | Branch | Nodes | Effect |
+  |---|---|---|
+  | Skills | frontend → backend / mobile → devops | Gates which skill types can be hired and assigned to projects |
+  | Teams | team_management, project_management | Unlocks Team Lead and PM hiring; Teams panel; PM auto-assignment after each WORK flush |
+  | HR | hr_basics → hr_organised → hr_leads_1 → hr_leads_2 | Splits hiring UI into tabs; grows candidate pool from 3 → 4 → 5 per day; unlocks Refresh Hire button |
+  | Ops | agile_workflow → project_refresh / work_schedule; hire_refresh (from hr_basics) | Paid pool-refresh buttons ($500 each); unlocks the work schedule editor |
+
 - Locked skills cannot be assigned to projects or hired for.
 
 ### Weather & Productivity
@@ -78,22 +90,54 @@ npm run format    # Prettier format
 - The weather modifier multiplies every employee's total productivity for the day.
 - Click the weather chip in the top bar to open a **weather popup** with the full modifier table.
 
-### Office View
-- Animated employee sprites at their desks; body color shifts between idle (grey) and typing (blue) states.
-- Schedule state icon above each employee: 💻 WORK · ☕ BREAK · 💬 TALK — replaced by ⚠ when no project is pinned.
-- Active desks glow when the employee is contributing to a project.
-- A buy-desk tile appears at the end of the desk row when all seats are occupied.
+### Office & Build Mode
+- The office floor is a tile grid. Employee desks are tile-placed objects, each occupying a 2×2 tile area.
+- Click the **Build** button (bottom-left of the office) to enter **Build mode**:
+  - Drag a **Desk** card from the right panel onto any free tile to place a new desk for **$1,000**.
+  - Drag an existing desk to move it; a trash button removes it (blocked when an employee is seated).
+  - Other furniture types can be placed as decorations.
+- Exit build mode to return to normal office operation.
+- Animated employee sprites sit at their desks; the monitor glows when the employee is actively contributing to a project.
+- Schedule state icon above each employee: 💻 WORK · 🚻 BATHROOM_BREAK · 💬 TALK — replaced by ⚠ when no project is pinned.
+
+### Save / Load
+- Up to **5 save slots** backed by `localStorage`. Each slot stores a full day-start checkpoint.
+- **Autosave** writes to the active slot at the start of every new day (paused, before the player unpauses).
+- **Manual save** is available at any time via the 💾 button at the bottom of the left sidebar.
+- **Load Game** on the main menu shows all occupied slots; click a row to load that checkpoint.
+- Checkpoints include: full company state, ID counters, version, save name, and timestamp. Time state is not saved — loading always starts at the beginning of the saved day, paused.
+- Save files are version-locked; files from a different game version are rejected on load.
+
+### Day Report
+- At the end of every day a **Day Summary** modal shows the day's net finances, project status, and a scrollable activity log.
+- The player clicks **Continue** to advance to the next day's planning phase.
+
+### Game Guide
+- The **Info** button in the left sidebar opens the in-game **Game Guide** — a split-pane reference covering every game mechanic with scrollable category entries.
 
 ### UI / HUD
-- **Top bar**: company name, cash, salary cost, R&D points, day counter, weather chip, in-game clock, speed controls, progress bar.
-- **Left sidebar**: navigation to Office / Projects / Staff / Hiring / Assignments / Research. The Schedule and Teams buttons appear after the corresponding research nodes are unlocked.
-- **Right widget bar**: Activity feed (last 20 notifications) and active project cards with quick-collect buttons.
+- **Top bar**: company name, cash, salary cost, R&D points, day counter, weather chip, in-game clock, speed controls, day progress bar.
+- **Left sidebar**: navigation to Projects / Staff / Hire / Assign / Research / Info. The **Teams** and **Schedule** buttons appear dynamically after the corresponding research nodes are unlocked. A **Save** button is pinned to the bottom.
+- **Right widget bar**: Activity feed (last 100 notifications) and active project cards with quick-collect buttons.
 - **Toast notifications**: transient banners for key events (project ready, hired, salary paid, warning, etc.).
 - **Schedule popup**: graphical shift editor — pick start hour and duration. Available after the Schedule research node is unlocked.
-- **Modal panels**: all management screens (Projects, Staff, Hiring, Assignments, Research) open in a scrollable modal overlay.
+- **Modal panels**: all management screens (Projects, Staff, Hiring, Assignments, Research, Game Guide) open in a scrollable modal overlay.
+
+### Audio
+- Sound effects are played via the browser's `HTMLAudioElement` API. The first user gesture unlocks audio.
+- Current clips: `ui_modal_open` and `ui_project_claim`. No background music.
 
 ### New Game
-- "New Game" from the main menu resets all state: company, employees, projects, research, and economy — no page reload required.
+- "New Game" from the main menu resets all state (company, employees, projects, research, economy), writes a day-1 checkpoint to slot 0, and enters the office — no page reload required.
+
+---
+
+## Known Limitations (v0.1.0)
+
+- **Bankruptcy** triggers a notification and critical toast but does not pause or end the game (no game-over screen yet).
+- **Office tier upgrades** are defined in data but have no in-game action or UI yet.
+- **Settings** button on the main menu is disabled.
+- The **Archetype** sub-tabs in employee popups (Personality Summary, Likes/Dislikes, effect bonuses) show placeholder `/TODO` content.
 
 ---
 
@@ -110,6 +154,8 @@ npm run format    # Prettier format
 | Scroll wheel inside modal | Scroll panel content |
 | Weather chip (top bar) | Toggle weather detail popup |
 | Schedule icon (sidebar) | Toggle schedule editor |
+| Build button | Enter / exit build mode |
+| 💾 button (sidebar bottom) | Open save slot dialog |
 
 ---
 
@@ -129,19 +175,22 @@ npm run format    # Prettier format
 
 ```
 src/
-  Game.js              — Pixi app + top-level wiring
+  Game.js              — Pixi app + top-level wiring + save/load coordination
   config.js            — All gameplay tunables (single source of truth)
   main.js              — DOM bootstrap
   assets/              — Asset manifest (Pixi bundles)
   data/                — Static seed data (skills, catalog JSONs, weather, research, names)
   economy/             — Balance helpers (salary/payout formulas, team output, difficulty)
-  entities/            — Pixi world objects (desk, employee, buy-desk)
-  managers/            — AssetManager, InputManager
+  entities/            — Pixi world objects (desk, employee, furniture)
+  managers/            — AssetManager, InputManager, SoundManager
   scenes/              — MainMenuScene, OfficeScene (BaseScene lifecycle)
-  state/               — Pure data factories (Company, Employee, Project, Office, Candidate)
+  state/               — Pure data factories (Company, Employee, Project, Office, Candidate,
+                         Team, FurnitureItem, relationships)
   systems/             — Simulation + subsystems (Time, Project, Economy, Hiring, Productivity,
-                         Notification, EmployeeGenerator, ProjectGenerator)
-  ui/                  — HUD widgets, popups, modals
-  ui/panels/           — Modal panel content (Projects, Staff, Hiring, Assignments, Research)
+                         Notification, EmployeeGenerator, ProjectGenerator, SaveManager,
+                         TeamSystem, PmAssignmentSystem, ScheduleSystem, CommunicationGenerator)
+  ui/                  — HUD widgets, popups, modals, BuildOverlay, BuildPanel
+  ui/panels/           — Modal panel content (Projects, Staff, Hiring, Assignments, Research,
+                         Teams, Info)
   utils/               — EventBus, math helpers
 ```

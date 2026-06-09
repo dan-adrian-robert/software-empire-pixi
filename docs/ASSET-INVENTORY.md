@@ -22,10 +22,10 @@ These are the clearest wins: they're emoji or procedural shapes that would read 
 | Asset | Used in | Variants needed |
 |---|---|---|
 | **Office floor tile** | `OfficeScene._drawFloor` / `_drawGrid` | Floor fill + optional grid overlay (64×64 tile; manifest already has a commented `office-tileset`) |
-| **Desk (occupied)** | `DeskEntity` | Desk body + monitor |
+| **Desk (occupied)** | `DeskEntity` | Desk body + monitor (128×128 px) |
 | **Desk (empty)** | `DeskEntity` | Empty desk (no monitor) |
-| **Monitor glow** | `DeskEntity._drawScreenGlow` | Active-work glow overlay (hook exists; `setActive` is still a stub) |
-| **Buy-desk tile** | `BuyDeskEntity` | Can afford / hover / can't afford (+ optional "+" icon instead of text) |
+| **Monitor glow** | `DeskEntity._drawScreenGlow` | Active-work glow overlay — **implemented**: `setActive(true)` draws a blue tinted rect over the monitor when the employee is producing SP |
+| **Build mode placement ghost** | `BuildOverlay` | Tile highlight shown while dragging a desk/furniture card from `BuildPanel` |
 
 ### Schedule & status icons (emoji in 4+ files)
 
@@ -34,7 +34,7 @@ Used in `EmployeeEntity`, `EmployeesPanel`, `HiringPanel`, `EmployeeStatsPopup`:
 | Icon | Current emoji | Suggested sprite ID |
 |---|---|---|
 | Working | 💻 | `icon-schedule-work` |
-| Break | ☕ | `icon-schedule-break` |
+| Bathroom break | 🚻 | `icon-schedule-break` |
 | Talk | 💬 | `icon-schedule-talk` |
 | Unassigned warning | ⚠️ | `icon-warning` |
 
@@ -42,18 +42,19 @@ Used in `EmployeeEntity`, `EmployeesPanel`, `HiringPanel`, `EmployeeStatsPopup`:
 
 From `LeftSidebar.js`:
 
-| Nav item | Emoji |
-|---|---|
-| Office | 🏢 |
-| Projects | 📋 |
-| Staff | 👥 |
-| Hire | ➕ |
-| Assign | 📌 |
-| Research | 🔬 |
-| Schedule | 🕐 |
-| Save | 💾 |
+| Nav item | Emoji | Notes |
+|---|---|---|
+| Projects | 📋 | Always shown |
+| Staff | 👥 | Always shown |
+| Hire | ➕ | Always shown |
+| Assign | 📌 | Always shown |
+| Research | 🔬 | Always shown |
+| Info | ℹ️ | Always shown (bottom-pinned) |
+| Teams | 👥 | Added dynamically after `team_management` is researched |
+| Schedule | 🕐 | Added dynamically after `work_schedule` is researched |
+| Save | 💾 | Always shown (bottom-pinned) |
 
-**8 nav icons** (+ optional active/hover variants).
+**9 nav icons** (+ optional active/hover variants). Note: there is no "Office" nav button — the office world is always visible behind modals.
 
 ### Weather icons (5 states)
 
@@ -67,13 +68,13 @@ Used in `TopBarHUD` and `WeatherPopup`:
 | Sunny | 🌤 |
 | Perfect | ☀ |
 
-### Research tree icons (26 nodes)
+### Research tree icons (15 nodes)
 
-Each node in `researchNodes.js` has an `icon` emoji. These are the biggest single icon set:
+Each node in `researchNodes.js` has an `icon` emoji. The full set:
 
-🖥️ 🔧 📱 🛠️ 🔄 🧑‍💼 💻 🎨 ⚙️ 🧪 📚 📢 ☁️ 🏛️ 🔒 🚀 🤖 🌍 🏗️ 🌐 ⚛️ 🧠 🏢 👑
+🖥️ 🔧 📱 🛠️ 🧑‍🤝‍🧑 📋 👥 🗂️ 📈 📊 🔄 🔃 🔃 🕐
 
-Some overlap with nav/schedule icons (💻, 🏢, ☁), so a shared **UI icon atlas** can cover many of these.
+Some overlap with nav/schedule icons (🕐, 👥), so a shared **UI icon atlas** can cover many of these.
 
 ### Small UI symbols (emoji/unicode text)
 
@@ -82,7 +83,7 @@ Some overlap with nav/schedule icons (💻, 🏢, ☁), so a shared **UI icon at
 | ✕ | Modal close | `icon-close` |
 | ✓ | Research unlocked | `icon-check` |
 | → | Schedule timeline arrows | `icon-arrow-right` |
-| + | Buy desk | `icon-plus` |
+| + | Build panel desk card | `icon-plus` |
 | ▶ / ⏸ / ⏭ | Start Day, pause, End Day | `icon-play`, `icon-pause`, `icon-skip` |
 | ⚗ | R&D points in top bar | `icon-rd` |
 
@@ -107,7 +108,7 @@ From `src/assets/manifest.js` (commented placeholders):
 
 These are **Pixi `Graphics` UI chrome**. They *can* become 9-slice sprites, but they're lower priority than world objects and icons:
 
-- Modal window frame (`Modal.js`)
+- Modal window frame (`ModalHost` / `PanelShell`)
 - Panel card backgrounds (`ProjectsPanel`, `EmployeesPanel`, `HiringPanel`, etc.)
 - Top bar / sidebars / toast backgrounds
 - Skill progress bar cells (colored rects in multiple panels)
@@ -126,17 +127,17 @@ If you want a practical production list:
 | Category | Count | Notes |
 |---|---|---|
 | Character portraits | 5 (have 5 files; wire #5) | Already sprites |
-| Desk sprites | 2–4 | empty, occupied, optional glow, buy-desk |
+| Desk sprites | 2–3 | empty, occupied, optional art for the active glow (currently a procedural blue overlay) |
 | Floor tileset | 1 sheet | e.g. 64×64 tiles |
 | Schedule/status icons | 4 | work, break, talk, warning |
 | Nav icons | 8 | sidebar + save |
 | Weather icons | 5 | |
-| Research icons | ~20–26 | fewer if you reuse shared icons |
+| Research icons | ~15 | fewer if you reuse shared icons |
 | UI chrome icons | ~6 | close, check, arrow, plus, play/pause/skip, rd |
 | Boot/menu art | 2 | logo + menu background |
 | Character animation sheet | 1+ | optional; idle/typing not visual yet |
 
-**Rough total for a cohesive art pass: ~45–55 distinct sprites**, or fewer if you pack them into 2–3 atlases (UI icons, office environment, characters).
+**Rough total for a cohesive art pass: ~40–50 distinct sprites**, or fewer if you pack them into 2–3 atlases (UI icons, office environment, characters).
 
 ---
 

@@ -13,6 +13,7 @@ flowchart TD
   Game --> EventBus
   Game --> AssetManager
   Game --> InputManager
+  Game --> SoundManager
   Game --> SceneManager
   Game --> Simulation
 
@@ -22,6 +23,9 @@ flowchart TD
   Simulation --> HiringSystem
   Simulation --> ProductivitySystem
   Simulation --> NotificationSystem
+  Simulation --> TeamSystem
+  Simulation --> PmAssignmentSystem
+  Simulation --> ScheduleSystem
   Simulation --> Company["Company\n(mutable state root)"]
 
   SceneManager --> MainMenuScene
@@ -30,13 +34,17 @@ flowchart TD
   OfficeScene --> TopBarHUD
   OfficeScene --> LeftSidebar
   OfficeScene --> RightWidgetBar
-  OfficeScene --> Modal
+  OfficeScene --> BuildPanel
+  OfficeScene --> ModalHost
   OfficeScene --> EmployeeStatsPopup
   OfficeScene --> SchedulePopup
   OfficeScene --> WeatherPopup
+  OfficeScene --> SaveSlotPopup
+  OfficeScene --> DayReportPopup
   OfficeScene --> EmployeeEntity
   OfficeScene --> DeskEntity
-  OfficeScene --> BuyDeskEntity
+  OfficeScene --> FurnitureEntity
+  OfficeScene --> BuildOverlay
 ```
 
 All objects share the single `game` instance. `EventBus` (`game.events`) is the only cross-cutting communication channel; nothing imports another module's instance directly except via `game`.
@@ -85,7 +93,7 @@ sequenceDiagram
 || `simulation:reset` | `Simulation.reset` | `{ company }` | `OfficeScene` |
 || `day:tick` | `TimeSystem.update` | `{ progress, company }` | — |
 || `day:ended` | `TimeSystem._endDay` | `{ day, company }` | `Simulation` (end-of-day chain) |
-|| `day:began` | `TimeSystem.beginNextDay` | `{ day, company }` | `OfficeScene` |
+|| `day:began` | `TimeSystem.beginNextDay` | `{ day, company }` | `OfficeScene`, `Game` (autosave) |
 || `notification:add` | Multiple (see below) | `{ text, type }` | `NotificationSystem`, `OfficeScene` |
 || `project:accepted` | `Simulation.acceptProject` | `{ project, company }` | `OfficeScene` |
 || `project:rejected` | `Simulation.rejectProject` | `{ project, company }` | — |
@@ -93,9 +101,13 @@ sequenceDiagram
 || `project:failed` | `Simulation._checkProjectDeadlines` | `{ project, company }` | `OfficeScene` |
 || `employee:hired` | `HiringSystem.hire` | `{ employee, company }` | `OfficeScene` |
 || `employee:fired` | `HiringSystem.fire` | `{ employee, company }` | `OfficeScene` |
-|| `desk:bought` | `Simulation.buyDesk` | `{ company }` | `OfficeScene` |
+|| `employee:levelup` | `ProjectSystem.flushWorkPeriod` | `{ employee, company }` | `OfficeScene` |
+|| `desk:placed` | `Simulation.placeDeskAtTile` | `{ company }` | `OfficeScene` |
+|| `desk:removed` | `Simulation.removeDeskAtTile` | `{ company }` | `OfficeScene` |
 || `research:unlocked` | `Simulation.unlockResearch` | `{ nodeId, company }` | `OfficeScene` |
-|| `economy:bankrupt` | `EconomySystem.runEndOfDay` | `{ company }` | — *(currently unhandled)* |
+|| `hiring:pool_refreshed` | `Simulation.unlockResearch` (qualifying nodes) | `{ company }` | `OfficeScene` |
+|| `day:report` | `Simulation._wireDayCycle` | `{ snapshot }` | `OfficeScene` → `DayReportPopup` |
+|| `economy:bankrupt` | `EconomySystem.runEndOfDay` | `{ company }` | — *(no game-over listener; notification + toast only)* |
 
 `notification:add` is emitted by: `Simulation` (project actions, desk, research), `EconomySystem` (salary, low funds, bankruptcy), `HiringSystem` (hire/fire), `ProjectSystem` (project ready), `NotificationSystem` (ring buffer), and `HiringPanel` (hire failure).
 
@@ -138,11 +150,14 @@ All mutable game state lives in plain JavaScript objects under `src/state/`. No 
 
 ```
 src/state/
-  Company.js    — Root aggregate; owns all arrays below
-  Employee.js   — Per-employee skills, pins, buffers, scheduleState
-  Project.js    — Per-requirement progress, lifecycle flags (includes difficulty)
-  Office.js     — Desk count, tier index
-  Candidate.js  — Hire pool entry
+  Company.js      — Root aggregate; owns all arrays below
+  Employee.js     — Per-employee skills, pins, buffers, scheduleState
+  Project.js      — Per-requirement progress, lifecycle flags (includes difficulty)
+  Office.js       — Desk count, tier index, deskTiles array
+  Candidate.js    — Hire pool entry
+  Team.js         — Team (lead + member IDs)
+  FurnitureItem.js — Placed furniture on the tile grid
+  relationships.js — Pairwise friendship helpers and TALK interaction logic
 ```
 
 ### Company Object (top-level fields)
@@ -158,14 +173,18 @@ src/state/
 || `activeProjects` | Project[] | Accepted, in-progress |
 || `availableProjects` | Project[] | Offered this day |
 || `completedProjects` | Project[] | Collected history |
-|| `candidates` | Candidate[] | Hiring pool (refreshed daily) |
-|| `pendingPayout` | number | Revenue banked mid-day |
+|| `candidates` | Candidate[] | Programmer hire pool (refreshed daily) |
+|| `otherCandidates` | Candidate[] | Team Lead + PM hire pool (refreshed daily) |
+|| `pendingPayout` | number | Legacy field; `finishProject` pays directly; flushed by `EconomySystem` as safety net |
 || `rdPoints` | number | Research currency |
 || `rdPointsPerDay` | number | Daily R&D accrual rate |
 || `unlockedResearch` | string[] | Unlocked node IDs |
 || `schedule` | `{startHour, workHours}` | Work shift config |
 || `stats` | `{totalRevenue, totalSalariesPaid, projectsCompleted}` | Cumulative stats |
 || `currentWeather` | WeatherType \| null | Today's weather roll |
+|| `teams` | Team[] | Active teams (one per hired Team Lead) |
+|| `furniture` | FurnitureItem[] | Placed furniture on the office floor |
+|| `relationships` | `{[key]: {friendship}}` | Pairwise employee friendship scores (updated on TALK) |
 
 ---
 
@@ -195,12 +214,12 @@ The office world is a flat Pixi `Container` (`_world`) with no camera or transfo
 _world
   ├── _floor (Graphics — solid background rect)
   ├── _grid  (Graphics — dot grid lines)
-  ├── DeskEntity × N    (desk + monitor graphics)
-  ├── EmployeeEntity × N (sprite + name label + schedule icon)
-  └── BuyDeskEntity      (purchase tile, shown only when all desks are full)
+  ├── DeskEntity × N      (128×128 px desk + monitor, tile-placed)
+  ├── FurnitureEntity × N (decorative furniture, tile-placed via build mode)
+  └── EmployeeEntity × N  (sprite + name label + schedule icon)
 ```
 
-`OfficeScene._rebuildOffice()` tears down and recreates all entities whenever the employee roster or desk count changes. Entity positions are recomputed from a column/row formula.
+`OfficeScene._rebuildOffice()` tears down and recreates all entities whenever the employee roster or desk count changes (`desk:placed`, `desk:removed`, `employee:hired`, `employee:fired`). Entity positions are derived from `company.office.deskTiles` coordinates.
 
 Each frame, `OfficeScene.update()` pushes state into each `EmployeeEntity`:
 - `setState('idle' | 'typing')` — visual body color
@@ -215,18 +234,19 @@ The stage is built as five stacked Pixi containers, from bottom to top:
 
 ```
 root
-  ├── _world          ← office floor, desks, employees
-  ├── _popupLayer     ← EmployeeStatsPopup, SchedulePopup, WeatherPopup
-  ├── _modalLayer     ← Modal (Projects / Staff / Hiring / Assignments / Research)
-  ├── _hudLayer       ← TopBarHUD, LeftSidebar, RightWidgetBar
+  ├── _world          ← office floor, desks, employees, furniture
+  ├── _buildOverlay   ← BuildOverlay (tile highlight + drag ghost, build mode only)
+  ├── _popupLayer     ← EmployeeStatsPopup, SchedulePopup, WeatherPopup, SaveSlotPopup, DayReportPopup
+  ├── _modalLayer     ← ModalHost (Projects / Staff / Hiring / Assignments / Research / Game Guide / Teams)
+  ├── _hudLayer       ← TopBarHUD, LeftSidebar, RightWidgetBar / BuildPanel
   └── _toastLayer     ← Toast notifications
 ```
 
-HUD and toasts always render above modals; modals always render above world-space popups.
+HUD and toasts always render above modals; modals always render above world-space popups. `BuildPanel` replaces `RightWidgetBar` in the HUD layer while build mode is active.
 
 ### Modal / Panel Contract
 
-Modal panels (loaded into `Modal.js`) must implement:
+Modal panels (hosted by `ModalHost`) must implement:
 
 | Method | When called |
 |---|---|
@@ -252,7 +272,7 @@ Static, read-only seed data lives in `src/data/`. None of these files have side 
 || `projectCatalog.json` | Project flavor data (name, description, tier, required skills) — all numeric values generated at runtime |
 || `economyBalance.json` | Economy constants from PLOT.md: SP value ($100/SP), salary ratio (40%), difficulty multipliers, tier config |
 || `employeeCatalog.json` | Names for the starter employee and starter candidate pool |
-|| `researchNodes.js` | 24 research nodes with costs, icons, dependencies |
+|| `researchNodes.js` | 15 research nodes with costs, icons, dependencies |
 || `weatherTypes.js` | 5 weather states with productivity modifiers |
 || `officeTiers.js` | Office tier definitions (tier 1–5) |
 || `namePool.js` | First/last name lists for procedural candidate generation |
@@ -279,10 +299,10 @@ Balance helpers and generators live outside `src/data/`:
 || `SPEED_PRESETS` | `[0,1,2,4,8]` | Valid game speed multipliers |
 || `DEFAULT_SPEED` | 0 | Speed on scene entry (paused) |
 || `AVAILABLE_PROJECT_POOL_SIZE` | 5 | Max offered projects per day |
-|| `CANDIDATE_POOL_SIZE` | 4 | Hiring candidates shown per day |
+|| `CANDIDATE_POOL_SIZE` | 4 | Legacy constant; actual pool size comes from `getCandidatePoolSize()` in `hiringResearch.js` (3 / 4 / 5 based on HR research) |
 || `MONEY_WARNING_THRESHOLD` | 5000 | Low-funds notification threshold |
 || `BANKRUPTCY_THRESHOLD` | 0 | Bankruptcy trigger value |
-|| `ACTIVITY_LOG_MAX` | 20 | Notification ring buffer capacity |
+|| `ACTIVITY_LOG_MAX` | 100 | Notification ring buffer capacity |
 || `BASE_PRODUCTIVITY_MIN` | 0.85 | Min innate productivity trait |
 || `BASE_PRODUCTIVITY_MAX` | 1.05 | Max innate productivity trait |
 

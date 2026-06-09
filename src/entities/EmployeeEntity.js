@@ -9,7 +9,7 @@
  * Call `setOnClick(cb)` to make the entity interactive.
  */
 import { Entity } from './Entity.js';
-import { Rectangle, Sprite, Text } from 'pixi.js';
+import { Container, Rectangle, Sprite, Text } from 'pixi.js';
 import { getCharacterTopHalf } from '../utils/characterSprite.js';
 import { SCHEDULE_ICONS } from '../data/scheduleActivities.js';
 
@@ -24,6 +24,9 @@ const PERSON_W = 64;
 const NAME_OFFSET_Y = 92;
 
 const WARNING_ICON = '⚠️';
+const ICON_FONT_SIZE = 18;
+// Gap in pixels between adjacent head icons.
+const ICON_GAP = 4;
 
 
 export class EmployeeEntity extends Entity {
@@ -51,16 +54,18 @@ export class EmployeeEntity extends Entity {
     // Align sprite bottom with the desk line (~60px from entity origin)
     this._sprite.position.set(PERSON_W / 2, 60);
 
-    // Schedule state icon — shown above the sprite's top
-    this._stateIcon = new Text({
-      text: SCHEDULE_ICONS.WORK,
-      style: {
-        fontFamily: 'Inter, system-ui, sans-serif',
-        fontSize: 21,
-      },
-    });
-    this._stateIcon.anchor.set(0.5, 1);
-    this._stateIcon.position.set(PERSON_W / 2, 60 - spriteDisplayH - 2);
+    // Icon bar — horizontally centered row of status icons above the sprite's top.
+    // Icons are laid out in a fixed slot order; each slot is a Text node that can
+    // be hidden when it does not apply.  Slots (left → right): noProject, schedule.
+    const iconStyle = { fontFamily: 'Inter, system-ui, sans-serif', fontSize: ICON_FONT_SIZE };
+    this._iconNoProject = new Text({ text: WARNING_ICON, style: iconStyle });
+    this._iconSchedule  = new Text({ text: SCHEDULE_ICONS.WORK, style: iconStyle });
+    this._headIconBar = new Container();
+    this._headIconBar.addChild(this._iconNoProject);
+    this._headIconBar.addChild(this._iconSchedule);
+    // Baseline Y: same position the old single icon used.
+    this._headIconBarY = 60 - spriteDisplayH - 2;
+    this._headIconBar.position.set(0, this._headIconBarY);
 
     // Name label — centered below the desk
     this._nameLabel = new Text({
@@ -78,11 +83,14 @@ export class EmployeeEntity extends Entity {
     this._pointsLabel = null;
 
     this.view.addChild(this._sprite);
-    this.view.addChild(this._stateIcon);
+    this.view.addChild(this._headIconBar);
     this.view.addChild(this._nameLabel);
 
     // Expand hit area to make the character easier to click.
     this.view.hitArea = new Rectangle(-16, -16, PERSON_W + 32, spriteDisplayH + 32);
+
+    // Initial icon layout.
+    this._refreshHeadIcons();
   }
 
   // -------------------------------------------------------------------------
@@ -121,27 +129,56 @@ export class EmployeeEntity extends Entity {
 
   /** @param {'WORK'|'BATHROOM_BREAK'|'TALK'} state */
   setScheduleState(state) {
+    if (this._scheduleState === state) return;
     this._scheduleState = state;
-    this._updateStateIcon();
+    this._refreshHeadIcons();
   }
 
   /**
-   * When false, a warning sign is shown above the employee's head
-   * instead of the normal schedule icon.
+   * When false, a warning icon is shown above the employee's head alongside
+   * the schedule icon.  When true only the schedule icon is shown.
    * @param {boolean} hasProject
    */
   setHasProject(hasProject) {
     if (this._hasProject === hasProject) return;
     this._hasProject = hasProject;
-    this._updateStateIcon();
+    this._refreshHeadIcons();
   }
 
-  _updateStateIcon() {
-    const icon = this._hasProject
-      ? (SCHEDULE_ICONS[this._scheduleState] ?? '')
-      : WARNING_ICON;
-    if (this._stateIcon.text === icon) return;
-    this._stateIcon.text = icon;
+  /**
+   * Recomputes the head icon bar.
+   *
+   * Active slots (left → right):
+   *   1. noProject  – visible when !_hasProject
+   *   2. schedule   – always visible
+   *
+   * Icons are horizontally centered over the sprite using PERSON_W as the
+   * reference width.  Adding future slots only requires extending this method.
+   */
+  _refreshHeadIcons() {
+    const scheduleEmoji = SCHEDULE_ICONS[this._scheduleState] ?? '';
+
+    this._iconNoProject.text    = WARNING_ICON;
+    this._iconNoProject.visible = !this._hasProject;
+    this._iconSchedule.text     = scheduleEmoji;
+    this._iconSchedule.visible  = true;
+
+    // Collect visible icons in slot order.
+    const visible = [this._iconNoProject, this._iconSchedule].filter((t) => t.visible);
+
+    if (visible.length === 0) return;
+
+    // Measure each icon's rendered width (Pixi updates this synchronously).
+    const widths = visible.map((t) => t.width);
+    const totalW = widths.reduce((s, w) => s + w, 0) + ICON_GAP * (visible.length - 1);
+
+    // Lay out left-to-right, centering the row on PERSON_W / 2.
+    let x = PERSON_W / 2 - totalW / 2;
+    visible.forEach((icon, i) => {
+      icon.anchor.set(0, 1);
+      icon.position.set(x, 0);
+      x += widths[i] + ICON_GAP;
+    });
   }
 
   /**

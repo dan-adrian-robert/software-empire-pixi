@@ -50,14 +50,13 @@ This document is intended for developers working on the codebase. For player-fac
 - Day-based simulation with configurable time controls.
 - Project-based revenue model with manual employee assignment.
 - Research tree that gates skill availability and upgrades.
-- Persistent within a browser session; "New Game" provides a full in-memory reset.
+- Persistent save/load: up to 5 `localStorage` slots, autosaved at each `day:began`.
 
 ### Non-Goals (out of scope for v0.1)
 
-- Persistent save/load (localStorage or server-side).
 - Multiplayer.
 - Office tier upgrade mechanics (data exists; upgrade action not yet implemented).
-- Sound and music.
+- Background music (minimal SFX implemented via `SoundManager`).
 - Animations beyond floating labels and idle/typing body-color swap.
 - Mobile / touch input.
 - Any backend or network calls.
@@ -281,7 +280,7 @@ Pure balance helpers used by both generators. No side effects, no game state.
 
 #### `src/systems/HiringSystem.js` — `HiringSystem`
 
-**`refreshCandidates(company)`** — Generates a new `CANDIDATE_POOL_SIZE`-sized pool of candidates via `EmployeeGenerator.generateCandidate()`, filtered to the company's current `unlockedResearch`.
+**`refreshCandidates(company)`** — Generates a new candidate pool via `EmployeeGenerator.generateCandidate()`, filtered to the company's current `unlockedResearch`. Pool size is derived from `getCandidatePoolSize(unlockedResearch)` in `src/data/hiringResearch.js`: 3 by default, 4 after `hr_leads_1`, 5 after `hr_leads_2`. (`CANDIDATE_POOL_SIZE` in `config.js` is a legacy constant not used by this path.)
 
 **`hire(company, candidate)`** — Moves candidate to `company.employees`; fails if no free desk. Emits `employee:hired`.
 
@@ -309,13 +308,67 @@ Manages scene transitions. All scenes are registered by class at startup; `chang
 
 ---
 
+#### `src/systems/SaveManager.js` — save/load helpers
+
+Manages up to `SLOT_COUNT` (5) save slots backed by `localStorage`. Keys: `software-empire:save:0` … `:4`.
+
+| Export | Purpose |
+|---|---|
+| `saveSlot(index, sim, saveName?)` | Serialises `company` + `nextIds` counters + version + timestamp to `localStorage` |
+| `loadSlot(index)` | Parses and validates a slot; returns payload or `null` if missing/corrupt/wrong version |
+| `getSlotMeta(index)` | Returns lightweight metadata (`occupied`, `companyName`, `day`, `money`, `savedAt`) without full deserialisation |
+| `deleteSlot(index)` | Removes a slot from `localStorage` |
+
+Validation (`_validate`) rejects payloads whose `version` does not match `GameConfig.meta.version`, providing a hard version gate. `Game.saveGame()` wraps `saveSlot` and is called automatically on every `day:began` (autosave) and on demand from the save UI.
+
+---
+
+#### `src/managers/SoundManager.js` — `SoundManager`
+
+Plays short SFX clips via `HTMLAudioElement`. Keeps audio out of the Pixi asset pipeline.
+
+- `init()` — preloads all clips declared in `src/assets/sounds.js`.
+- `unlock()` — called on first `pointerdown` to satisfy browser autoplay policy.
+- `play(id)` — clones the element and plays; silently swallowed if audio is disabled or autoplay is blocked.
+- `bindEvents(bus)` — subscribes to EventBus events that should trigger sounds.
+
+Current clips: `ui_modal_open`, `ui_project_claim`.
+
+---
+
+#### `src/systems/TeamSystem.js` — `TeamSystem`
+
+Manages `company.teams` (created and dissolved alongside Team Lead hires/fires).
+
+- `createTeamForLead(company, lead)` — creates a new `Team` and appends it.
+- `dissolveTeam(company, leadId)` — removes the team and clears member IDs.
+- `getTeamForEmployee(company, employeeId)` — returns the team an employee belongs to as lead or member, or `null`.
+- EXP multiplier: `1 + teamLead.level × 0.05` (Lv 1 → +5%, Lv 10 → +50%).
+
+---
+
+#### `src/systems/PmAssignmentSystem.js` — `PmAssignmentSystem`
+
+Runs after each WORK flush. For each hired Project Manager, greedily assigns unassigned programmers to active projects that still have open skill requirements. Manual `pinnedProjectId` assignments are never overridden. Logs each assignment (or idle state) to the notification bus, respecting the PM's `logsMuted` flag.
+
+---
+
+#### `src/systems/CommunicationGenerator.js` — `CommunicationGenerator`
+
+Generates a communication profile for each candidate at hire time. Each profile contains per-topic scores (0–100) drawn from the archetype data in `src/data/archetypes.js`. These scores drive friendship deltas during TALK periods via `applyTalkInteraction` in `src/state/relationships.js`.
+
+---
+
 ### 4.4 Scenes
 
 Both scenes extend `BaseScene` which provides `game`, `root` (stage container), and `listen(event, handler)` (auto-unsubscribing EventBus wrapper).
 
 #### `src/scenes/MainMenuScene.js` — `MainMenuScene`
 
-Static title screen. "New Game" calls `game.sim.reset()` then `game.scenes.changeTo('office')`. "Continue" and "Settings" are stubs.
+Title screen with two internal views:
+
+- **Title view** — "New Game" (calls `game.startNewGame()`), "Load Game" (switches to load view; disabled when no saves exist), "Settings" (disabled).
+- **Load view** — shows up to 5 save-slot rows (day, cash, timestamp). Clicking an occupied row calls `game.loadFromSlot(index)`.
 
 #### `src/scenes/OfficeScene.js` — `OfficeScene`
 
@@ -344,9 +397,9 @@ Base class wrapping a Pixi `Container` with an auto-incremented `id` and a place
 
 #### `src/entities/DeskEntity.js` — `DeskEntity`
 
-Renders a desk + monitor. `setOccupied(bool)` switches appearance. `setActive(bool)` is defined but currently empty (glow effect pending).
+Renders a desk + monitor occupying a 2×2 tile footprint (128×128 px). `setOccupied(bool)` switches between occupied (desk + monitor) and empty (dimmed outline) appearance. `setActive(bool)` draws a blue monitor glow overlay when the seated employee is actively producing SP (`_drawScreenGlow`).
 
-Exports: `DeskEntity`, `DESK_W = 120`, `DESK_H = 100`.
+Exports: `DeskEntity`, `DESK_W = 128`, `DESK_H = 128`.
 
 #### `src/entities/EmployeeEntity.js` — `EmployeeEntity`
 
@@ -356,15 +409,23 @@ Renders a stylised employee figure. Public API:
 |---|---|
 | `setState('idle'\|'typing')` | Body color: grey vs blue |
 | `setHasProject(bool)` | `false` → ⚠ icon; `true` → schedule icon |
-| `setScheduleState('WORK'\|'BATHROOM_BREAK'\|'TALK')` | Updates 💻/🚻/💬 icon (when assigned) |
+| `setScheduleState('WORK'\|'BATHROOM_BREAK'\|'TALK')` | Updates 💻/🚻/💬 icon (WORK / BATHROOM_BREAK / TALK, when assigned) |
 | `setSelected(bool)` | Name label highlight |
 | `setOnClick(cb)` | Registers pointer handlers |
 | `showPoints(n)` | Spawns floating "+N pts" label |
 | `update(dt)` | Animates and fades the points label |
 
-#### `src/entities/BuyDeskEntity.js` — `BuyDeskEntity`
+#### Build mode & desk placement
 
-Interactive tile shown at the end of the desk row when all desks are occupied. Calls its callback → `Simulation.buyDesk()` on click when affordable. Exposes `_canAfford` (read by `OfficeScene._refreshBuyDesk` to decide whether to rebuild).
+Desks are tile-placed objects managed by three `Simulation` methods:
+
+| Method | Action |
+|---|---|
+| `placeDeskAtTile(tileX, tileY)` | Deducts $1,000, increments `office.desks`, pushes tile entry, emits `desk:placed` |
+| `moveDeskAtTile(oldX, oldY, newX, newY)` | Moves the tile entry in-place (preserves employee mapping) |
+| `removeDeskAtTile(tileX, tileY)` | Blocked when an employee is seated; emits `desk:removed` |
+
+`OfficeScene` exposes a **Build mode** toggle via `BuildToggleButton`. In build mode the `BuildOverlay` intercepts pointer events for tile placement/move/delete, and `BuildPanel` (right sidebar replacement) shows draggable furniture cards. The old `BuyDeskEntity` (a single inline tile) has been removed.
 
 ---
 
@@ -418,16 +479,17 @@ Widgets are persistent Pixi objects owned by `OfficeScene` (not re-created per s
 | Field | Type | Mutated by |
 |---|---|---|
 | `name` | `string` | — (set once on create) |
-| `money` | `number` | `EconomySystem`, `Simulation.finishProject`, `Simulation.buyDesk` |
+| `money` | `number` | `EconomySystem`, `Simulation.finishProject`, `Simulation.placeDeskAtTile` |
 | `day` | `number` | `TimeSystem.beginNextDay` |
 | `maxActiveProjects` | `number` | — (constant for now) |
-| `office` | `Office` | `Simulation.buyDesk` (`office.desks++`) |
+| `office` | `Office` | `Simulation.placeDeskAtTile/removeDeskAtTile` |
 | `employees` | `Employee[]` | `HiringSystem.hire/fire` |
 | `activeProjects` | `Project[]` | `Simulation.acceptProject`, `Simulation.finishProject`, `EconomySystem` |
 | `availableProjects` | `Project[]` | `Simulation._refreshProjectPool`, `Simulation.acceptProject/rejectProject` |
 | `completedProjects` | `Project[]` | `Simulation.finishProject`, `EconomySystem` |
-| `candidates` | `Candidate[]` | `HiringSystem.refreshCandidates/hire` |
-| `pendingPayout` | `number` | `EconomySystem` |
+| `candidates` | `Candidate[]` | `HiringSystem.refreshCandidates/hire` (programmer pool) |
+| `otherCandidates` | `Candidate[]` | `HiringSystem.refreshCandidates/hire` (Team Lead + PM pool) |
+| `pendingPayout` | `number` | Legacy field; `Simulation.finishProject` pays money directly. `EconomySystem` still flushes it at end-of-day as a safety net. |
 | `rdPoints` | `number` | `EconomySystem`, `Simulation.unlockResearch` |
 | `rdPointsPerDay` | `number` | — |
 | `unlockedResearch` | `string[]` | `Simulation.unlockResearch` |
@@ -435,6 +497,8 @@ Widgets are persistent Pixi objects owned by `OfficeScene` (not re-created per s
 | `stats` | `{totalRevenue, totalSalariesPaid, projectsCompleted}` | `EconomySystem`, `Simulation.finishProject` |
 | `currentWeather` | `WeatherType \| null` | `ProductivitySystem.rollDailyWeather` |
 | `relationships` | `{ [key: string]: { friendship: number } }` | `activityHandlers` (TALK) |
+| `teams` | `Team[]` | `TeamSystem.createTeamForLead/dissolveTeam` |
+| `furniture` | `FurnitureItem[]` | `Simulation.placeFurniture/moveFurniture/removeFurniture` |
 
 ### Employee
 
@@ -481,8 +545,9 @@ Widgets are persistent Pixi objects owned by `OfficeScene` (not re-created per s
 |---|---|---|
 | `id` | `number` | Auto-incremented |
 | `tierIndex` | `number` | Index into `OFFICE_TIERS` (0–4) |
-| `desks` | `number` | Current desk count |
+| `desks` | `number` | Current desk count (length of `deskTiles`) |
 | `name` | `string` | Display name from tier |
+| `deskTiles` | `{tileX, tileY}[]` | Tile coordinates for each placed desk; index matches `company.employees` index |
 
 ### Office Tiers
 
@@ -514,9 +579,13 @@ Widgets are persistent Pixi objects owned by `OfficeScene` (not re-created per s
 | `project:failed` | `Simulation._checkProjectDeadlines` | `{ project, company }` | `OfficeScene` |
 | `employee:hired` | `HiringSystem.hire` | `{ employee, company }` | `OfficeScene` |
 | `employee:fired` | `HiringSystem.fire` | `{ employee, company }` | `OfficeScene` |
-| `desk:bought` | `Simulation.buyDesk` | `{ company }` | `OfficeScene` |
+| `employee:levelup` | `ProjectSystem.flushWorkPeriod` | `{ employee, company }` | `OfficeScene` |
+| `desk:placed` | `Simulation.placeDeskAtTile` | `{ company }` | `OfficeScene` |
+| `desk:removed` | `Simulation.removeDeskAtTile` | `{ company }` | `OfficeScene` |
 | `research:unlocked` | `Simulation.unlockResearch` | `{ nodeId: string, company }` | `OfficeScene` |
-| `economy:bankrupt` | `EconomySystem.runEndOfDay` | `{ company }` | — *(no listener)* |
+| `hiring:pool_refreshed` | `Simulation.unlockResearch` (on qualifying nodes) | `{ company }` | `OfficeScene` |
+| `day:report` | `Simulation._wireDayCycle` (end-of-day chain) | `{ snapshot: { notifications, company } }` | `OfficeScene` → `DayReportPopup` |
+| `economy:bankrupt` | `EconomySystem.runEndOfDay` | `{ company }` | — *(no game-over listener; notification only)* |
 
 > **Note on `project:completed`:** This event name is reused for two distinct moments — when a project becomes *ready to collect* (emitted by `ProjectSystem`) and when the payout is actually *collected* (emitted by `Simulation.finishProject`). Both cause `OfficeScene` to refresh the modal and widget bar, which is the correct behavior for both moments.
 
@@ -649,10 +718,10 @@ All tunables live in `src/config.js` under `GameConfig.gameplay`. The object is 
 | `SPEED_PRESETS` | `[0,1,2,4,8]` | Valid `gameSpeed` values; 0 = paused |
 | `DEFAULT_SPEED` | `0` | Initial speed when entering office scene |
 | `AVAILABLE_PROJECT_POOL_SIZE` | `5` | Max projects offered per day |
-| `CANDIDATE_POOL_SIZE` | `4` | Hiring candidates shown per day |
+| `CANDIDATE_POOL_SIZE` | `4` | Legacy constant; `HiringSystem` uses `getCandidatePoolSize()` from `hiringResearch.js` instead (3 / 4 / 5 based on HR research) |
 | `MONEY_WARNING_THRESHOLD` | `5000` | Cash level that triggers a low-funds warning |
 | `BANKRUPTCY_THRESHOLD` | `0` | Cash level that triggers bankruptcy |
-| `ACTIVITY_LOG_MAX` | `20` | Max notifications retained in the activity feed |
+| `ACTIVITY_LOG_MAX` | `100` | Max notifications retained in the activity feed |
 | `BASE_PRODUCTIVITY_MIN` | `0.85` | Lower bound of random productivity trait |
 | `BASE_PRODUCTIVITY_MAX` | `1.05` | Upper bound of random productivity trait |
 
@@ -674,12 +743,48 @@ Renderer and loop tunables:
 
 | Area | Issue | Suggested Fix |
 |---|---|---|
-| `DeskEntity.setActive` | Method body is empty — the desk glow for active employees is not rendered. | Implement glow with a `Graphics` blur or drop shadow in `setActive(true)`. |
-| ~~`BottomControlBar.js`~~ | ~~The file exists with speed buttons and an End Day button but is not imported anywhere.~~ | Resolved: file deleted. |
 | Office tier upgrade | `OFFICE_TIERS` defines five tiers with upgrade costs, and `getNextOfficeTier` is exported, but no upgrade action exists in `Simulation` and no upgrade button exists in the UI. | Add `Simulation.upgradeOffice()`, deduct cost, increment `tierIndex`, update `desks`, and add a UI trigger. |
-| `economy:bankrupt` | `EconomySystem` emits this event but no listener exists. The game continues running after bankruptcy. | Add a listener in `OfficeScene` (or `Simulation`) that pauses the game and shows a game-over screen or reset prompt. |
+| `economy:bankrupt` | `EconomySystem` emits this event but no listener exists. The game continues running after bankruptcy — only a notification is shown. | Add a listener in `OfficeScene` (or `Simulation`) that pauses the game and shows a game-over screen or reset prompt. |
 | `project:completed` naming | The same event name covers both "project ready to collect" (mid-day) and "payout collected" (player action), making it impossible to distinguish between the two in a listener. | Rename the mid-day ready event to `project:ready` to eliminate ambiguity. |
+| Research tree content | The current 15 nodes implement effects for skills, teams/PMs, HR pool sizing, pool/hire refresh, and schedule. `agile_workflow` only gates child nodes (no direct effect). No late-game nodes (e.g. productivity bonuses, global offices) are implemented yet. | Add effect handlers for remaining node categories as gameplay scope expands. |
+| Archetype UI stubs | `EmployeeStatsPopup` and `TeamInfoPopup` render `/TODO` placeholders for personality summary, likes/dislikes, and effect bonuses. | Implement personality summary and likes/dislikes rendering from the archetype/communication profile data. |
+| ~~`BottomControlBar.js`~~ | ~~The file exists with speed buttons and an End Day button but is not imported anywhere.~~ | Resolved: file deleted. |
 | ~~`ProgressBar.js`~~ | ~~`src/ui/ProgressBar.js` was a standalone horizontal bar widget not referenced by any other file.~~ | Resolved: orphaned file deleted; use `widgets/ProgressBar` from the framework instead. |
-| ~~`BottomControlBar` speed values~~ | ~~The file hard-coded speed `16`, not in `SPEED_PRESETS`.~~ | Resolved: `BottomControlBar.js` deleted. |
-| Research tree effects | Most research nodes are defined with costs and a DAG structure but unlock no mechanical effect beyond the four skill nodes. | Implement effect handlers for each node category (productivity bonuses, candidate pool size increases, etc.). |
-| Save / Load | No persistence. All state is lost on page reload. | Serialise the `Company` object to `localStorage` on `day:ended`; deserialise on load if a save is present. |
+| ~~Save / Load~~ | ~~No persistence. All state is lost on page reload.~~ | Resolved: `SaveManager` + 5-slot localStorage system implemented. |
+| ~~`DeskEntity.setActive`~~ | ~~Method body is empty — the desk glow for active employees is not rendered.~~ | Resolved: `_drawScreenGlow` renders a blue monitor glow when active. |
+
+---
+
+## 10. Save/Load Design
+
+### Checkpoint timing
+
+- **Autosave** — `Game.saveGame()` is called on every `day:began` event, writing to `activeSaveSlot` (default 0). This always captures a day-start state (paused, `dayProgress = 0`).
+- **Manual save** — triggered from the `SaveSlotPopup` UI; the player can name the save and choose any slot.
+- **New game** — always writes to slot 0 before entering the office.
+
+### Payload shape
+
+```js
+{
+  version:   string,          // must match GameConfig.meta.version
+  savedAt:   string,          // ISO timestamp
+  saveName:  string | null,   // optional player-supplied label
+  company:   Company,         // full deep clone via structuredClone()
+  nextIds: {
+    employee:  number,
+    project:   number,
+    candidate: number,
+    office:    number,
+    furniture: number,
+  }
+}
+```
+
+### Version gate
+
+`_validate(payload)` rejects any payload whose `version` does not equal `GameConfig.meta.version`. There is no migration path — old saves from a different version are silently discarded on load. This is intentional for v0.1.0 to avoid needing migration logic during rapid iteration.
+
+### Time state
+
+`TimeSystem` state (`dayProgress`, `gameSpeed`) is intentionally excluded from saves. Loading always starts at the beginning of the saved day, paused. This guarantees a clean planning phase on load.
