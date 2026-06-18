@@ -25,6 +25,8 @@ import { GameOverPopup } from '../ui/GameOverPopup.js';
 import { SaveSlotPopup } from '../ui/SaveSlotPopup.js';
 import { PauseMenu } from '../ui/PauseMenu.js';
 import { TeamInfoPopup } from '../ui/TeamInfoPopup.js';
+import { CalendarPopup } from '../ui/CalendarPopup.js';
+import { EventDayBanner } from '../ui/EventDayBanner.js';
 import { Toast } from '../ui/Toast.js';
 import { BuildOverlay } from '../ui/BuildOverlay.js';
 import { BuildPanel } from '../ui/BuildPanel.js';
@@ -132,6 +134,16 @@ export class OfficeScene extends BaseScene {
     // Team info popup — opened from a team row click in TeamsPanel.
     this._teamInfoPopup = new TeamInfoPopup(this.game);
 
+    // Event day banner — shown in the HUD when an event is active today.
+    this._eventBanner = new EventDayBanner();
+
+    // Calendar popup — toggled from the Calendar sidebar button.
+    this._calendarPopup = new CalendarPopup(
+      (day, typeId) => this.game.sim.scheduleEvent(day, typeId),
+      (day)         => this.game.sim.removeEvent(day),
+      ()            => this.game.sim?.company ?? null,
+    );
+
     // Build mode.
     this._buildOverlay    = new BuildOverlay();
     this._buildPanel      = new BuildPanel();
@@ -180,6 +192,7 @@ export class OfficeScene extends BaseScene {
     // Popup layer (employee stats + schedule + weather) — above world, below modal and HUD.
     this.root.addChild(this._popupLayer);
     this._popupLayer.addChild(this._schedulePopup);
+    this._popupLayer.addChild(this._calendarPopup);
     this._popupLayer.addChild(this._statsPopup);
     this._popupLayer.addChild(this._weatherPopup);
     this._popupLayer.addChild(this._dayReportPopup);
@@ -208,6 +221,7 @@ export class OfficeScene extends BaseScene {
     this._hudLayer.addChild(this._topBar);
     this._hudLayer.addChild(this._leftSidebar);
     this._hudLayer.addChild(this._widgetBar);
+    this._hudLayer.addChild(this._eventBanner);
 
     // Build UI — floating over HUD layer.
     this._hudLayer.addChild(this._buildToggleBtn);
@@ -219,6 +233,7 @@ export class OfficeScene extends BaseScene {
     this._world.on('pointerdown', () => {
       this._closeStatsPopup();
       this._closeSchedulePopup();
+      this._closeCalendarPopup();
       this._weatherPopup.close();
     });
 
@@ -267,6 +282,10 @@ export class OfficeScene extends BaseScene {
       if (this._activeView === 'research') this._modal.refresh();
       this._topBar.refresh();
     });
+    this.listen('event:completed', () => {
+      // Refresh the calendar so past event cells render correctly.
+      this._calendarPopup.refresh(this.game.sim?.company);
+    });
     this.listen('team:open-detail', (teamId) => {
       const company = this.game.sim?.company;
       if (!company) return;
@@ -292,16 +311,22 @@ export class OfficeScene extends BaseScene {
       if (company?.unlockedResearch?.includes(GameConfig.schedule.researchNodeId)) {
         this._leftSidebar.addNavItem({ id: 'schedule', icon: 'clock', emoji: '🕐', label: 'Schedule' });
       }
+      // Restore Calendar nav button if already researched in the loaded save.
+      if (company?.unlockedResearch?.includes('calendar_unlock')) {
+        this._leftSidebar.addNavItem({ id: 'calendar', icon: null, emoji: '📅', label: 'Calendar' });
+      }
     });
 
-    // Unlock Teams nav button when team_management is researched.
-    // Unlock Schedule nav button when work_schedule is researched.
+    // Unlock Teams / Schedule / Calendar nav buttons when their research nodes are unlocked.
     this.listen('research:unlocked', ({ nodeId }) => {
       if (nodeId === 'team_management') {
         this._leftSidebar.addNavItem({ id: 'teams', icon: 'everyman', emoji: '👥', label: 'Teams' });
       }
       if (nodeId === GameConfig.schedule.researchNodeId) {
         this._leftSidebar.addNavItem({ id: 'schedule', icon: 'clock', emoji: '🕐', label: 'Schedule' });
+      }
+      if (nodeId === 'calendar_unlock') {
+        this._leftSidebar.addNavItem({ id: 'calendar', icon: null, emoji: '📅', label: 'Calendar' });
       }
     });
 
@@ -382,6 +407,8 @@ export class OfficeScene extends BaseScene {
       this._statsPopup.refresh(this.game.sim?.company);
       this._schedulePopup.refresh(this.game.sim?.company);
       this._weatherPopup.refresh(this.game.sim?.company);
+      this._calendarPopup.refresh(this.game.sim?.company);
+      this._eventBanner.refresh(this.game.sim?.company);
     }
 
     // Toasts.
@@ -404,6 +431,8 @@ export class OfficeScene extends BaseScene {
     if (this._schedulePopup.visible) {
       this._schedulePopup.open(this.game.sim?.company, width, height);
     }
+    this._calendarPopup.resize(width, height);
+    this._eventBanner.resize(width, height);
     this._repositionToasts(width);
 
     this._buildOverlay.resize(width, height);
@@ -419,6 +448,7 @@ export class OfficeScene extends BaseScene {
       this._widgetBar.init(width, height);
       this._buildToggleBtn.init(width, height);
       this._buildPanel.init(width, height);
+      this._eventBanner.init(width, height);
       this._initialized = true;
       this._rebuildOffice();
       this._rebuildFurniture();
@@ -442,6 +472,7 @@ export class OfficeScene extends BaseScene {
     this._activeView = 'office';
     this._statsPopup.close();
     this._schedulePopup.close();
+    this._calendarPopup.close();
     this._weatherPopup.close();
     this._saveSlotPopup.close();
   }
@@ -555,14 +586,40 @@ export class OfficeScene extends BaseScene {
     }
   }
 
+  _toggleCalendar() {
+    const company = this.game.sim?.company;
+    if (!company) return;
+    const { width, height } = this.game.screen;
+    if (this._calendarPopup.visible) {
+      this._closeCalendarPopup();
+    } else {
+      this._schedulePopup.close();
+      this._calendarPopup.open(company, width, height);
+      this._leftSidebar.setActive('calendar');
+    }
+  }
+
+  _closeCalendarPopup() {
+    if (!this._calendarPopup.visible) return;
+    this._calendarPopup.close();
+    this._leftSidebar.setActive(this._activeView);
+  }
+
   _navigate(viewId) {
     this._closeStatsPopup();
     if (viewId === 'schedule') {
       this._toggleSchedule();
       return;
     }
-    // Opening a main modal closes the schedule popup.
-    if (viewId !== 'office') this._schedulePopup.close();
+    if (viewId === 'calendar') {
+      this._toggleCalendar();
+      return;
+    }
+    // Opening a main modal closes the schedule and calendar popups.
+    if (viewId !== 'office') {
+      this._schedulePopup.close();
+      this._closeCalendarPopup();
+    }
     if (viewId === 'office') {
       this._activeView = 'office';
       this._leftSidebar.setActive('office');
@@ -691,6 +748,7 @@ export class OfficeScene extends BaseScene {
     // Close any open popups so they don't linger during build mode.
     this._closeStatsPopup();
     this._closeSchedulePopup();
+    this._closeCalendarPopup();
     this._weatherPopup.close();
     // Swap right sidebar: hide widgets, show build panel in its place.
     this._widgetBar.visible = false;
@@ -722,6 +780,7 @@ export class OfficeScene extends BaseScene {
     this._world.on('pointerdown', () => {
       this._closeStatsPopup();
       this._closeSchedulePopup();
+      this._closeCalendarPopup();
       this._weatherPopup.close();
     });
   }

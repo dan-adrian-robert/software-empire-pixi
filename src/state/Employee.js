@@ -55,6 +55,8 @@ export function createEmployee({ name, skills, salary, characterIndex = 1, role 
     workPeriodTotal: 0,
     /** When true, notifications about this employee skip the toast popup. */
     logsMuted: false,
+    /** Potential points banked from company events, not yet allocated to a skill. */
+    pendingPotentialPoints: 0,
     /** Weighted archetype profile: { [archetypeId]: number }, values sum to 100. */
     archetypes,
     /** Communication topic scores: { [topicId]: number (1–100) }. */

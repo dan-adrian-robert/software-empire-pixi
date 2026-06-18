@@ -100,6 +100,9 @@ export const GameConfig = Object.freeze({
 
     // Consecutive end-of-day periods with negative cash before the company is declared insolvent.
     NEGATIVE_CASH_GRACE_DAYS: 3,
+
+    // Number of days per calendar sheet (4 rows × 5 columns).
+    DAYS_PER_SHEET: 20,
   }),
 
   schedule: Object.freeze({
@@ -107,6 +110,14 @@ export const GameConfig = Object.freeze({
     researchNodeId: 'work_schedule',
     // Fixed shift applied until that research is purchased: 9 AM–9 PM (12 hours).
     locked: Object.freeze({ startHour: 9, workHours: 12 }),
+  }),
+
+  events: Object.freeze({
+    // Minimum days between any two scheduled company events (default).
+    DEFAULT_COOLDOWN: 10,
+    // Each event_frequency research node reduces the cooldown by this many days.
+    // Two nodes exist, so the minimum possible cooldown is DEFAULT_COOLDOWN - 2×2 = 6.
+    COOLDOWN_REDUCTION_PER_NODE: 2,
   }),
 
   save: Object.freeze({

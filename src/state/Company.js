@@ -135,6 +135,13 @@ export function createCompany() {
     communicationLog: [],
 
     /**
+     * Company events scheduled by the player.
+     * Each entry: { day: number, eventTypeId: string }
+     * @type {Array<{day: number, eventTypeId: string}>}
+     */
+    scheduledEvents: [],
+
+    /**
      * Consecutive end-of-day periods where cash was negative.
      * Incremented each EOD money < 0; reset to 0 when money >= 0.
      * Game over triggers when this reaches the effective grace-day limit (getNegativeCashGraceDays).

@@ -10,6 +10,8 @@ export const ScheduleActivity = Object.freeze({
   WORK:           'WORK',
   BATHROOM_BREAK: 'BATHROOM_BREAK',
   TALK:           'TALK',
+  /** Whole-day override on company event days. No SP is generated. */
+  EVENT:          'EVENT',
 });
 
 /** Repeating 15-minute activity cycle for every employee. */

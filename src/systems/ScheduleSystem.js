@@ -39,6 +39,15 @@ export class ScheduleSystem {
    * }}
    */
   tick(company, dayProgress, sim) {
+    // Company event days suspend the normal 15-minute activity cycle entirely.
+    const todayEvent = company.scheduledEvents?.find((e) => e.day === company.day);
+    if (todayEvent) {
+      company.employees.forEach((e) => { e.scheduleState = 'EVENT'; });
+      // Reset prevSlot so the normal cycle restarts cleanly the next (non-event) day.
+      this.prevSlot = -1;
+      return { slot: -1, activity: 'EVENT', flushTotals: null };
+    }
+
     const slot = Math.floor((dayProgress * company.schedule.workHours * 60) / 15);
     const activity = getActivityForSlot(slot);
 

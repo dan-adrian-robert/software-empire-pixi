@@ -213,8 +213,10 @@ export class EmployeeStatsPopup extends Container {
     const team       = teamSystem?.getTeamForEmployee(company, emp.id);
     const teamStr    = team ? team.name : 'No team';
 
+    const pendingPts = emp.pendingPotentialPoints ?? 0;
+    const potBadge = pendingPts > 0 ? `   ✨ ${pendingPts} potential pt${pendingPts !== 1 ? 's' : ''}` : '';
     const infoLabel = new Label({
-      text: `📍 ${teamStr}   💰 $${emp.salary.toLocaleString()}/day`,
+      text: `📍 ${teamStr}   💰 $${emp.salary.toLocaleString()}/day${potBadge}`,
       style: { fill: Theme.colors.textDim, fontFamily: Theme.typography.fontFamily, fontSize: 11 },
     });
     infoLabel.position.set(textX, 46);
@@ -463,7 +465,82 @@ export class EmployeeStatsPopup extends Container {
 
     // ── SKILL UPGRADE section ────────────────────────────────────────────────
     const pending = emp.pendingSkillPoints ?? 0;
-    if (pending <= 0) return;
+    if (pending > 0) {
+      // Divider
+      this._content.addChild(
+        new Graphics()
+          .moveTo(SK_PAD, y)
+          .lineTo(SK_PAD + contentW, y)
+          .stroke({ color: Theme.colors.divider, width: 1 }),
+      );
+      y += 10;
+
+      const upgradeHdr = new Text({
+        text: `${pending} SKILL POINT${pending !== 1 ? 'S' : ''} AVAILABLE`,
+        style: { fill: Theme.colors.xp, fontFamily: font, fontSize: 10, fontWeight: '700' },
+      });
+      upgradeHdr.position.set(SK_PAD, y);
+      this._content.addChild(upgradeHdr);
+      y += 18;
+
+      const upgradable = emp.skills.filter((s) => s.level >= 1 && s.level < skillUpgradeCap(s));
+
+      if (upgradable.length === 0) {
+        const maxedLbl = new Text({
+          text: 'All skills are at their potential cap.',
+          style: { fill: Theme.colors.textDim, fontFamily: font, fontSize: 10 },
+        });
+        maxedLbl.position.set(SK_PAD, y);
+        this._content.addChild(maxedLbl);
+        y += 18;
+      } else {
+        const btnCount = upgradable.length;
+        const BTN_W    = Math.floor((contentW - SK_BTN_GAP * (btnCount - 1)) / btnCount);
+
+        upgradable.forEach((sk, i) => {
+          const btnX   = SK_PAD + i * (BTN_W + SK_BTN_GAP);
+          const skClr  = SKILL_COLORS[sk.skill] ?? 0x4a9eff;
+
+          const btnBg = new Graphics()
+            .roundRect(0, 0, BTN_W, SK_BTN_H, 5)
+            .fill({ color: 0x0d0d22 })
+            .stroke({ color: skClr, width: 1.5, alpha: 0.8 });
+          btnBg.position.set(btnX, y);
+          btnBg.eventMode = 'static';
+          btnBg.cursor    = 'pointer';
+
+          const btnLbl = new Text({
+            text: `${SKILL_LABELS[sk.skill] ?? sk.skill}   Lv.${sk.level} → ${sk.level + 1}`,
+            style: { fill: skClr, fontFamily: font, fontSize: 11, fontWeight: '700' },
+          });
+          btnLbl.anchor.set(0.5, 0.5);
+          btnLbl.position.set(BTN_W / 2, SK_BTN_H / 2);
+          btnLbl.eventMode = 'none';
+          btnBg.addChild(btnLbl);
+
+          btnBg.on('pointerup',   () => {
+            if (this.game.sim.upgradeEmployeeSkill(emp, sk.skill)) this._draw(emp, this._company);
+          });
+          btnBg.on('pointerover', () => { btnBg.alpha = 0.75; });
+          btnBg.on('pointerout',  () => { btnBg.alpha = 1; });
+
+          this._content.addChild(btnBg);
+        });
+
+        y += SK_BTN_H + 16;
+      }
+    }
+
+    this._drawPotentialSection(emp, y);
+  }
+
+  // ── POTENTIAL UPGRADE section (inside SKILLS tab) ─────────────────────────────
+
+  _drawPotentialSection(emp, y) {
+    const font     = Theme.typography.fontFamily;
+    const contentW = POPUP_W - SK_PAD * 2;
+    const pending  = emp.pendingPotentialPoints ?? 0;
+    const POT_GOLD = 0x7dd3aa;
 
     // Divider
     this._content.addChild(
@@ -474,58 +551,99 @@ export class EmployeeStatsPopup extends Container {
     );
     y += 10;
 
-    const upgradeHdr = new Text({
-      text: `${pending} SKILL POINT${pending !== 1 ? 'S' : ''} AVAILABLE`,
-      style: { fill: Theme.colors.xp, fontFamily: font, fontSize: 10, fontWeight: '700' },
+    // Section header
+    const hdrColor = pending > 0 ? POT_GOLD : Theme.colors.textDim;
+    const hdrText  = pending > 0
+      ? 'POTENTIAL POINTS'
+      : 'POTENTIAL UPGRADES — earn points from company events';
+
+    const potHdr = new Text({
+      text: hdrText,
+      style: { fill: hdrColor, fontFamily: font, fontSize: 10, fontWeight: '700' },
     });
-    upgradeHdr.position.set(SK_PAD, y);
-    this._content.addChild(upgradeHdr);
-    y += 18;
+    potHdr.position.set(SK_PAD, y);
+    this._content.addChild(potHdr);
+    y += 16;
 
-    const upgradable = emp.skills.filter((s) => s.level >= 1 && s.level < skillUpgradeCap(s));
+    if (pending > 0) {
+      // ── Cell track ────────────────────────────────────────────────────────
+      // Align with the skill bar column: barTrackX = SK_PAD + SK_LABEL_W + 14
+      const barTrackX = SK_PAD + SK_LABEL_W + 14;
+      const barAreaW  = contentW - SK_LABEL_W - 14 - 80 - 72 - 16; // mirrors skill row
+      const cellW     = Math.max(10, Math.floor((barAreaW - (MAX_SKILL_LEVEL - 1) * SK_BAR_GAP) / MAX_SKILL_LEVEL));
 
-    if (upgradable.length === 0) {
-      const maxedLbl = new Text({
-        text: 'All skills are at their potential cap.',
-        style: { fill: Theme.colors.textDim, fontFamily: font, fontSize: 10 },
+      const track = new Graphics();
+      for (let i = 0; i < MAX_SKILL_LEVEL; i++) {
+        const cx       = i * (cellW + SK_BAR_GAP);
+        const isFilled = i < pending;
+        track
+          .roundRect(cx, 0, cellW, SK_BAR_CELL, 2)
+          .fill({ color: isFilled ? POT_GOLD : SK_EMPTY_CLR })
+          .stroke({ color: POT_GOLD, width: 1, alpha: isFilled ? 0.9 : 0.25 });
+      }
+      track.position.set(barTrackX, y);
+      this._content.addChild(track);
+
+      // Count label right of track
+      const trackW  = MAX_SKILL_LEVEL * cellW + (MAX_SKILL_LEVEL - 1) * SK_BAR_GAP;
+      const cntLbl  = new Text({
+        text: `${pending} / ${MAX_SKILL_LEVEL}`,
+        style: { fill: POT_GOLD, fontFamily: font, fontSize: 10, fontWeight: '600' },
       });
-      maxedLbl.position.set(SK_PAD, y);
-      this._content.addChild(maxedLbl);
-      return;
+      cntLbl.anchor.set(0, 0.5);
+      cntLbl.position.set(barTrackX + trackW + 10, y + SK_BAR_CELL / 2);
+      this._content.addChild(cntLbl);
+
+      y += SK_BAR_CELL + 12;
+
+      // ── Per-skill spend buttons ──────────────────────────────────────────
+      const raiseable = (emp.skills ?? []).filter(
+        (s) => s.level >= 1 && (s.potential ?? MAX_SKILL_LEVEL) < MAX_SKILL_LEVEL,
+      );
+
+      if (raiseable.length === 0) {
+        const maxedLbl = new Text({
+          text: 'All skills are already at maximum potential.',
+          style: { fill: Theme.colors.textDim, fontFamily: font, fontSize: 10 },
+        });
+        maxedLbl.position.set(SK_PAD, y);
+        this._content.addChild(maxedLbl);
+        return;
+      }
+
+      const BTN_W = Math.floor((contentW - SK_BTN_GAP * (raiseable.length - 1)) / raiseable.length);
+
+      raiseable.forEach((sk, i) => {
+        const btnX   = SK_PAD + i * (BTN_W + SK_BTN_GAP);
+        const skClr  = SKILL_COLORS[sk.skill] ?? 0x4a9eff;
+        const curPot = sk.potential ?? MAX_SKILL_LEVEL;
+
+        const btnBg = new Graphics()
+          .roundRect(0, 0, BTN_W, SK_BTN_H, 5)
+          .fill({ color: 0x0d1f1a })
+          .stroke({ color: POT_GOLD, width: 1.5, alpha: 0.8 });
+        btnBg.position.set(btnX, y);
+        btnBg.eventMode = 'static';
+        btnBg.cursor    = 'pointer';
+
+        const btnLbl = new Text({
+          text: `${SKILL_LABELS[sk.skill] ?? sk.skill}   Pot.${curPot} → ${curPot + 1}`,
+          style: { fill: skClr, fontFamily: font, fontSize: 10, fontWeight: '700' },
+        });
+        btnLbl.anchor.set(0.5, 0.5);
+        btnLbl.position.set(BTN_W / 2, SK_BTN_H / 2);
+        btnLbl.eventMode = 'none';
+        btnBg.addChild(btnLbl);
+
+        btnBg.on('pointerup', () => {
+          if (this.game.sim.spendPotentialPoint(emp, sk.skill)) this._draw(emp, this._company);
+        });
+        btnBg.on('pointerover', () => { btnBg.alpha = 0.75; });
+        btnBg.on('pointerout',  () => { btnBg.alpha = 1; });
+
+        this._content.addChild(btnBg);
+      });
     }
-
-    const btnCount = upgradable.length;
-    const BTN_W    = Math.floor((contentW - SK_BTN_GAP * (btnCount - 1)) / btnCount);
-
-    upgradable.forEach((sk, i) => {
-      const btnX   = SK_PAD + i * (BTN_W + SK_BTN_GAP);
-      const skClr  = SKILL_COLORS[sk.skill] ?? 0x4a9eff;
-
-      const btnBg = new Graphics()
-        .roundRect(0, 0, BTN_W, SK_BTN_H, 5)
-        .fill({ color: 0x0d0d22 })
-        .stroke({ color: skClr, width: 1.5, alpha: 0.8 });
-      btnBg.position.set(btnX, y);
-      btnBg.eventMode = 'static';
-      btnBg.cursor    = 'pointer';
-
-      const btnLbl = new Text({
-        text: `${SKILL_LABELS[sk.skill] ?? sk.skill}   Lv.${sk.level} → ${sk.level + 1}`,
-        style: { fill: skClr, fontFamily: font, fontSize: 11, fontWeight: '700' },
-      });
-      btnLbl.anchor.set(0.5, 0.5);
-      btnLbl.position.set(BTN_W / 2, SK_BTN_H / 2);
-      btnLbl.eventMode = 'none';
-      btnBg.addChild(btnLbl);
-
-      btnBg.on('pointerup',   () => {
-        if (this.game.sim.upgradeEmployeeSkill(emp, sk.skill)) this._draw(emp, this._company);
-      });
-      btnBg.on('pointerover', () => { btnBg.alpha = 0.75; });
-      btnBg.on('pointerout',  () => { btnBg.alpha = 1; });
-
-      this._content.addChild(btnBg);
-    });
   }
 
   // ── ARCHETYPES tab ───────────────────────────────────────────────────────────

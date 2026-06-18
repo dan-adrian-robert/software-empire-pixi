@@ -18,7 +18,7 @@ import { createFurnitureItem } from '../state/FurnitureItem.js';
 import { isPastCritical } from '../state/Project.js';
 import { syncIdCounters } from '../state/syncIdCounters.js';
 import { RESEARCH_NODES } from '../data/researchNodes.js';
-import { SKILL_LABELS, skillUpgradeCap } from '../data/skills.js';
+import { SKILL_LABELS, skillUpgradeCap, MAX_SKILL_LEVEL } from '../data/skills.js';
 import { GameConfig } from '../config.js';
 import { generatePool } from './ProjectGenerator.js';
 import { computeTeamOutput } from '../economy/balance.js';
@@ -32,6 +32,7 @@ import { ProductivitySystem } from './ProductivitySystem.js';
 import { PmAssignmentSystem } from './PmAssignmentSystem.js';
 import { TeamSystem } from './TeamSystem.js';
 import { ScheduleSystem } from './ScheduleSystem.js';
+import { EventSystem } from './EventSystem.js';
 
 export class Simulation {
   /** @param {import('../utils/EventBus.js').EventBus} bus */
@@ -47,6 +48,7 @@ export class Simulation {
     this.productivity = new ProductivitySystem();
     this.pmAssignment = new PmAssignmentSystem(bus);
     this.schedule = new ScheduleSystem();
+    this.events = new EventSystem();
 
     /** @type {import('../state/Company.js').Company} */
     this.company = null;
@@ -121,6 +123,11 @@ export class Simulation {
    */
   _wireDayCycle() {
     this._endDayOff = this.bus.on('day:ended', ({ company }) => {
+      // Apply event-day outcome before economy runs (notifications appear in day report).
+      if (this.events.getEventForDay(company, company.day)) {
+        this.events.applyEventDayOutcome(company, this.bus);
+      }
+
       const financeResult = this.economy.runEndOfDay(company);
       this._checkProjectDeadlines(company);
       this._refreshProjectPool(company);
@@ -178,7 +185,11 @@ export class Simulation {
       if (!emp.communication || Object.keys(emp.communication).length === 0) {
         emp.communication = generateCommunicationProfile();
       }
+      // pendingPotentialPoints added with Events feature
+      if (emp.pendingPotentialPoints === undefined) emp.pendingPotentialPoints = 0;
     }
+    // scheduledEvents added with Events feature
+    if (!Array.isArray(company.scheduledEvents)) company.scheduledEvents = [];
     for (const cand of company.candidates ?? []) {
       if (!cand.role) cand.role = STAFF_ROLES.PROGRAMMER;
       if (cand.level === undefined) cand.level = null;
@@ -589,6 +600,46 @@ export class Simulation {
     if (!this.company.unlockedResearch.includes(GameConfig.schedule.researchNodeId)) return;
     this.company.schedule.startHour = Math.max(6, Math.min(24 - workHours, startHour));
     this.company.schedule.workHours = workHours;
+  }
+
+  // -----------------------------------------------------------------------
+  // Event scheduling proxies
+  // -----------------------------------------------------------------------
+
+  /**
+   * Schedule a company event on a future day.
+   * @param {number} day
+   * @param {string} eventTypeId
+   */
+  scheduleEvent(day, eventTypeId) {
+    if (!this.company) return;
+    this.events.scheduleEvent(this.company, day, eventTypeId);
+  }
+
+  /**
+   * Remove a previously scheduled event.
+   * @param {number} day
+   */
+  removeEvent(day) {
+    if (!this.company) return;
+    this.events.removeEvent(this.company, day);
+  }
+
+  /**
+   * Spend one of an employee's banked potential points to raise a skill's
+   * upgrade ceiling by +1.
+   * @param {import('../state/Employee.js').Employee} employee
+   * @param {string} skillId
+   * @returns {boolean} true if the point was spent
+   */
+  spendPotentialPoint(employee, skillId) {
+    if (!employee || employee.pendingPotentialPoints <= 0) return false;
+    const skill = employee.skills.find((s) => s.skill === skillId);
+    if (!skill) return false;
+    if ((skill.potential ?? MAX_SKILL_LEVEL) >= MAX_SKILL_LEVEL) return false;
+    skill.potential = (skill.potential ?? MAX_SKILL_LEVEL) + 1;
+    employee.pendingPotentialPoints -= 1;
+    return true;
   }
 
   // -----------------------------------------------------------------------

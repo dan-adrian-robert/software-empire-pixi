@@ -106,6 +106,28 @@ export const RESEARCH_NODES = [
     cost: 60,
     dependencies: ['agile_workflow'],
   },
+  // ---- Company events ----
+  {
+    id: 'calendar_unlock',
+    name: 'Company Calendar',
+    icon: '📅',
+    cost: 60,
+    dependencies: ['work_schedule'],
+  },
+  {
+    id: 'event_frequency_1',
+    name: 'Event Planning I',
+    icon: '🎉',
+    cost: 80,
+    dependencies: ['calendar_unlock'],
+  },
+  {
+    id: 'event_frequency_2',
+    name: 'Event Planning II',
+    icon: '🎊',
+    cost: 120,
+    dependencies: ['event_frequency_1'],
+  },
   // ---- Survival / lives ----
   {
     id: 'life_reserve_1',
