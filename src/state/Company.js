@@ -135,6 +135,13 @@ export function createCompany() {
     communicationLog: [],
 
     /**
+     * Consecutive end-of-day periods where cash was negative.
+     * Incremented each EOD money < 0; reset to 0 when money >= 0.
+     * Game over triggers when this reaches the effective grace-day limit (getNegativeCashGraceDays).
+     */
+    daysInDeficit: 0,
+
+    /**
      * SP production history for the current day.
      * Populated by recordSpPeriod() at the end of each WORK period.
      */

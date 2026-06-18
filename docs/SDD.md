@@ -224,12 +224,34 @@ Exports `PERIOD_END_HANDLERS` and `PERIOD_START_HANDLERS` keyed by `ScheduleActi
 Runs once per `day:ended`. Order of operations:
 
 1. Deduct `dailySalaryCost(company)` from `company.money`.
-2. Add `company.pendingPayout` to `company.money` and reset it.
+2. Flush `company.pendingPayout` into `company.money` and reset it (safety net for legacy payout path).
 3. Add `company.rdPointsPerDay` to `company.rdPoints`.
 4. Move `isCompleted` projects from `activeProjects` to `completedProjects`.
-5. Emit `notification:add` for salary deduction.
-6. Emit `notification:add` (warning) if `money < MONEY_WARNING_THRESHOLD`.
-7. Emit `economy:bankrupt` + `notification:add` (critical) if `money <= BANKRUPTCY_THRESHOLD`.
+5. **Deficit streak tracking:** if `money < 0`, increment `company.daysInDeficit`; otherwise reset to `0`.
+6. Compute `graceDays = getNegativeCashGraceDays(company.unlockedResearch)` (base 3 + Reserve Fund bonuses).
+7. If `daysInDeficit >= graceDays` → game over: emit `economy:gameover` + critical `notification:add`. Return `{ gameOver: true, daysInDeficit, graceDays }`.
+8. If `money < 0` but not yet game over → emit deficit-streak warning `notification:add` (critical).
+9. If `0 ≤ money < MONEY_WARNING_THRESHOLD` → emit low-funds `notification:add` (warning).
+
+Returns `{ gameOver: boolean, daysInDeficit: number, graceDays: number }`.
+
+#### `src/data/lifeResearch.js` — `getNegativeCashGraceDays`
+
+Helper that computes the effective insolvency grace period for a given company:
+
+```
+graceDays = NEGATIVE_CASH_GRACE_DAYS (base 3)
+          + LIFE_BONUS_BY_NODE[each unlocked Reserve Fund node]
+```
+
+| Node ID | Bonus |
+|---|---|
+| `life_reserve_1` | +1 |
+| `life_reserve_2` | +2 |
+| `life_reserve_3` | +3 |
+| `life_reserve_4` | +4 |
+
+Maximum: 3 + 1 + 2 + 3 + 4 = **13 days**.
 
 ---
 
@@ -376,7 +398,7 @@ The main gameplay scene. Responsibilities:
 
 | Area | Mechanism |
 |---|---|
-| Layout | Five layered containers (world, popup, modal, hud, toasts) |
+| Layout | Five layered containers (world, popup, modal, hud, toasts) + topmost pause layer |
 | Office grid | `_rebuildOffice()` creates/destroys entities on roster changes |
 | Frame sync | `update()` pushes schedule state and project assignment into each `EmployeeEntity` |
 | WORK flush | `sim.schedule.tick()` detects slot change; `WORK` end-handler calls `sim.projects.flushWorkPeriod` |
@@ -384,6 +406,8 @@ The main gameplay scene. Responsibilities:
 | Navigation | `_navigate(id)` opens modal panels; sidebar calls this |
 | Toasts | `_spawnToast` / `_tickToasts` manage lifetime and layout |
 | Popups | Employee stats, schedule editor, weather — all opened via pointer events |
+| Pause menu | ESC toggles `PauseMenu` overlay (disabled while `sim.isGameOver`); speed saved/restored |
+| Game over | `day:report` listener checks `snapshot.gameOver`; if true, opens `GameOverPopup` after the day report is dismissed |
 
 ---
 
@@ -461,13 +485,18 @@ Widgets are persistent Pixi objects owned by `OfficeScene` (not re-created per s
 
 | Widget | File | Key responsibility |
 |---|---|---|
-| `TopBarHUD` | `ui/TopBarHUD.js` | Cash, day, R&D, weather chip, speed controls, progress bar |
+| `TopBarHUD` | `ui/TopBarHUD.js` | Cash, hearts counter, day, R&D, weather chip, speed controls, progress bar |
 | `LeftSidebar` | `ui/LeftSidebar.js` | Navigation buttons; `setActive(id)` highlights current view |
 | `RightWidgetBar` | `ui/RightWidgetBar.js` | Activity feed + in-progress project cards with quick-collect |
 | `ModalHost` | `ui/screens/ModalHost.js` | Backdrop + titled scrollable panel window; composes `PanelShell` + `ScrollColumn`; forwards wheel events; drop-in replacement for the removed `Modal.js` |
 | `EmployeeStatsPopup` | `ui/EmployeeStatsPopup.js` | Per-employee detail card; positioned near clicked desk |
 | `SchedulePopup` | `ui/SchedulePopup.js` | Shift editor; calls `onChange(startHour, workHours)` |
 | `WeatherPopup` | `ui/WeatherPopup.js` | Weather description + full modifier table |
+| `DayReportPopup` | `ui/DayReportPopup.js` | End-of-day summary; shows deficit streak if active; routes to `GameOverPopup` when `snapshot.gameOver` |
+| `PauseMenu` | `ui/PauseMenu.js` | ESC full-screen overlay: Resume / Save Game / Load Game / Main Menu; disabled during game over |
+| `GameOverPopup` | `ui/GameOverPopup.js` | Insolvency modal after fatal day report; shows final stats; Load Game / New Game / Main Menu |
+| `SaveSlotPopup` | `ui/SaveSlotPopup.js` | Manual save slot picker; opened from sidebar button or Pause Menu |
+| `TeamInfoPopup` | `ui/TeamInfoPopup.js` | Detailed team chemistry and member roster; opened from TeamsPanel row |
 | `Toast` | `ui/Toast.js` | Fade-out notification chip; `update(dt)` manages lifetime |
 
 ---
@@ -499,6 +528,7 @@ Widgets are persistent Pixi objects owned by `OfficeScene` (not re-created per s
 | `relationships` | `{ [key: string]: { friendship: number } }` | `activityHandlers` (TALK) |
 | `teams` | `Team[]` | `TeamSystem.createTeamForLead/dissolveTeam` |
 | `furniture` | `FurnitureItem[]` | `Simulation.placeFurniture/moveFurniture/removeFurniture` |
+| `daysInDeficit` | `number` | `EconomySystem.runEndOfDay` (incremented when EOD cash < 0; reset to 0 when ≥ 0) |
 
 ### Employee
 
@@ -584,10 +614,12 @@ Widgets are persistent Pixi objects owned by `OfficeScene` (not re-created per s
 | `desk:removed` | `Simulation.removeDeskAtTile` | `{ company }` | `OfficeScene` |
 | `research:unlocked` | `Simulation.unlockResearch` | `{ nodeId: string, company }` | `OfficeScene` |
 | `hiring:pool_refreshed` | `Simulation.unlockResearch` (on qualifying nodes) | `{ company }` | `OfficeScene` |
-| `day:report` | `Simulation._wireDayCycle` (end-of-day chain) | `{ snapshot: { notifications, company } }` | `OfficeScene` → `DayReportPopup` |
-| `economy:bankrupt` | `EconomySystem.runEndOfDay` | `{ company }` | — *(no game-over listener; notification only)* |
+| `day:report` | `Simulation._wireDayCycle` (end-of-day chain) | `{ day, moneyEnd, daysInDeficit, graceDays, gameOver, notifications, spProductivity, company }` | `OfficeScene` → `DayReportPopup` |
+| `economy:gameover` | `EconomySystem.runEndOfDay` | `{ company }` | notification + toast only; game-over UX is triggered via `day:report.gameOver` |
 
 > **Note on `project:completed`:** This event name is reused for two distinct moments — when a project becomes *ready to collect* (emitted by `ProjectSystem`) and when the payout is actually *collected* (emitted by `Simulation.finishProject`). Both cause `OfficeScene` to refresh the modal and widget bar, which is the correct behavior for both moments.
+
+> **Note on `economy:gameover`:** This event is informational (drives a notification/toast) and is emitted just before `day:report`. The game-over UX itself is driven by `day:report.gameOver: true`; `DayReportPopup` checks that flag and opens `GameOverPopup` after the player dismisses the day report.
 
 ---
 
@@ -670,22 +702,36 @@ Triggered by `day:ended`, executed in this order:
 2. stats.totalSalariesPaid += salaries
 3. emit notification:add ("Salaries paid: -$N")
 4. rdPoints += rdPointsPerDay
-5. if money < MONEY_WARNING_THRESHOLD → emit warning notification
-6. if money <= BANKRUPTCY_THRESHOLD   → emit economy:bankrupt + critical notification
+5. if money < 0  → daysInDeficit++
+   else          → daysInDeficit = 0
+6. graceDays = getNegativeCashGraceDays(unlockedResearch)
+7. if daysInDeficit >= graceDays
+       → emit economy:gameover + critical notification
+       → return { gameOver: true, daysInDeficit, graceDays }
+   else if money < 0
+       → emit deficit-streak warning notification
+   else if money < MONEY_WARNING_THRESHOLD
+       → emit low-funds warning notification
 ```
 
-After `EconomySystem` runs:
+After `EconomySystem` runs (only when `gameOver` is false):
 
 ```
-7. _checkProjectDeadlines:
-     for each active project where !isReadyToFinish && elapsedDays > milestones.critical:
-       project.isFailed = true
-       remove from activeProjects, add to completedProjects
-       clear employee pins
-       emit project:failed + notification
-8. project pool refresh (new available offers for the next day)
-9. hiring refresh
-10. TimeSystem.beginNextDay (day++, gameSpeed = 0, emit day:began)
+8. emit day:report (finance snapshot incl. daysInDeficit, graceDays, gameOver)
+9. if gameOver:
+       Simulation.isGameOver = true
+       setSpeed(0)
+       return  (do NOT advance to next day)
+10. _checkProjectDeadlines:
+       for each active project where !isReadyToFinish && elapsedDays > milestones.critical:
+         project.isFailed = true
+         remove from activeProjects, add to completedProjects
+         clear employee pins
+         emit project:failed + notification
+11. project pool refresh (new available offers for the next day)
+12. hiring refresh
+13. TimeSystem.beginNextDay (day++, gameSpeed = 0, emit day:began)
+14. autosave (Game.saveGame on day:began listener)
 ```
 
 ### Project Milestone Payout
@@ -720,7 +766,8 @@ All tunables live in `src/config.js` under `GameConfig.gameplay`. The object is 
 | `AVAILABLE_PROJECT_POOL_SIZE` | `5` | Max projects offered per day |
 | `CANDIDATE_POOL_SIZE` | `4` | Legacy constant; `HiringSystem` uses `getCandidatePoolSize()` from `hiringResearch.js` instead (3 / 4 / 5 based on HR research) |
 | `MONEY_WARNING_THRESHOLD` | `5000` | Cash level that triggers a low-funds warning |
-| `BANKRUPTCY_THRESHOLD` | `0` | Cash level that triggers bankruptcy |
+| `NEGATIVE_CASH_GRACE_DAYS` | `3` | Consecutive negative-cash EODs allowed before insolvency (base; extended by Reserve Fund research via `getNegativeCashGraceDays`) |
+| `BANKRUPTCY_THRESHOLD` | `0` | *Legacy — unused.* Kept in config for reference; the active insolvency logic uses `daysInDeficit` + `NEGATIVE_CASH_GRACE_DAYS` instead. |
 | `ACTIVITY_LOG_MAX` | `100` | Max notifications retained in the activity feed |
 | `BASE_PRODUCTIVITY_MIN` | `0.85` | Lower bound of random productivity trait |
 | `BASE_PRODUCTIVITY_MAX` | `1.05` | Upper bound of random productivity trait |
@@ -744,9 +791,9 @@ Renderer and loop tunables:
 | Area | Issue | Suggested Fix |
 |---|---|---|
 | Office tier upgrade | `OFFICE_TIERS` defines five tiers with upgrade costs, and `getNextOfficeTier` is exported, but no upgrade action exists in `Simulation` and no upgrade button exists in the UI. | Add `Simulation.upgradeOffice()`, deduct cost, increment `tierIndex`, update `desks`, and add a UI trigger. |
-| `economy:bankrupt` | `EconomySystem` emits this event but no listener exists. The game continues running after bankruptcy — only a notification is shown. | Add a listener in `OfficeScene` (or `Simulation`) that pauses the game and shows a game-over screen or reset prompt. |
+| ~~`economy:bankrupt` / game over~~ | ~~`EconomySystem` emits this event but no listener exists. The game continues running after bankruptcy — only a notification is shown.~~ | Resolved: replaced with a 3-consecutive-day negative-cash grace period. `EconomySystem.runEndOfDay` tracks `company.daysInDeficit`, emits `economy:gameover`, and returns `{ gameOver }`. `Simulation._wireDayCycle` skips `beginNextDay` on game over, sets `isGameOver = true`, and the day report routes to `GameOverPopup` (reload autosave / new game / main menu). |
 | `project:completed` naming | The same event name covers both "project ready to collect" (mid-day) and "payout collected" (player action), making it impossible to distinguish between the two in a listener. | Rename the mid-day ready event to `project:ready` to eliminate ambiguity. |
-| Research tree content | The current 15 nodes implement effects for skills, teams/PMs, HR pool sizing, pool/hire refresh, and schedule. `agile_workflow` only gates child nodes (no direct effect). No late-game nodes (e.g. productivity bonuses, global offices) are implemented yet. | Add effect handlers for remaining node categories as gameplay scope expands. |
+| Research tree content | The current 18 nodes implement effects for skills, teams/PMs, HR pool sizing, pool/hire refresh, schedule, and insolvency grace (Reserve Fund I–IV). `agile_workflow` only gates child nodes (no direct effect). No late-game nodes (e.g. productivity bonuses, global offices) are implemented yet. | Add effect handlers for remaining node categories as gameplay scope expands. |
 | Archetype UI stubs | `EmployeeStatsPopup` and `TeamInfoPopup` render `/TODO` placeholders for personality summary, likes/dislikes, and effect bonuses. | Implement personality summary and likes/dislikes rendering from the archetype/communication profile data. |
 | ~~`BottomControlBar.js`~~ | ~~The file exists with speed buttons and an End Day button but is not imported anywhere.~~ | Resolved: file deleted. |
 | ~~`ProgressBar.js`~~ | ~~`src/ui/ProgressBar.js` was a standalone horizontal bar widget not referenced by any other file.~~ | Resolved: orphaned file deleted; use `widgets/ProgressBar` from the framework instead. |

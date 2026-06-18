@@ -21,7 +21,9 @@ import { EmployeeStatsPopup } from '../ui/EmployeeStatsPopup.js';
 import { SchedulePopup } from '../ui/SchedulePopup.js';
 import { WeatherPopup } from '../ui/WeatherPopup.js';
 import { DayReportPopup } from '../ui/DayReportPopup.js';
+import { GameOverPopup } from '../ui/GameOverPopup.js';
 import { SaveSlotPopup } from '../ui/SaveSlotPopup.js';
+import { PauseMenu } from '../ui/PauseMenu.js';
 import { TeamInfoPopup } from '../ui/TeamInfoPopup.js';
 import { Toast } from '../ui/Toast.js';
 import { BuildOverlay } from '../ui/BuildOverlay.js';
@@ -110,10 +112,19 @@ export class OfficeScene extends BaseScene {
     this._weatherPopup = new WeatherPopup();
 
     // End-of-day report popup.
-    this._dayReportPopup = new DayReportPopup(() => {
+    this._dayReportPopup = new DayReportPopup((snapshot) => {
       this._dayReportPopup.close();
-      this.game.sim.setSpeed(1);
+      if (snapshot?.gameOver) {
+        // Sim is already paused and isGameOver=true — show the game over screen.
+        const { width, height } = this.game.screen;
+        this._gameOverPopup.open(snapshot, width, height, this.game);
+      } else {
+        this.game.sim.continueToNextDay();
+      }
     });
+
+    // Game-over popup — shown after the day report when insolvency is triggered.
+    this._gameOverPopup = new GameOverPopup();
 
     // Save-slot popup — shown when the player clicks the Save sidebar button.
     this._saveSlotPopup = new SaveSlotPopup();
@@ -146,6 +157,10 @@ export class OfficeScene extends BaseScene {
     this._hudRefreshAcc = 0;
 
 
+    // Pause menu (shown on ESC).
+    this._pauseMenu = null;
+    this._speedBeforePause = 0;
+
     // Last dimensions used for layout — used to detect stale layout.
     this._layoutWidth = 0;
     this._layoutHeight = 0;
@@ -168,6 +183,7 @@ export class OfficeScene extends BaseScene {
     this._popupLayer.addChild(this._statsPopup);
     this._popupLayer.addChild(this._weatherPopup);
     this._popupLayer.addChild(this._dayReportPopup);
+    this._popupLayer.addChild(this._gameOverPopup);
     this._popupLayer.addChild(this._saveSlotPopup);
 
     // Modal layer sits between world and HUD so HUD elements stay interactive.
@@ -178,6 +194,15 @@ export class OfficeScene extends BaseScene {
 
     this.root.addChild(this._hudLayer);
     this.root.addChild(this._toastLayer);
+
+    // Pause menu — topmost layer so it covers HUD and toasts.
+    this._pauseMenu = new PauseMenu({
+      onResume:   () => this._closePauseMenu(),
+      onSave:     () => { this._closePauseMenu(); this._openSaveNamePopup(); },
+      onLoad:     () => this._pauseMenuGoLoad(),
+      onMainMenu: () => this._pauseMenuGoMainMenu(),
+    });
+    this.root.addChild(this._pauseMenu);
 
     // HUD.
     this._hudLayer.addChild(this._topBar);
@@ -261,11 +286,11 @@ export class OfficeScene extends BaseScene {
       // Restore Teams nav button if already researched in the loaded save.
       const company = this.game.sim?.company;
       if (company?.unlockedResearch?.includes('team_management')) {
-        this._leftSidebar.addNavItem({ id: 'teams', emoji: '👥', label: 'Teams' });
+        this._leftSidebar.addNavItem({ id: 'teams', icon: 'everyman', emoji: '👥', label: 'Teams' });
       }
       // Restore Schedule nav button if already researched in the loaded save.
       if (company?.unlockedResearch?.includes(GameConfig.schedule.researchNodeId)) {
-        this._leftSidebar.addNavItem({ id: 'schedule', emoji: '🕐', label: 'Schedule' });
+        this._leftSidebar.addNavItem({ id: 'schedule', icon: 'clock', emoji: '🕐', label: 'Schedule' });
       }
     });
 
@@ -273,10 +298,10 @@ export class OfficeScene extends BaseScene {
     // Unlock Schedule nav button when work_schedule is researched.
     this.listen('research:unlocked', ({ nodeId }) => {
       if (nodeId === 'team_management') {
-        this._leftSidebar.addNavItem({ id: 'teams', emoji: '👥', label: 'Teams' });
+        this._leftSidebar.addNavItem({ id: 'teams', icon: 'everyman', emoji: '👥', label: 'Teams' });
       }
       if (nodeId === GameConfig.schedule.researchNodeId) {
-        this._leftSidebar.addNavItem({ id: 'schedule', emoji: '🕐', label: 'Schedule' });
+        this._leftSidebar.addNavItem({ id: 'schedule', icon: 'clock', emoji: '🕐', label: 'Schedule' });
       }
     });
 
@@ -291,6 +316,11 @@ export class OfficeScene extends BaseScene {
   }
 
   update(dt) {
+    // ESC toggles the pause menu (disabled during game over).
+    if (this.game.input.wasPressed('Escape') && !this.game.sim.isGameOver) {
+      this._pauseMenu?.visible ? this._closePauseMenu() : this._openPauseMenu();
+    }
+
     // Safety net: re-layout if the canvas size has changed since the last
     // resize() call (guards against race conditions between Pixi's renderer
     // resize and our own _onResize handler).
@@ -369,6 +399,7 @@ export class OfficeScene extends BaseScene {
     this._statsPopup.resize(width, height);
     this._weatherPopup.resize(width, height);
     this._dayReportPopup.resize(width, height);
+    this._gameOverPopup.resize(width, height);
     this._saveSlotPopup.resize(width, height);
     if (this._schedulePopup.visible) {
       this._schedulePopup.open(this.game.sim?.company, width, height);
@@ -378,6 +409,7 @@ export class OfficeScene extends BaseScene {
     this._buildOverlay.resize(width, height);
     this._buildPanel.resize(width, height);
     this._buildToggleBtn.resize(width, height);
+    this._pauseMenu?.resize(width, height);
 
     // First-time initialisation guard.
     if (!this._initialized) {
@@ -426,6 +458,35 @@ export class OfficeScene extends BaseScene {
       height,
       (slotIndex, name) => this.game.saveGame({ slot: slotIndex, name }),
     );
+  }
+
+  // -----------------------------------------------------------------------
+  // Pause menu
+  // -----------------------------------------------------------------------
+
+  _openPauseMenu() {
+    this._speedBeforePause = this.game.sim.time.gameSpeed;
+    this.game.sim.setSpeed(0);
+    const { width, height } = this.game.screen;
+    this._pauseMenu.open(width, height);
+  }
+
+  _closePauseMenu() {
+    this._pauseMenu.close();
+    this.game.sim.setSpeed(this._speedBeforePause);
+  }
+
+  _pauseMenuGoLoad() {
+    const g = this.game;
+    this._pauseMenu.close();
+    g.scenes.changeTo(GameConfig.scenes.MAIN_MENU).then(() => {
+      g.events.emit('menu:show_load');
+    });
+  }
+
+  _pauseMenuGoMainMenu() {
+    this._pauseMenu.close();
+    this.game.scenes.changeTo(GameConfig.scenes.MAIN_MENU);
   }
 
   // -----------------------------------------------------------------------

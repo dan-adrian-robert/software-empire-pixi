@@ -106,4 +106,33 @@ export const RESEARCH_NODES = [
     cost: 60,
     dependencies: ['agile_workflow'],
   },
+  // ---- Survival / lives ----
+  {
+    id: 'life_reserve_1',
+    name: 'Reserve Fund I',
+    icon: '🩷',
+    cost: 70,
+    dependencies: [],
+  },
+  {
+    id: 'life_reserve_2',
+    name: 'Reserve Fund II',
+    icon: '❤️',
+    cost: 110,
+    dependencies: ['life_reserve_1'],
+  },
+  {
+    id: 'life_reserve_3',
+    name: 'Reserve Fund III',
+    icon: '💖',
+    cost: 150,
+    dependencies: ['life_reserve_2'],
+  },
+  {
+    id: 'life_reserve_4',
+    name: 'Reserve Fund IV',
+    icon: '💎',
+    cost: 200,
+    dependencies: ['life_reserve_3'],
+  },
 ];

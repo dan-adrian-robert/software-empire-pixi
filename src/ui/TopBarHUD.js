@@ -9,8 +9,11 @@
  * Row 2 — secondary info:
  *   Projects | Staff | R&D points | Weather
  */
-import { Container, Graphics, Text } from 'pixi.js';
+import { Container, Graphics, Sprite, Text } from 'pixi.js';
+import { getUiLogoTex } from '../utils/uiLogoSprite.js';
 import { dailySalaryCost, usedDesks } from '../state/Company.js';
+import { GameConfig } from '../config.js';
+import { getNegativeCashGraceDays } from '../data/lifeResearch.js';
 
 const ROW1_H = 44;
 const ROW2_H = 38;
@@ -32,13 +35,18 @@ const TEXT_WARN   = 0xfbbf24;
 const TEXT_CYAN   = 0x38bdf8;
 const TEXT_YELLOW = 0xfbbf24;
 
-const WEATHER_ICONS = {
-  very_bad:  '⛈',
-  bad:       '☁',
-  neutral:   '⛅',
-  good:      '🌤',
-  very_good: '☀',
+const WEATHER_LOGO_FRAMES = {
+  very_bad:  'cloud_rain',
+  bad:       'cloud',
+  neutral:   'cloud_sun',
+  good:      'cloud_sun',
+  very_good: 'sun',
 };
+
+// Pixel height for the inline weather icon sprite (row 2, fontSize ~13).
+const WEATHER_ICON_SIZE = 15;
+// Horizontal gap between the weather sprite and the text label.
+const WEATHER_ICON_GAP = 4;
 
 const WEATHER_COLORS = {
   bad:     TEXT_RED,
@@ -66,6 +74,7 @@ const BTN_TEXT_ACTIVE  = 0xffffff;
 const FIELD_ROW = {
   name:      1,
   money:     1,
+  hearts:    1,
   pl:        1,
   day:       1,
   time:      1,
@@ -110,6 +119,13 @@ export class TopBarHUD extends Container {
 
     /** @type {((anchorX: number, anchorY: number) => void)|null} */
     this._onWeatherClick = null;
+
+    /** @type {Sprite} Inline weather icon sprite in row 2. */
+    this._weatherIconSprite = new Sprite();
+    this._weatherIconSprite.anchor.set(0, 0.5);
+    this._weatherIconSprite.height = WEATHER_ICON_SIZE;
+    this._weatherIconSprite.scale.x = this._weatherIconSprite.scale.y;
+    this._weatherIconSprite.visible = false;
   }
 
   /**
@@ -151,8 +167,17 @@ export class TopBarHUD extends Container {
     const moneyColor  = money < 500 ? TEXT_WARN : money <= 0 ? TEXT_RED : TEXT_BRIGHT;
     const timeStr     = this.game.sim?.time.getCurrentTimeString(company.schedule) ?? '';
 
-    this._set('name',  company.name,                    TEXT_BRIGHT);
-    this._set('money', `$${money.toLocaleString()}`,    moneyColor);
+    const deficit = company.daysInDeficit ?? 0;
+    const graceDays = getNegativeCashGraceDays(company.unlockedResearch);
+    const livesLeft = graceDays - deficit;
+
+    const heartsStr = `❤️ ${livesLeft}/${graceDays}`;
+
+    const moneyLabel = `$${money.toLocaleString()}`;
+
+    this._set('name',   company.name,  TEXT_BRIGHT);
+    this._set('money',  moneyLabel,    moneyColor);
+    this._set('hearts', heartsStr,     deficit > 0 ? TEXT_WARN : TEXT_GREEN);
     this._set('pl',    `-$${salaries.toLocaleString()}/day`, profitColor);
     this._set('day',   `Day ${company.day}`,            TEXT_BRIGHT);
     this._set('time',  timeStr,                         TEXT_DIM);
@@ -172,13 +197,22 @@ export class TopBarHUD extends Container {
 
     const w = company.currentWeather;
     if (w) {
-      const icon  = WEATHER_ICONS[w.id] ?? '?';
       const color = WEATHER_COLORS[w.sentiment] ?? TEXT_DIM;
       const pct   = w.modifier >= 1
         ? `+${((w.modifier - 1) * 100).toFixed(1)}%`
         : `${((w.modifier - 1) * 100).toFixed(1)}%`;
-      this._set('weather', `${icon} ${w.label} (${pct})`, color);
+      const weatherTex = getUiLogoTex(WEATHER_LOGO_FRAMES[w.id]);
+      if (weatherTex) {
+        this._weatherIconSprite.texture = weatherTex;
+        const scale = WEATHER_ICON_SIZE / weatherTex.height;
+        this._weatherIconSprite.scale.set(scale);
+        this._weatherIconSprite.visible = true;
+      } else {
+        this._weatherIconSprite.visible = false;
+      }
+      this._set('weather', `${w.label} (${pct})`, color);
     } else {
+      this._weatherIconSprite.visible = false;
       this._set('weather', '— Weather', TEXT_DIM);
     }
 
@@ -234,6 +268,10 @@ export class TopBarHUD extends Container {
       this.addChild(t);
     }
 
+    // Hearts field sits inline beside the money label at the same font size.
+    this._fields.get('hearts').y = ROW1_CY;
+    this._fields.get('money').y = ROW1_CY;
+
     // Make the weather chip directly interactive — it is already on top of
     // the background so no z-order issues arise.
     const weatherText = this._fields.get('weather');
@@ -243,6 +281,7 @@ export class TopBarHUD extends Container {
       if (this._onWeatherClick) this._onWeatherClick(weatherText.x, H);
     });
 
+    this.addChild(this._weatherIconSprite);
     this._repositionFields();
   }
 
@@ -252,11 +291,12 @@ export class TopBarHUD extends Container {
 
     // Row 1 — leave the right ~42 % free for speed buttons
     const row1 = {
-      name:  16,
-      money: Math.floor(W * 0.14),
-      pl:    Math.floor(W * 0.25),
-      day:   Math.floor(W * 0.37),
-      time:  Math.floor(W * 0.47),
+      name:   16,
+      money:  Math.floor(W * 0.14),
+      hearts: Math.floor(W * 0.20),
+      pl:     Math.floor(W * 0.27),
+      day:    Math.floor(W * 0.37),
+      time:   Math.floor(W * 0.47),
     };
 
     // Row 2 — spread across the full width
@@ -270,7 +310,15 @@ export class TopBarHUD extends Container {
     const xMap = { ...row1, ...row2 };
     for (const [key, x] of Object.entries(xMap)) {
       const t = this._fields.get(key);
-      if (t) t.x = x;
+      if (!t) continue;
+      if (key === 'weather') {
+        // Sprite sits at the base x; text is offset by sprite width + gap.
+        this._weatherIconSprite.x = x;
+        this._weatherIconSprite.y = ROW2_CY;
+        t.x = x + WEATHER_ICON_SIZE + WEATHER_ICON_GAP;
+      } else {
+        t.x = x;
+      }
     }
 
     this._repositionClockBar();
@@ -401,9 +449,12 @@ export class TopBarHUD extends Container {
   _updateStartDayButton() {
     const time = this.game.sim?.time;
     if (!time) return;
-    const atDayStart = time.dayProgress === 0 && time.gameSpeed === 0;
-    if (this._startDayBtn) this._startDayBtn.visible = atDayStart;
-    if (this._endDayBtn)   this._endDayBtn.visible   = !atDayStart;
+    // While the day report is open (_dayEnding is still true, dayProgress = 1)
+    // hide both buttons — neither "Start Day" nor "End Day" is relevant yet.
+    const reportPending = time._dayEnding && time.dayProgress >= 1;
+    const atDayStart    = time.dayProgress === 0 && time.gameSpeed === 0;
+    if (this._startDayBtn) this._startDayBtn.visible = !reportPending && atDayStart;
+    if (this._endDayBtn)   this._endDayBtn.visible   = !reportPending && !atDayStart;
   }
 
   _makeButton(label, onClick) {

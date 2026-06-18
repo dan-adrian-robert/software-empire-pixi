@@ -27,6 +27,16 @@ export const SCHEDULE_ICONS = {
   [ScheduleActivity.TALK]:           '💬',
 };
 
+/** Spritesheet frame id per activity (logos.json). */
+export const SCHEDULE_LOGO_FRAMES = {
+  [ScheduleActivity.WORK]:           'laptop',
+  [ScheduleActivity.BATHROOM_BREAK]: 'toilet',
+  [ScheduleActivity.TALK]:           'speech_bubble',
+};
+
+/** Spritesheet frame id for the "no project assigned" warning icon. */
+export const WARNING_LOGO_FRAME = 'warning_sign';
+
 /**
  * Returns the activity for a given 15-minute slot index.
  * @param {number} slot

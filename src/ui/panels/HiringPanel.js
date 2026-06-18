@@ -21,7 +21,8 @@ import {
 import { ROLE_LABELS, STAFF_ROLES } from '@/data/staffRoles.js';
 import { getDisplayName } from '@/data/archetypeDisplayNames.js';
 import { freeDesks } from '@/state/Company.js';
-import { SCHEDULE_CYCLE, SCHEDULE_ICONS } from '@/data/scheduleActivities.js';
+import { SCHEDULE_CYCLE, SCHEDULE_LOGO_FRAMES } from '@/data/scheduleActivities.js';
+import { createLogoSprite } from '@utils/uiLogoSprite.js';
 import { Tabs, Button } from '../framework/index.js';
 import { getHiringTabMode } from '@/data/hiringResearch.js';
 
@@ -673,7 +674,7 @@ export class HiringPanel extends Container {
         x += 10;
       }
       const cell = new Container();
-      const icon = new Text({ text: SCHEDULE_ICONS[state] ?? '', style: { fontSize: 10 } });
+      const icon = createLogoSprite(SCHEDULE_LOGO_FRAMES[state], 10) ?? new Text({ text: '', style: { fontSize: 10 } });
       icon.anchor.set(0, 0.5);
       icon.position.set(0, 7);
       cell.addChild(icon);

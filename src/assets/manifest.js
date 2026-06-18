@@ -40,6 +40,7 @@ export const assetManifest = {
         { alias: 'character-2', src: 'assets/images/characters/character2.png' },
         { alias: 'character-3', src: 'assets/images/characters/character3.png' },
         { alias: 'character-4', src: 'assets/images/characters/character4.png' },
+        { alias: 'ui-logos', src: 'assets/images/ui/logos.json' },
         // { alias: 'office-tileset', src: 'assets/office/tiles.png' },
         // { alias: 'employee-sheet', src: 'assets/office/employees.json' },
         // SFX — loaded directly by SoundManager (not via Pixi Assets).

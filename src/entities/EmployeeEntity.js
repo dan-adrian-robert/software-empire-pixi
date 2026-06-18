@@ -11,7 +11,8 @@
 import { Entity } from './Entity.js';
 import { Container, Rectangle, Sprite, Text } from 'pixi.js';
 import { getCharacterTopHalf } from '../utils/characterSprite.js';
-import { SCHEDULE_ICONS } from '../data/scheduleActivities.js';
+import { SCHEDULE_LOGO_FRAMES, WARNING_LOGO_FRAME } from '../data/scheduleActivities.js';
+import { getUiLogoTex } from '../utils/uiLogoSprite.js';
 
 const POINTS_LABEL_START_Y = 70; // below body, floats upward during fade
 
@@ -23,8 +24,8 @@ const PERSON_W = 64;
 // Label offset = 128 - 52 + 16 = 92 → name at 16px below desk bottom.
 const NAME_OFFSET_Y = 92;
 
-const WARNING_ICON = '⚠️';
-const ICON_FONT_SIZE = 18;
+// Display size of head icon sprites in pixels (height-based scale).
+const ICON_SIZE = 18;
 // Gap in pixels between adjacent head icons.
 const ICON_GAP = 4;
 
@@ -55,11 +56,10 @@ export class EmployeeEntity extends Entity {
     this._sprite.position.set(PERSON_W / 2, 60);
 
     // Icon bar — horizontally centered row of status icons above the sprite's top.
-    // Icons are laid out in a fixed slot order; each slot is a Text node that can
+    // Icons are laid out in a fixed slot order; each slot is a Sprite that can
     // be hidden when it does not apply.  Slots (left → right): noProject, schedule.
-    const iconStyle = { fontFamily: 'Inter, system-ui, sans-serif', fontSize: ICON_FONT_SIZE };
-    this._iconNoProject = new Text({ text: WARNING_ICON, style: iconStyle });
-    this._iconSchedule  = new Text({ text: SCHEDULE_ICONS.WORK, style: iconStyle });
+    this._iconNoProject = this._makeIconSprite(WARNING_LOGO_FRAME);
+    this._iconSchedule  = this._makeIconSprite(SCHEDULE_LOGO_FRAMES.WORK);
     this._headIconBar = new Container();
     this._headIconBar.addChild(this._iconNoProject);
     this._headIconBar.addChild(this._iconSchedule);
@@ -145,6 +145,19 @@ export class EmployeeEntity extends Entity {
     this._refreshHeadIcons();
   }
 
+  /** Creates a fixed-size Sprite for a logo frame, anchored top-left. */
+  _makeIconSprite(frameId) {
+    const tex = getUiLogoTex(frameId);
+    const sprite = tex ? new Sprite(tex) : new Sprite();
+    sprite.anchor.set(0, 1);
+    // Scale uniformly so the sprite displays at ICON_SIZE px height.
+    if (tex) {
+      const scale = ICON_SIZE / tex.height;
+      sprite.scale.set(scale);
+    }
+    return sprite;
+  }
+
   /**
    * Recomputes the head icon bar.
    *
@@ -156,11 +169,15 @@ export class EmployeeEntity extends Entity {
    * reference width.  Adding future slots only requires extending this method.
    */
   _refreshHeadIcons() {
-    const scheduleEmoji = SCHEDULE_ICONS[this._scheduleState] ?? '';
+    const scheduleFrame = SCHEDULE_LOGO_FRAMES[this._scheduleState];
+    const scheduleTex   = scheduleFrame ? getUiLogoTex(scheduleFrame) : null;
+    if (scheduleTex) {
+      this._iconSchedule.texture = scheduleTex;
+      const scale = ICON_SIZE / scheduleTex.height;
+      this._iconSchedule.scale.set(scale);
+    }
 
-    this._iconNoProject.text    = WARNING_ICON;
     this._iconNoProject.visible = !this._hasProject;
-    this._iconSchedule.text     = scheduleEmoji;
     this._iconSchedule.visible  = true;
 
     // Collect visible icons in slot order.
@@ -175,7 +192,6 @@ export class EmployeeEntity extends Entity {
     // Lay out left-to-right, centering the row on PERSON_W / 2.
     let x = PERSON_W / 2 - totalW / 2;
     visible.forEach((icon, i) => {
-      icon.anchor.set(0, 1);
       icon.position.set(x, 0);
       x += widths[i] + ICON_GAP;
     });

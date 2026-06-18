@@ -13,7 +13,7 @@ import { Container, Graphics, Text } from 'pixi.js';
 import { BaseScene } from './BaseScene.js';
 import { Button } from '../ui/framework/index.js';
 import { GameConfig } from '../config.js';
-import { getSlotMeta } from '../systems/SaveManager.js';
+import { getSlotMeta, deleteSlot } from '../systems/SaveManager.js';
 
 const { SLOT_COUNT } = GameConfig.save;
 
@@ -47,6 +47,9 @@ export class MainMenuScene extends BaseScene {
     this._loadBackBtn = null;
     /** @type {Container[]} */
     this._slotRows = [];
+
+    /** @type {Container|null} Delete-confirmation overlay. */
+    this._confirmOverlay = null;
   }
 
   async preload() {}
@@ -57,6 +60,8 @@ export class MainMenuScene extends BaseScene {
 
     this._buildTitleView();
     this._showView('title');
+
+    this.listen('menu:show_load', () => this._showView('load'));
   }
 
   resize(width, height) {
@@ -271,7 +276,32 @@ export class MainMenuScene extends BaseScene {
       dateText.anchor.set(1, 0);
       dateText.position.set(ROW_W - 14, 10);
 
-      container.addChild(bg, slotLabel, nameText, infoText, dateText);
+      // Delete button — bottom-right of the row.
+      const DEL_W = 44;
+      const DEL_H = 26;
+      const DEL_X = ROW_W - DEL_W - 12;
+      const DEL_Y = ROW_H - DEL_H - 8;
+      const delBg = new Graphics();
+      const drawDel = (hover) => delBg.clear()
+        .roundRect(DEL_X, DEL_Y, DEL_W, DEL_H, 5)
+        .fill({ color: hover ? 0x5a1515 : 0x3a0f0f })
+        .stroke({ color: 0xf87171, width: 1 });
+      drawDel(false);
+      delBg.eventMode = 'static';
+      delBg.cursor    = 'pointer';
+      const delLabel = new Text({
+        text: '🗑',
+        style: { fill: 0xf87171, fontFamily: FONT, fontSize: 13 },
+      });
+      delLabel.anchor.set(0.5, 0.5);
+      delLabel.position.set(DEL_X + DEL_W / 2, DEL_Y + DEL_H / 2);
+      delLabel.eventMode = 'none';
+      delBg.on('pointerover',  (e) => { e.stopPropagation(); drawDel(true); });
+      delBg.on('pointerout',   (e) => { e.stopPropagation(); drawDel(false); });
+      delBg.on('pointerdown',  (e) => { e.stopPropagation(); });
+      delBg.on('pointerup',    (e) => { e.stopPropagation(); this._showDeleteConfirm(index); });
+
+      container.addChild(bg, slotLabel, nameText, infoText, dateText, delBg, delLabel);
 
       // Make the whole row clickable.
       container.eventMode = 'static';
@@ -306,9 +336,107 @@ export class MainMenuScene extends BaseScene {
   }
 
   _tearDownLoadView() {
+    this._hideDeleteConfirm();
     this._slotRows    = [];
     this._loadTitle   = null;
     this._loadBackBtn = null;
+  }
+
+  _showDeleteConfirm(index) {
+    this._hideDeleteConfirm();
+
+    const { width, height } = this.game.screen;
+    const meta = getSlotMeta(index);
+
+    const overlay = new Container();
+
+    const backdrop = new Graphics()
+      .rect(0, 0, width, height)
+      .fill({ color: 0x000000, alpha: 0.65 });
+    backdrop.eventMode = 'static';
+
+    const CARD_W = 380;
+    const CARD_H = 148;
+    const card = new Graphics()
+      .roundRect(0, 0, CARD_W, CARD_H, 10)
+      .fill({ color: 0x0d1526 })
+      .stroke({ color: 0x7a1a1a, width: 1.5 });
+    card.eventMode = 'static';
+    card.position.set(Math.round((width - CARD_W) / 2), Math.round((height - CARD_H) / 2));
+
+    const titleTxt = new Text({
+      text: `Delete Slot ${index + 1}?`,
+      style: { fill: 0xf87171, fontFamily: FONT, fontSize: 17, fontWeight: '700' },
+    });
+    titleTxt.position.set(20, 18);
+
+    const saveName = meta.saveName ?? meta.companyName ?? '';
+    const subTxt = new Text({
+      text: saveName ? `"${saveName}"  ·  Day ${meta.day}` : '',
+      style: { fill: 0x7a86a3, fontFamily: FONT, fontSize: 13 },
+    });
+    subTxt.position.set(20, 44);
+
+    const warnTxt = new Text({
+      text: 'This cannot be undone.',
+      style: { fill: 0xf87171, fontFamily: FONT, fontSize: 11 },
+    });
+    warnTxt.position.set(20, 64);
+
+    const BTN_W  = 156;
+    const BTN_H  = 38;
+    const BTN_Y  = CARD_H - BTN_H - 14;
+    const GAP    = 12;
+    const totalBtnW = BTN_W * 2 + GAP;
+    const btnStartX = Math.round((CARD_W - totalBtnW) / 2);
+
+    const makeCfgBtn = (label, bgCol, borderCol, x, onClick) => {
+      const btnBg = new Graphics()
+        .roundRect(x, BTN_Y, BTN_W, BTN_H, 6)
+        .fill({ color: bgCol })
+        .stroke({ color: borderCol, width: 1.5 });
+      btnBg.eventMode = 'static';
+      btnBg.cursor    = 'pointer';
+      btnBg.on('pointerover', () => { btnBg.alpha = 0.8; });
+      btnBg.on('pointerout',  () => { btnBg.alpha = 1; });
+      btnBg.on('pointerup',   () => onClick());
+
+      const btnLbl = new Text({
+        text: label,
+        style: { fill: 0xe6e8ef, fontFamily: FONT, fontSize: 14, fontWeight: '600' },
+      });
+      btnLbl.anchor.set(0.5, 0.5);
+      btnLbl.position.set(x + BTN_W / 2, BTN_Y + BTN_H / 2);
+      btnLbl.eventMode = 'none';
+      return [btnBg, btnLbl];
+    };
+
+    const [cancelBg, cancelLbl] = makeCfgBtn(
+      'Cancel', 0x1a2a44, 0x2e4070, btnStartX,
+      () => this._hideDeleteConfirm(),
+    );
+    const [deleteBg, deleteLbl] = makeCfgBtn(
+      'Delete', 0x3a0f0f, 0xf87171, btnStartX + BTN_W + GAP,
+      () => {
+        deleteSlot(index);
+        this._hideDeleteConfirm();
+        this._showView('load');
+      },
+    );
+
+    card.addChild(titleTxt, subTxt, warnTxt, cancelBg, cancelLbl, deleteBg, deleteLbl);
+    overlay.addChild(backdrop, card);
+
+    this._confirmOverlay = overlay;
+    this.root.addChild(overlay);
+  }
+
+  _hideDeleteConfirm() {
+    if (this._confirmOverlay) {
+      this.root.removeChild(this._confirmOverlay);
+      this._confirmOverlay.destroy({ children: true });
+      this._confirmOverlay = null;
+    }
   }
 
   _layoutLoad(width, height) {

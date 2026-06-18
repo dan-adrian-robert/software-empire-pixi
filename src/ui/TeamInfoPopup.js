@@ -22,8 +22,9 @@ import { PopupShell } from './screens/PopupShell.js';
 import { Tabs } from './widgets/Tabs.js';
 import { Label } from './widgets/Label.js';
 import { ProgressBar } from './widgets/ProgressBar.js';
-import { TeamArchetypeWheel } from './components/ArchetypeWheel.js';
+import { TeamArchetypeWheel, WHEEL_LOGO_FRAMES } from './components/ArchetypeWheel.js';
 import { Theme } from './foundation/Theme.js';
+import { getUiLogoTex } from '../utils/uiLogoSprite.js';
 
 // ── Layout ────────────────────────────────────────────────────────────────────
 const POPUP_W  = 860;
@@ -38,13 +39,6 @@ const CENTER_W = 294;
 const RIGHT_X  = CENTER_X + CENTER_W + P; // 574
 const RIGHT_W  = POPUP_W - RIGHT_X - P;   // 274
 
-// ── Archetype wheel ───────────────────────────────────────────────────────────
-const WHEEL_ICONS = {
-  creator: '✏️', ruler: '👑', caregiver: '🤲',
-  innocent: '☀️', sage: '📖', explorer: '🧭',
-  outlaw: '⚡', magician: '🎩', hero: '🛡️',
-  everyman: '🧠', jester: '😄', lover: '❤️',
-};
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -314,10 +308,14 @@ export class TeamInfoPopup extends Container {
           .stroke({ color, width: 1, alpha: 0.55 }),
       );
 
-      const iconT = new Text({ text: WHEEL_ICONS[archId] ?? '?', style: { fontSize: 15 } });
-      iconT.anchor.set(0.5, 0);
-      iconT.position.set(cx + cardW / 2, y + 4);
-      this._content.addChild(iconT);
+      const iconTex = getUiLogoTex(WHEEL_LOGO_FRAMES[archId]);
+      if (iconTex) {
+        const iconS = new Sprite(iconTex);
+        iconS.anchor.set(0.5, 0);
+        iconS.scale.set(15 / iconTex.height);
+        iconS.position.set(cx + cardW / 2, y + 4);
+        this._content.addChild(iconS);
+      }
 
       const archT = new Text({
         text: def?.label ?? archId,

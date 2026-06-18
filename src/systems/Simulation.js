@@ -51,6 +51,9 @@ export class Simulation {
     /** @type {import('../state/Company.js').Company} */
     this.company = null;
 
+    /** True after the player has triggered the insolvency game-over condition. */
+    this.isGameOver = false;
+
     this._endDayOff   = null;
     this._beginDayOff = null;
   }
@@ -58,6 +61,7 @@ export class Simulation {
   /** Called once during Game.init() and again on New Game. */
   reset() {
     this._tearDown();
+    this.isGameOver = false;
 
     this.company = createCompany();
     this.productivity.rollDailyWeather(this.company);
@@ -78,6 +82,7 @@ export class Simulation {
    */
   loadFromSave(payload) {
     this._tearDown();
+    this.isGameOver = false;
 
     this.company = payload.company;
     this._patchSaveCompat(this.company);
@@ -115,20 +120,24 @@ export class Simulation {
    * TimeSystem, NotificationSystem, and company reference.
    */
   _wireDayCycle() {
-    // Wire end-of-day: roll weather first so the new day starts with fresh
-    // conditions, then economy, project pool refresh, hiring, and clock advance.
     this._endDayOff = this.bus.on('day:ended', ({ company }) => {
-      this.productivity.rollDailyWeather(company);
-      this.economy.runEndOfDay(company);
+      const financeResult = this.economy.runEndOfDay(company);
       this._checkProjectDeadlines(company);
       this._refreshProjectPool(company);
       this.hiring.refreshCandidates(company);
       this.hiring.refreshOtherCandidates(company);
 
+      // Pause so dayProgress stays at 1 and the clock shows end-of-shift time
+      // while the day report is open. The next day begins only after Continue.
+      this.setSpeed(0);
+
       // Snapshot notifications and SP productivity before they are cleared by day:began.
       this.bus.emit('day:report', {
         day:              company.day,
         moneyEnd:         company.money,
+        daysInDeficit:    financeResult.daysInDeficit,
+        graceDays:        financeResult.graceDays,
+        gameOver:         financeResult.gameOver,
         notifications:    [...this.notifications.notifications],
         spProductivity:   {
           ...company.dailySpProductivity,
@@ -137,7 +146,12 @@ export class Simulation {
         company,
       });
 
-      this.time.beginNextDay(company);
+      if (financeResult.gameOver) {
+        // Mark the simulation as over and leave it frozen — do NOT advance to the
+        // next day. The autosave written at the previous day:began remains intact
+        // so the player can reload and try again.
+        this.isGameOver = true;
+      }
     });
 
     this._beginDayOff = this.bus.on('day:began', () => {
@@ -231,6 +245,8 @@ export class Simulation {
     // relationships and communicationLog added with Schedule Activity System feature.
     if (!company.relationships) company.relationships = {};
     if (!company.communicationLog) company.communicationLog = [];
+    // daysInDeficit added with negative-balance game-over feature.
+    if (company.daysInDeficit === undefined) company.daysInDeficit = 0;
     // Migrate any stale scheduleState values from before BATHROOM_BREAK was introduced.
     for (const emp of company.employees) {
       if (emp.scheduleState === 'BREAK') emp.scheduleState = 'BATHROOM_BREAK';
@@ -240,6 +256,7 @@ export class Simulation {
   /** @param {number} dt  Real seconds (already time-scaled by Game). */
   update(dt) {
     if (!this.company) return;
+    if (this.isGameOver) return;
     const speed = this.time.gameSpeed;
     this.projects.update(dt, speed, this.company, this.productivity);
     this.time.update(dt, this.company);
@@ -411,6 +428,16 @@ export class Simulation {
   /** Fast-forward to end of day. */
   endDay() {
     this.time.fastForward(this.company);
+  }
+
+  /**
+   * Advance to the next day. Called when the player clicks Continue on the day
+   * report. Rolls weather for the new day, then begins it paused at schedule start.
+   */
+  continueToNextDay() {
+    if (this.isGameOver || !this.time._dayEnding) return;
+    this.productivity.rollDailyWeather(this.company);
+    this.time.beginNextDay(this.company);
   }
 
   /** Set game speed (0 = pause, 1/4/16 = multipliers). */

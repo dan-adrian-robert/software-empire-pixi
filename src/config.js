@@ -97,6 +97,9 @@ export const GameConfig = Object.freeze({
 
     // Insurance cost = totalSP × this factor (used by projectTemplates helper).
     PROJECT_INSURANCE_SP_FACTOR: 2.5,
+
+    // Consecutive end-of-day periods with negative cash before the company is declared insolvent.
+    NEGATIVE_CASH_GRACE_DAYS: 3,
   }),
 
   schedule: Object.freeze({

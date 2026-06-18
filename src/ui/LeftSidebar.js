@@ -7,6 +7,7 @@
  */
 import { Container, Graphics, Text } from 'pixi.js';
 import { TOP_BAR_HEIGHT } from './TopBarHUD.js';
+import { createLogoOrEmoji } from '../utils/uiLogoSprite.js';
 
 export const LEFT_SIDEBAR_WIDTH = 64;
 
@@ -21,16 +22,16 @@ const BTN_ACTIVE_BORDER = 0x4a7aff;
 const BTN_BORDER = 0x1e2d47;
 
 const NAV_ITEMS = [
-  { id: 'projects', emoji: '📋', label: 'Projects' },
-  { id: 'employees', emoji: '👥', label: 'Staff' },
-  { id: 'hiring', emoji: '➕', label: 'Hire' },
-  { id: 'assignment', emoji: '📌', label: 'Assign' },
-  { id: 'research', emoji: '🔬', label: 'Research' },
+  { id: 'projects',   icon: 'list',    emoji: '📋', label: 'Projects' },
+  { id: 'employees',  icon: 'everyman', emoji: '👥', label: 'Staff' },
+  { id: 'hiring',     icon: null,      emoji: '➕', label: 'Hire' },
+  { id: 'assignment', icon: null,      emoji: '📌', label: 'Assign' },
+  { id: 'research',   icon: null,      emoji: '🔬', label: 'Research' },
 ];
 
 // Buttons pinned to the bottom of the sidebar, ordered bottom-up (last = closest to Save).
 const BOTTOM_NAV_ITEMS = [
-  { id: 'info', emoji: 'ℹ️', label: 'Info' },
+  { id: 'info', icon: 'info_bubble', emoji: 'ℹ️', label: 'Info' },
 ];
 
 export class LeftSidebar extends Container {
@@ -114,7 +115,7 @@ export class LeftSidebar extends Container {
   /**
    * Dynamically add a navigation button (e.g. unlocked via research).
    * Has no effect if a button with the same id already exists.
-   * @param {{ id: string, emoji: string, label: string }} item
+   * @param {{ id: string, icon?: string|null, emoji: string, label: string }} item
    */
   addNavItem(item) {
     if ([...this._buttons, ...this._bottomButtons].some((b) => b.id === item.id)) return;
@@ -133,7 +134,7 @@ export class LeftSidebar extends Container {
     const bg = new Graphics();
     container.addChild(bg);
 
-    const icon = new Text({ text: '💾', style: { fontSize: 22 } });
+    const icon = createLogoOrEmoji('save', 22, '💾');
     icon.anchor.set(0.5, 0.5);
     icon.position.set(BTN_SIZE / 2, BTN_SIZE / 2 - 5);
     container.addChild(icon);
@@ -175,7 +176,7 @@ export class LeftSidebar extends Container {
     return container;
   }
 
-  _makeButton({ id, emoji, label }) {
+  _makeButton({ id, icon: frameId = null, emoji, label }) {
     const container = new Container();
     container.eventMode = 'static';
     container.cursor = 'pointer';
@@ -183,10 +184,7 @@ export class LeftSidebar extends Container {
     const bg = new Graphics();
     container.addChild(bg);
 
-    const icon = new Text({
-      text: emoji,
-      style: { fontSize: 22 },
-    });
+    const icon = createLogoOrEmoji(frameId, 22, emoji);
     icon.anchor.set(0.5, 0.5);
     icon.position.set(BTN_SIZE / 2, BTN_SIZE / 2 - 5);
     container.addChild(icon);

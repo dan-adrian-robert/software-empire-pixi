@@ -68,11 +68,14 @@ npm run format    # Prettier format
 - Accepting a project costs its insurance upfront; the insurance is refunded when you collect.
 - Project payouts are collected instantly when the player clicks **Collect** during the day. The amount equals `basePayout × milestoneMultiplier + insurance refund`. Base payout = `totalSP × $100`.
 - **R&D points** accrue at end-of-day (10 pts/day base) and are spent in the Research tree.
-- A low-funds warning fires when cash drops below **$5,000**; bankruptcy is declared at **$0**.
-- The HUD shows current cash, daily salary cost, R&D points, and day number.
+- A low-funds warning fires when cash drops below **$5,000**.
+- **Insolvency:** if cash is negative after salaries at the end of a day, a deficit streak counter increments. The game ends after N consecutive negative end-of-days (default 3). Collecting a project payout or cutting salaries before midnight resets the streak.
+- A **hearts counter** (`❤️ livesLeft/graceDays`) is always visible in the top bar next to cash — green when healthy, yellow while in deficit.
+- The **Reserve Fund** research chain (I → II → III → IV) adds +1, +2, +3, +4 extra grace days cumulatively, extending the maximum streak tolerance to 13 days.
+- The HUD shows current cash, hearts counter, daily salary cost, R&D points, and day number.
 
 ### Research Tree
-- A directed acyclic graph of **15 research nodes** spanning skill unlocks, team management, HR upgrades, and operational improvements.
+- A directed acyclic graph of **18 research nodes** spanning skill unlocks, team management, HR upgrades, operational improvements, and survival bonuses.
 - Four skill branches: **Frontend Development** (unlocked at game start) → **Backend Development** and **Mobile Development** → **DevOps**.
 - Additional branches and their mechanical effects:
 
@@ -82,6 +85,7 @@ npm run format    # Prettier format
   | Teams | team_management, project_management | Unlocks Team Lead and PM hiring; Teams panel; PM auto-assignment after each WORK flush |
   | HR | hr_basics → hr_organised → hr_leads_1 → hr_leads_2 | Splits hiring UI into tabs; grows candidate pool from 3 → 4 → 5 per day; unlocks Refresh Hire button |
   | Ops | agile_workflow → project_refresh / work_schedule; hire_refresh (from hr_basics) | Paid pool-refresh buttons ($500 each); unlocks the work schedule editor |
+  | Survival | life_reserve_1 → life_reserve_2 → life_reserve_3 → life_reserve_4 | Extends insolvency grace period (+1/+2/+3/+4 days cumulatively, up to 13 total) |
 
 - Locked skills cannot be assigned to projects or hired for.
 
@@ -103,20 +107,32 @@ npm run format    # Prettier format
 ### Save / Load
 - Up to **5 save slots** backed by `localStorage`. Each slot stores a full day-start checkpoint.
 - **Autosave** writes to the active slot at the start of every new day (paused, before the player unpauses).
-- **Manual save** is available at any time via the 💾 button at the bottom of the left sidebar.
-- **Load Game** on the main menu shows all occupied slots; click a row to load that checkpoint.
+- **Manual save** is available at any time via the 💾 button at the bottom of the left sidebar, or via **Save Game** in the Pause Menu (ESC).
+- **Load Game** on the main menu shows all occupied slots; click a row to load that checkpoint. The same slot picker is accessible from the Pause Menu's **Load Game** button mid-game.
 - Checkpoints include: full company state, ID counters, version, save name, and timestamp. Time state is not saved — loading always starts at the beginning of the saved day, paused.
 - Save files are version-locked; files from a different game version are rejected on load.
 
 ### Day Report
 - At the end of every day a **Day Summary** modal shows the day's net finances, project status, and a scrollable activity log.
+- When cash is negative, the report includes a **Deficit streak** line (`X / N days`) to remind you how close you are to insolvency.
 - The player clicks **Continue** to advance to the next day's planning phase.
+
+### Game Over
+- After N consecutive end-of-days with negative cash (default 3; extendable via Reserve Fund research), the company is declared **insolvent**.
+- The day report shows `INSOLVENT` instead of the streak count, and **Continue** opens the **Game Over** screen instead of advancing.
+- The **Game Over** screen displays final stats and offers three options: **Load Game** (opens the save slot picker — the autosave from the start of the fatal day is still intact), **New Game**, or **Main Menu**.
+- The simulation is frozen after insolvency; the ESC pause menu is disabled until the player makes a choice.
+
+### Pause Menu
+- Press **ESC** at any time during office play to open the **Pause Menu** (disabled after game over).
+- Pauses time and presents four actions: **Resume** (restores previous speed), **Save Game** (opens the save slot dialog), **Load Game** (returns to the main menu load view), **Main Menu** (returns to the title screen).
+- Pressing ESC again is equivalent to Resume.
 
 ### Game Guide
 - The **Info** button in the left sidebar opens the in-game **Game Guide** — a split-pane reference covering every game mechanic with scrollable category entries.
 
 ### UI / HUD
-- **Top bar**: company name, cash, salary cost, R&D points, day counter, weather chip, in-game clock, speed controls, day progress bar.
+- **Top bar**: company name, cash, hearts counter (`❤️ livesLeft/graceDays`), salary cost, R&D points, day counter, weather chip, in-game clock, speed controls, day progress bar.
 - **Left sidebar**: navigation to Projects / Staff / Hire / Assign / Research / Info. The **Teams** and **Schedule** buttons appear dynamically after the corresponding research nodes are unlocked. A **Save** button is pinned to the bottom.
 - **Right widget bar**: Activity feed (last 100 notifications) and active project cards with quick-collect buttons.
 - **Toast notifications**: transient banners for key events (project ready, hired, salary paid, warning, etc.).
@@ -134,11 +150,9 @@ npm run format    # Prettier format
 
 ## Known Limitations (v0.1.0)
 
-- **Bankruptcy** triggers a notification and critical toast but does not pause or end the game (no game-over screen yet).
 - **Office tier upgrades** are defined in data but have no in-game action or UI yet.
 - **Settings** button on the main menu is disabled.
 - The **Archetype** sub-tabs in employee popups (Personality Summary, Likes/Dislikes, effect bonuses) show placeholder `/TODO` content.
-
 ---
 
 ## Controls & Navigation
@@ -147,6 +161,7 @@ npm run format    # Prettier format
 |---|---|
 | Left sidebar icons | Switch between management panels |
 | Speed buttons (top bar) | Set game speed or pause |
+| ESC | Toggle pause menu (Resume / Save / Load / Main Menu) |
 | Start Day button | Unpause at day start |
 | End Day button | Fast-forward to midnight |
 | Click employee sprite | Open employee stats popup |
@@ -179,7 +194,8 @@ src/
   config.js            — All gameplay tunables (single source of truth)
   main.js              — DOM bootstrap
   assets/              — Asset manifest (Pixi bundles)
-  data/                — Static seed data (skills, catalog JSONs, weather, research, names)
+  data/                — Static seed data (skills, catalog JSONs, weather, research, names,
+                         lifeResearch helpers)
   economy/             — Balance helpers (salary/payout formulas, team output, difficulty)
   entities/            — Pixi world objects (desk, employee, furniture)
   managers/            — AssetManager, InputManager, SoundManager
@@ -190,6 +206,8 @@ src/
                          Notification, EmployeeGenerator, ProjectGenerator, SaveManager,
                          TeamSystem, PmAssignmentSystem, ScheduleSystem, CommunicationGenerator)
   ui/                  — HUD widgets, popups, modals, BuildOverlay, BuildPanel
+                         (PauseMenu.js, GameOverPopup.js, DayReportPopup.js, SaveSlotPopup.js,
+                          EmployeeStatsPopup.js, SchedulePopup.js, WeatherPopup.js, Toast.js)
   ui/panels/           — Modal panel content (Projects, Staff, Hiring, Assignments, Research,
                          Teams, Info)
   utils/               — EventBus, math helpers

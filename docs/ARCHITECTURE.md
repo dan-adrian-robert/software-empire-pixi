@@ -41,6 +41,9 @@ flowchart TD
   OfficeScene --> WeatherPopup
   OfficeScene --> SaveSlotPopup
   OfficeScene --> DayReportPopup
+  OfficeScene --> PauseMenu
+  OfficeScene --> GameOverPopup
+  OfficeScene --> TeamInfoPopup
   OfficeScene --> EmployeeEntity
   OfficeScene --> DeskEntity
   OfficeScene --> FurnitureEntity
@@ -106,10 +109,10 @@ sequenceDiagram
 || `desk:removed` | `Simulation.removeDeskAtTile` | `{ company }` | `OfficeScene` |
 || `research:unlocked` | `Simulation.unlockResearch` | `{ nodeId, company }` | `OfficeScene` |
 || `hiring:pool_refreshed` | `Simulation.unlockResearch` (qualifying nodes) | `{ company }` | `OfficeScene` |
-|| `day:report` | `Simulation._wireDayCycle` | `{ snapshot }` | `OfficeScene` → `DayReportPopup` |
-|| `economy:bankrupt` | `EconomySystem.runEndOfDay` | `{ company }` | — *(no game-over listener; notification + toast only)* |
+|| `day:report` | `Simulation._wireDayCycle` | `{ day, moneyEnd, daysInDeficit, graceDays, gameOver, notifications, spProductivity, company }` | `OfficeScene` → `DayReportPopup` |
+|| `economy:gameover` | `EconomySystem.runEndOfDay` | `{ company }` | notification + toast only; game-over UX driven by `day:report.gameOver` |
 
-`notification:add` is emitted by: `Simulation` (project actions, desk, research), `EconomySystem` (salary, low funds, bankruptcy), `HiringSystem` (hire/fire), `ProjectSystem` (project ready), `NotificationSystem` (ring buffer), and `HiringPanel` (hire failure).
+`notification:add` is emitted by: `Simulation` (project actions, desk, research), `EconomySystem` (salary, low funds, deficit streak warning, insolvency), `HiringSystem` (hire/fire), `ProjectSystem` (project ready), `NotificationSystem` (ring buffer), and `HiringPanel` (hire failure).
 
 ---
 
@@ -124,11 +127,15 @@ When `TimeSystem` emits `day:ended`, `Simulation` fires all handlers in order:
 ```mermaid
 flowchart LR
   dayEnded["day:ended"] --> Weather["ProductivitySystem\n.rollDailyWeather"]
-  Weather --> Economy["EconomySystem\n.runEndOfDay\n(salaries, R&D, bankruptcy check)"]
-  Economy --> Deadlines["Simulation\n._checkProjectDeadlines\n(fail overdue projects, emit project:failed)"]
+  Weather --> Economy["EconomySystem\n.runEndOfDay\n(salaries, R&D,\ndeficit streak check)"]
+  Economy --> Report["Simulation\nemit day:report\n(finance snapshot)"]
+  Report --> GameOverBranch{gameOver?}
+  GameOverBranch -->|yes| Freeze["isGameOver = true\nsetSpeed(0)\n(stop here)"]
+  GameOverBranch -->|no| Deadlines["Simulation\n._checkProjectDeadlines\n(fail overdue projects)"]
   Deadlines --> Pool["Simulation\n._refreshProjectPool\n(new available projects)"]
   Pool --> Hiring["HiringSystem\n.refreshCandidates"]
   Hiring --> NextDay["TimeSystem\n.beginNextDay\n(day++, auto-pause, emit day:began)"]
+  NextDay --> Autosave["Game.saveGame\n(autosave on day:began)"]
 ```
 
 ### Per-Frame Work (`ProjectSystem.update`)
@@ -185,6 +192,7 @@ src/state/
 || `teams` | Team[] | Active teams (one per hired Team Lead) |
 || `furniture` | FurnitureItem[] | Placed furniture on the office floor |
 || `relationships` | `{[key]: {friendship}}` | Pairwise employee friendship scores (updated on TALK) |
+|| `daysInDeficit` | number | Consecutive end-of-days with negative cash; reset to 0 when ≥ 0 at EOD |
 
 ---
 
@@ -272,7 +280,7 @@ Static, read-only seed data lives in `src/data/`. None of these files have side 
 || `projectCatalog.json` | Project flavor data (name, description, tier, required skills) — all numeric values generated at runtime |
 || `economyBalance.json` | Economy constants from PLOT.md: SP value ($100/SP), salary ratio (40%), difficulty multipliers, tier config |
 || `employeeCatalog.json` | Names for the starter employee and starter candidate pool |
-|| `researchNodes.js` | 15 research nodes with costs, icons, dependencies |
+|| `researchNodes.js` | 18 research nodes with costs, icons, dependencies |
 || `weatherTypes.js` | 5 weather states with productivity modifiers |
 || `officeTiers.js` | Office tier definitions (tier 1–5) |
 || `namePool.js` | First/last name lists for procedural candidate generation |
@@ -301,7 +309,8 @@ Balance helpers and generators live outside `src/data/`:
 || `AVAILABLE_PROJECT_POOL_SIZE` | 5 | Max offered projects per day |
 || `CANDIDATE_POOL_SIZE` | 4 | Legacy constant; actual pool size comes from `getCandidatePoolSize()` in `hiringResearch.js` (3 / 4 / 5 based on HR research) |
 || `MONEY_WARNING_THRESHOLD` | 5000 | Low-funds notification threshold |
-|| `BANKRUPTCY_THRESHOLD` | 0 | Bankruptcy trigger value |
+|| `NEGATIVE_CASH_GRACE_DAYS` | 3 | Base consecutive negative-cash EODs before insolvency; extended by Reserve Fund research via `getNegativeCashGraceDays` in `src/data/lifeResearch.js` |
+|| `BANKRUPTCY_THRESHOLD` | 0 | *Legacy — unused.* Active insolvency logic uses `daysInDeficit` instead. |
 || `ACTIVITY_LOG_MAX` | 100 | Notification ring buffer capacity |
 || `BASE_PRODUCTIVITY_MIN` | 0.85 | Min innate productivity trait |
 || `BASE_PRODUCTIVITY_MAX` | 1.05 | Max innate productivity trait |

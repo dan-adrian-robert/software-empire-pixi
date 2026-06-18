@@ -68,13 +68,13 @@ Used in `TopBarHUD` and `WeatherPopup`:
 | Sunny | 🌤 |
 | Perfect | ☀ |
 
-### Research tree icons (15 nodes)
+### Research tree icons (18 nodes)
 
 Each node in `researchNodes.js` has an `icon` emoji. The full set:
 
-🖥️ 🔧 📱 🛠️ 🧑‍🤝‍🧑 📋 👥 🗂️ 📈 📊 🔄 🔃 🔃 🕐
+🖥️ 🔧 📱 🛠️ 🧑‍🤝‍🧑 📋 👥 🗂️ 📈 📊 🔄 🔃 🔃 🕐 🩷 ❤️ 💖 💎
 
-Some overlap with nav/schedule icons (🕐, 👥), so a shared **UI icon atlas** can cover many of these.
+The last four (🩷 ❤️ 💖 💎) are the Reserve Fund I–IV survival nodes. Some icons overlap with nav/schedule icons (🕐, 👥), so a shared **UI icon atlas** can cover many of these.
 
 ### Small UI symbols (emoji/unicode text)
 

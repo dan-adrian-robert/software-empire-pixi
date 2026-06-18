@@ -9,10 +9,11 @@
  *   EmployeeArchetypeWheel — 3-ring profile (primary / secondary / tertiary / rest)
  *                            plus outer label ring.
  */
-import { Graphics, Text } from 'pixi.js';
+import { Graphics, Sprite, Text } from 'pixi.js';
 import { Component } from '../foundation/Component.js';
 import { ARCHETYPES, CATEGORY_COLORS } from '../../data/archetypes.js';
 import { Theme } from '../foundation/Theme.js';
+import { getUiLogoTex } from '../../utils/uiLogoSprite.js';
 
 // ── Shared constants ──────────────────────────────────────────────────────────
 
@@ -23,12 +24,31 @@ const WHEEL_ORDER = [
   'everyman', 'jester', 'lover',
 ];
 
-const WHEEL_ICONS = {
-  creator: '✏️', ruler: '👑', caregiver: '🤲',
-  innocent: '☀️', sage: '📖', explorer: '🧭',
-  outlaw: '⚡', magician: '🎩', hero: '🛡️',
-  everyman: '🧠', jester: '😄', lover: '❤️',
+/** Spritesheet frame id per archetype (logos.json). Exported for reuse. */
+export const WHEEL_LOGO_FRAMES = {
+  creator:  'artist',
+  ruler:    'ruler',
+  caregiver:'caregiver',
+  innocent: 'innocent',
+  sage:     'sage',
+  explorer: 'explorer',
+  outlaw:   'outlaw',
+  magician: 'magician',
+  hero:     'hero',
+  everyman: 'everyman',
+  jester:   'jester',
+  lover:    'lover',
 };
+
+/** Creates a centered archetype icon sprite of the given pixel height, or null. */
+function makeArchSprite(archId, size) {
+  const tex = getUiLogoTex(WHEEL_LOGO_FRAMES[archId]);
+  if (!tex) return null;
+  const sprite = new Sprite(tex);
+  sprite.anchor.set(0.5, 0.5);
+  sprite.scale.set(size / tex.height);
+  return sprite;
+}
 
 /** Fill a single annular arc segment onto a Graphics object. */
 function fillAnnularArc(g, cx, cy, outerR, innerR, startRad, endRad, color, alpha) {
@@ -93,7 +113,7 @@ export class TeamArchetypeWheel extends Component {
       const ix = cx + midR * Math.cos(midRad);
       const iy = cy + midR * Math.sin(midRad);
 
-      const iconT = new Text({ text: WHEEL_ICONS[archId] ?? '', style: { fontSize: 19 } });
+      const iconT = makeArchSprite(archId, 19) ?? new Text({ text: '', style: { fontSize: 19 } });
       iconT.anchor.set(0.5, 0.5);
       iconT.alpha = isActive ? 1.0 : 0.3;
       iconT.position.set(ix, iy - 12);
@@ -228,7 +248,7 @@ export class EmployeeArchetypeWheel extends Component {
       const midRad  = midDeg * (Math.PI / 180);
       const iconR   = (EMP_R_INNER + outerR) / 2;
 
-      const icon = new Text({ text: WHEEL_ICONS[archId] ?? '', style: { fontSize: 13 } });
+      const icon = makeArchSprite(archId, 13) ?? new Text({ text: '', style: { fontSize: 13 } });
       icon.anchor.set(0.5, 0.5);
       icon.position.set(cx + iconR * Math.cos(midRad), cy + iconR * Math.sin(midRad));
       icon.alpha = isHighlighted ? 1.0 : 0.3;

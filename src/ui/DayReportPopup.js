@@ -112,7 +112,7 @@ function kvRow(label, value, valueColor, y, container) {
 // ── Popup class ───────────────────────────────────────────────────────────────
 export class DayReportPopup extends Container {
   /**
-   * @param {() => void} onClose  Called when the player dismisses the popup.
+   * @param {(snapshot: object) => void} onClose  Called with the current snapshot when the player dismisses the popup.
    */
   constructor(onClose) {
     super();
@@ -257,6 +257,16 @@ export class DayReportPopup extends Container {
     const netColor = netChange > 0 ? GREEN : netChange < 0 ? RED : TEXT_DIM;
     const netSign  = netChange >= 0 ? '+' : '';
     y = kvRow('Net change', `${netSign}$${netChange.toLocaleString()}`, netColor, y, this._content);
+
+    // Show deficit streak when cash ended negative.
+    const { daysInDeficit, graceDays, gameOver } = snapshot;
+    if (daysInDeficit > 0) {
+      const streakColor = gameOver ? RED : YELLOW;
+      const streakValue = gameOver
+        ? `INSOLVENT (${daysInDeficit}/${graceDays})`
+        : `${daysInDeficit} / ${graceDays} days`;
+      y = kvRow('Deficit streak', streakValue, streakColor, y, this._content);
+    }
 
     y += 4;
     y = divider(y, this._content);
@@ -511,21 +521,25 @@ export class DayReportPopup extends Container {
 
     // ── Continue button ──────────────────────────────────────────────────────
     const BTN_H = 36;
+    const isGameOver = !!snapshot.gameOver;
+    const btnFill   = isGameOver ? 0x3d0c0c : 0x1a3060;
+    const btnBorder = isGameOver ? 0xf87171 : INDIGO;
+    const btnText   = isGameOver ? 'View Results →' : 'Continue →';
     const btnBg = new Graphics()
       .roundRect(P, y, W - P * 2, BTN_H, 6)
-      .fill({ color: 0x1a3060 })
-      .stroke({ color: INDIGO, width: 1.5 });
+      .fill({ color: btnFill })
+      .stroke({ color: btnBorder, width: 1.5 });
     btnBg.eventMode = 'static';
     btnBg.cursor    = 'pointer';
     this._content.addChild(btnBg);
 
-    const btnLabel = makeText('Continue →', 13, 0xc8d4ef, '600');
+    const btnLabel = makeText(btnText, 13, 0xc8d4ef, '600');
     btnLabel.anchor.set(0.5, 0.5);
     btnLabel.position.set(W / 2, y + BTN_H / 2);
     btnLabel.eventMode = 'none';
     this._content.addChild(btnLabel);
 
-    btnBg.on('pointerup',   () => this._onClose());
+    btnBg.on('pointerup',   () => this._onClose(this._snapshot));
     btnBg.on('pointerover', () => { btnBg.alpha = 0.8; });
     btnBg.on('pointerout',  () => { btnBg.alpha = 1; });
 

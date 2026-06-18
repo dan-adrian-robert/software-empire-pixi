@@ -1,4 +1,4 @@
-﻿# Game Loop
+# Game Loop
 
 This document describes how time flows in **Software Empire**: the engine tick, the day cycle, what happens while a day runs, and what happens when a day ends.
 
@@ -187,12 +187,14 @@ When `day:ended` fires, systems run **in this order**:
 ```mermaid
 flowchart TD
   A["day:ended"] --> B["Roll new weather\nfor upcoming day"]
-  B --> C["Economy: pay salaries,\ngrant daily R&D,\ncheck bankruptcy"]
-  C --> D["Fail projects past\ncritical deadline"]
+  B --> C["Economy: pay salaries,\ngrant daily R&D,\ntrack deficit streak"]
+  C --> G["Emit day:report\n(snapshot activity log,\nfinance result)"]
+  G --> GameOverCheck{gameOver?}
+  GameOverCheck -->|yes| Freeze["isGameOver = true\nsetSpeed(0)\n(simulation frozen)"]
+  GameOverCheck -->|no| D["Fail projects past\ncritical deadline"]
   D --> E["Refresh available\nproject pool (up to 5)"]
   E --> F["Refresh hiring\ncandidates (up to 4)"]
-  F --> G["Emit day:report\n(snapshot activity log)"]
-  G --> H["Begin next day\n(day++, pause, day:began)"]
+  F --> H["Begin next day\n(day++, pause, day:began)"]
   H --> I["Autosave checkpoint\n(Game.saveGame → slot N)"]
   I --> J["Clear activity log"]
 ```
@@ -203,8 +205,12 @@ At day end:
 
 - **Salaries** are deducted for every employee
 - **R&D points** accrue at the daily rate (`rdPointsPerDay`)
-- **Low funds** warning if cash drops below $5,000 (but above $0)
-- **Bankruptcy** if cash reaches $0 or below (`economy:bankrupt`)
+- **Deficit streak tracking:** if cash is negative after salaries, `company.daysInDeficit` increments; if cash is ≥ 0, the streak resets to 0
+- **Low funds** warning if `0 ≤ cash < $5,000`
+- **Deficit streak warning** notification if cash is negative but not yet at the grace-day limit
+- **Insolvency** when `daysInDeficit >= getNegativeCashGraceDays(unlockedResearch)` (base 3 days, extendable to 13 via Reserve Fund research): emits `economy:gameover`, sets `Simulation.isGameOver = true`
+
+The day report (`day:report`) always carries `{ daysInDeficit, graceDays, gameOver }` so the `DayReportPopup` can show the streak status. When `gameOver` is true, clicking Continue in the day report opens the **Game Over** screen (`GameOverPopup`) instead of advancing to the next day.
 
 ### Project deadlines
 
@@ -228,11 +234,12 @@ Before the calendar advances, the simulation snapshots the activity log and comp
 
 - End-of-day balance and net financial change
 - Projects completed, failed, or still active
+- **Deficit streak line** (`Deficit streak: X / N days`) when cash is negative; shows `INSOLVENT (X/N)` if the game is over
 - Full scrollable activity log for that day
 
-The player dismisses the modal to continue. Only then does `beginNextDay` run and the next planning phase start.
+The player dismisses the modal to continue. If `gameOver` is false, `beginNextDay` runs and the next planning phase starts. If `gameOver` is true, the **Game Over** screen is shown instead — the simulation stays frozen and the player chooses Load Game, New Game, or Main Menu.
 
-On `day:began`, the live activity log is **cleared** so the sidebar starts fresh; the report already captured the previous day’s log.
+On `day:began`, the live activity log is **cleared** so the sidebar starts fresh; the report already captured the previous day's log.
 
 ---
 
@@ -262,9 +269,22 @@ Most significant events emit `notification:add`, which:
 - Appends to the **activity log** (sidebar widget, max **100** entries)
 - Spawns a **toast** in the office scene
 
-Examples: salaries paid, project ready, level-up, hire/fire, low funds, bankruptcy, project failed.
+Examples: salaries paid, project ready, level-up, hire/fire, low funds, deficit streak warning, insolvency, project failed.
 
 The end-of-day report uses a **snapshot** of notifications taken before the log is cleared.
+
+---
+
+## Pause menu
+
+During the running or planning phase, press **ESC** to open the **Pause Menu**:
+
+- **Resume** — closes the menu and restores the speed that was active when ESC was pressed
+- **Save Game** — opens the save slot dialog (same as the sidebar 💾 button)
+- **Load Game** — navigates to the main menu load view
+- **Main Menu** — navigates directly to the main menu title screen
+
+ESC is disabled once `Simulation.isGameOver` is true — the player must use the **Game Over** screen buttons instead.
 
 ---
 
@@ -276,7 +296,7 @@ The end-of-day report uses a **snapshot** of notifications taken before the log 
 | `SPEED_PRESETS` | 0, 1, 2, 4, 8 | Pause and speed multipliers |
 | `DEFAULT_SPEED` | 0 | Speed when entering office / new day |
 | `AVAILABLE_PROJECT_POOL_SIZE` | 5 | New project offers per day |
-| `CANDIDATE_POOL_SIZE` | 4 | New hire candidates per day |
+| `CANDIDATE_POOL_SIZE` | 3/4/5 | Effective pool size via `getCandidatePoolSize()` in `hiringResearch.js` (3 base; +1 after `hr_leads_1`; +1 after `hr_leads_2`) |
 | `ACTIVITY_LOG_MAX` | 100 | Max entries in live activity log |
 | `EXP_PER_TICK` | 10 | EXP per WORK flush with contribution |
 | `xpRequiredForLevel(n)` | `floor(100 × 1.25^(n-1))` | EXP needed to advance from level n (100 at lv.1, 125 at lv.2, 156 at lv.3, …) |
@@ -302,7 +322,7 @@ The end-of-day report uses a **snapshot** of notifications taken before the log 
 | `project:completed` | Project requirements met (ready) **or** payout collected |
 | `project:failed` | Past critical deadline at day end |
 | `employee:levelup` | EXP threshold crossed on WORK flush |
-| `economy:bankrupt` | Cash ≤ $0 after salaries |
+| `economy:gameover` | `daysInDeficit` reaches grace-day limit at EOD |
 | `simulation:reset` | New game |
 
 ---

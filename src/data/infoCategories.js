@@ -17,6 +17,8 @@ End Day — pressing this fast-forwards directly to the end of the current day, 
 
 Day Report — after every day ends, a summary popup appears showing your finances for the day, project progress, and the activity log. Read it, then click Continue to start the next day.
 
+Pause Menu — press ESC at any time during gameplay to open the Pause Menu. It pauses time and lets you Resume, Save Game, Load Game, or return to the Main Menu. Press ESC again to resume. The Pause Menu is not available after the game ends in insolvency.
+
 Autosave — the game automatically saves your progress to the active save slot at the start of each new day, so you rarely lose more than one day's work.`,
   },
   {
@@ -123,7 +125,9 @@ Project Refresh — spend $500 to reroll the project pool on demand.
 
 Hire Refresh — spend $500 to reroll the candidate pool on demand (requires HR Basics).
 
-Work Schedule — unlocks the Schedule popup where you can configure your work day start hour and duration (8, 10, 12, or 14 hours).`,
+Work Schedule — unlocks the Schedule popup where you can configure your work day start hour and duration (8, 10, 12, or 14 hours).
+
+Reserve Fund Chain — Reserve Fund I → II → III → IV. Each node cumulatively extends your insolvency grace period: +1, +2, +3, and +4 extra days respectively. With all four unlocked your company can survive up to 13 consecutive days in the red before game over.`,
   },
   {
     id: 'teams',
@@ -184,6 +188,8 @@ Payout Multipliers — your payout is scaled by how quickly you finish:
 R&D Points — separate from money. You earn +10 R&D per day automatically. These are only used to unlock research nodes and cannot be spent on anything else.
 
 Low Funds Warning — a notification appears if your balance drops below $5,000. Keep an eye on daily salaries versus expected project income to avoid going broke.
+
+Insolvency — if your cash balance is negative at the end of a day, a deficit streak counter starts. The counter is shown next to your cash balance in the top bar (❤️ livesLeft/graceDays) at all times — green when healthy, yellow while you're in deficit. If the counter reaches your grace-day limit on consecutive days, the company is declared insolvent and the game ends. Collecting a project payout or cutting salaries to get above $0 by end-of-day resets the streak. On game over you can Load Game (opens the slot picker — your autosave from the start of the fatal day is still there), start a New Game, or return to the Main Menu. The grace period can be extended up to 13 days by researching the Reserve Fund chain.
 
 Stats Tracking — the game tracks total revenue earned, total salaries paid, and total projects completed. These are visible in the day report summary.`,
   },
@@ -272,11 +278,11 @@ Day Report — appears automatically after each day ends. It summarizes revenue,
 
 Save Slots — there are five save slots. You can name each slot to distinguish between different playthroughs.
 
-Manual Save — click the 💾 Save button at the bottom of the left sidebar at any time to write your current state to the active slot.
+Manual Save — click the 💾 Save button at the bottom of the left sidebar at any time to write your current state to the active slot. You can also save from the Pause Menu (ESC → Save Game) mid-game.
 
 Autosave — the game automatically saves to the active slot at the beginning of each new day. This means you can safely close the tab mid-day and resume from the previous day's start.
 
-Loading a Save — from the Main Menu you can load any slot that has a saved game. The save includes your full company state: employees, projects, assignments, research, office layout, relationships, and all settings.
+Loading a Save — from the Main Menu you can load any slot that has a saved game. You can also access the slot picker mid-game via the Pause Menu (ESC → Load Game), which returns you to the Main Menu load view. The save includes your full company state: employees, projects, assignments, research, office layout, relationships, and all settings.
 
 Starting a New Game — choosing New Game from the Main Menu begins with TechNova Studios, $1,000, Day 1, a Small Office with 3 desks, and three starter Frontend Dev candidates waiting to be hired.`,
   },

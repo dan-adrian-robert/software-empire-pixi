@@ -5,11 +5,14 @@
  *   - Deducts employee salaries.
  *   - Adds pending project payouts.
  *   - Emits financial notifications.
- *   - Emits `economy:bankrupt` if money <= BANKRUPTCY_THRESHOLD.
+ *   - Tracks consecutive negative-cash EODs (daysInDeficit).
+ *   - Emits `economy:gameover` and returns { gameOver: true } after
+ *     NEGATIVE_CASH_GRACE_DAYS consecutive negative-cash end-of-days.
  *
  * Also moves completed projects out of activeProjects.
  */
 import { GameConfig } from '../config.js';
+import { getNegativeCashGraceDays } from '../data/lifeResearch.js';
 import { dailySalaryCost } from '../state/Company.js';
 
 export class EconomySystem {
@@ -20,8 +23,12 @@ export class EconomySystem {
 
   /**
    * @param {import('../state/Company.js').Company} company
+   * @returns {{ gameOver: boolean, daysInDeficit: number, graceDays: number }}
    */
   runEndOfDay(company) {
+    const { MONEY_WARNING_THRESHOLD } = GameConfig.gameplay;
+    const NEGATIVE_CASH_GRACE_DAYS = getNegativeCashGraceDays(company.unlockedResearch);
+
     const salaries = dailySalaryCost(company);
     company.money -= salaries;
     company.stats.totalSalariesPaid += salaries;
@@ -52,20 +59,34 @@ export class EconomySystem {
     }
     company.activeProjects = company.activeProjects.filter((p) => !p.isCompleted);
 
-    // Financial warnings.
-    if (company.money < GameConfig.gameplay.MONEY_WARNING_THRESHOLD && company.money > GameConfig.gameplay.BANKRUPTCY_THRESHOLD) {
+    // ── Deficit streak tracking ──────────────────────────────────────────────
+    if (company.money < 0) {
+      company.daysInDeficit = (company.daysInDeficit ?? 0) + 1;
+    } else {
+      company.daysInDeficit = 0;
+    }
+
+    const gameOver = company.daysInDeficit >= NEGATIVE_CASH_GRACE_DAYS;
+
+    // Financial warnings (low funds, deficit streak, game over).
+    if (company.money >= 0 && company.money < MONEY_WARNING_THRESHOLD) {
       this.bus.emit('notification:add', {
         text: `⚠ Low funds! $${Math.round(company.money).toLocaleString()} remaining.`,
         type: 'warning',
       });
-    }
-
-    if (company.money <= GameConfig.gameplay.BANKRUPTCY_THRESHOLD) {
-      this.bus.emit('economy:bankrupt', { company });
+    } else if (gameOver) {
       this.bus.emit('notification:add', {
-        text: '💀 Bankruptcy! The company has run out of money.',
+        text: `Insolvency — the company has shut down after ${NEGATIVE_CASH_GRACE_DAYS} days in the red.`,
+        type: 'critical',
+      });
+      this.bus.emit('economy:gameover', { company });
+    } else if (company.money < 0) {
+      this.bus.emit('notification:add', {
+        text: `Operating at a loss — Day ${company.daysInDeficit} of ${NEGATIVE_CASH_GRACE_DAYS} before insolvency.`,
         type: 'critical',
       });
     }
+
+    return { gameOver, daysInDeficit: company.daysInDeficit, graceDays: NEGATIVE_CASH_GRACE_DAYS };
   }
 }

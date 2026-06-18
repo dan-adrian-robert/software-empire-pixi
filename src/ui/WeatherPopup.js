@@ -11,15 +11,17 @@
  *   popup.resize(screenW, screenH)
  *   popup.refresh(company)
  */
-import { Container, Graphics } from 'pixi.js';
+import { Container, Graphics, Sprite } from 'pixi.js';
 import { WEATHER_TYPES } from '../data/weatherTypes.js';
 import { Column } from './layouts/Column.js';
 import { Row } from './layouts/Row.js';
 import { Spacer } from './layouts/Spacer.js';
 import { Label } from './widgets/Label.js';
+import { Avatar } from './widgets/Avatar.js';
 import { Divider } from './widgets/Divider.js';
 import { Component } from './foundation/Component.js';
 import { Theme } from './foundation/Theme.js';
+import { getUiLogoTex } from '../utils/uiLogoSprite.js';
 
 // ── dimensions ────────────────────────────────────────────────────────────────
 const W   = 304;
@@ -35,12 +37,12 @@ const SENT_COLORS = {
   good:    Theme.colors.success,
 };
 
-const WEATHER_ICONS = {
-  very_bad:  '⛈',
-  bad:       '☁',
-  neutral:   '⛅',
-  good:      '🌤',
-  very_good: '☀',
+const WEATHER_LOGO_FRAMES = {
+  very_bad:  'cloud_rain',
+  bad:       'cloud',
+  neutral:   'cloud_sun',
+  good:      'cloud_sun',
+  very_good: 'sun',
 };
 
 function fmtMod(modifier) {
@@ -64,7 +66,6 @@ class WeatherConditionRow extends Component {
     this.removeChildren();
     const { wt, isActive } = { wt: this._wt, isActive: this._isActive };
     const color = SENT_COLORS[wt.sentiment] ?? Theme.colors.textDim;
-    const icon  = WEATHER_ICONS[wt.id] ?? '?';
     const w     = this.props.width;
 
     // Active-row highlight background
@@ -82,7 +83,8 @@ class WeatherConditionRow extends Component {
 
     // Icon + name row at the left
     const nameRow = new Row({ gap: 4, align: 'center', height: ROW_H });
-    nameRow.add(new Label({ text: icon, fontSize: 15 }));
+    const rowIconTex = getUiLogoTex(WEATHER_LOGO_FRAMES[wt.id]);
+    nameRow.add(new Avatar({ texture: rowIconTex, size: 15 }));
     nameRow.add(new Label({
       text: wt.label,
       variant: isActive ? 'body' : 'caption',
@@ -138,11 +140,15 @@ class TodaySection extends Component {
     }
 
     const color = SENT_COLORS[current.sentiment] ?? Theme.colors.textDim;
-    const icon  = WEATHER_ICONS[current.id] ?? '?';
 
-    const iconLabel = new Label({ text: icon, style: { fontSize: 28 } });
-    iconLabel.position.set(0, 0);
-    this.addChild(iconLabel);
+    const todayIconTex = getUiLogoTex(WEATHER_LOGO_FRAMES[current.id]);
+    if (todayIconTex) {
+      const iconSprite = new Sprite(todayIconTex);
+      const scale = 28 / todayIconTex.height;
+      iconSprite.scale.set(scale);
+      iconSprite.position.set(0, 0);
+      this.addChild(iconSprite);
+    }
 
     const nameLabel = new Label({
       text: current.label,
@@ -225,7 +231,7 @@ export class WeatherPopup extends Container {
 
     // Header row: title left, subtitle right
     const headerRow = new Row({ width: innerW, gap: 0, align: 'center', height: 20 });
-    headerRow.add(new Label({ text: '⛅ WEATHER', variant: 'title' }));
+    headerRow.add(new Label({ text: 'WEATHER', variant: 'title' }));
     headerRow.add(new Spacer({ flex: 1 }));
     headerRow.add(new Label({ text: 'Daily productivity modifier', variant: 'caption' }));
     col.add(headerRow);

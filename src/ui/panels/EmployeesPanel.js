@@ -25,7 +25,8 @@ import {
   skillUpgradeCap,
 } from '@/data/skills.js';
 import { isProgrammer, isTeamLead } from '@/state/Employee.js';
-import { SCHEDULE_CYCLE, SCHEDULE_ICONS } from '@/data/scheduleActivities.js';
+import { SCHEDULE_CYCLE, SCHEDULE_LOGO_FRAMES } from '@/data/scheduleActivities.js';
+import { createLogoSprite } from '@utils/uiLogoSprite.js';
 import { ROLE_LABELS } from '@/data/staffRoles.js';
 
 const CARD_BG = 0x131929;
@@ -511,7 +512,7 @@ export class EmployeesPanel extends Container {
         x += 12;
       }
       const cell = new Container();
-      const icon = new Text({ text: SCHEDULE_ICONS[state] ?? '', style: { fontSize: 12 } });
+      const icon = createLogoSprite(SCHEDULE_LOGO_FRAMES[state], 12) ?? new Text({ text: '', style: { fontSize: 12 } });
       icon.anchor.set(0, 0.5);
       icon.position.set(0, 9);
       cell.addChild(icon);
