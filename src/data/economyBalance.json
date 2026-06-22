@@ -20,8 +20,6 @@
     "teamLeadSalary": 150
   },
   "projectGeneration": {
-    "milestoneSpPerDayBase": 8,
-    "milestoneSpPerDayTierBonus": 4,
     "milestoneMinOnTrackDays": 2
   },
   "projectDifficulty": {

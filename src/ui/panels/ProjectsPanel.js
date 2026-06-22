@@ -33,10 +33,12 @@ const ML = {
 };
 
 // Slider dimensions
-const SLIDER_BAR_H   = 8;
-const SLIDER_TOP_H   = 16;   // room for day tick labels above the bar
-const SLIDER_BOT_H   = 14;   // room for tier labels below the bar
-const SLIDER_TOTAL_H = SLIDER_TOP_H + SLIDER_BAR_H + SLIDER_BOT_H + 4;
+const SLIDER_BAR_H        = 8;
+const SLIDER_TOP_H        = 16;   // room for day tick labels above the bar
+const SLIDER_BOT_H        = 14;   // room for tier labels below the bar
+const SLIDER_TOTAL_H      = SLIDER_TOP_H + SLIDER_BAR_H + SLIDER_BOT_H + 4;
+const MIN_SEG_W           = 36;   // minimum pixel width per tier segment
+const TICK_LABEL_MIN_GAP  = 20;   // minimum px between adjacent tick day-labels
 
 const TABS_BAR_H = 28;
 
@@ -331,24 +333,27 @@ export class ProjectsPanel extends Container {
   _buildMilestoneSlider(project, startX, startY, sliderW, currentDay, target = null) {
     const dest = target ?? this._scroll;
     const { milestones } = project;
-    const total  = milestones.critical;
-    const barY   = startY + SLIDER_TOP_H;
+    const total = milestones.critical;
+    const barY  = startY + SLIDER_TOP_H;
 
-    // Compute elapsed / fill position
-    const isActive     = currentDay !== null && project.startedDay !== null;
-    // 1-indexed elapsed — used for tier label highlighting (consistent with game logic)
-    const elapsed      = isActive ? currentDay - project.startedDay + 1 : 0;
+    // Compute elapsed / fill position.
+    const isActive      = currentDay !== null && project.startedDay !== null;
+    // 1-indexed elapsed — used for tier label highlighting (consistent with game logic).
+    const elapsed       = isActive ? currentDay - project.startedDay + 1 : 0;
     const lockedElapsed = (project.finishedDay !== null && project.startedDay !== null)
       ? project.finishedDay - project.startedDay + 1
       : null;
     const displayElapsed = lockedElapsed ?? elapsed;
-    // 0-indexed timeline days — marker starts at the left edge on the day of acceptance
+    // 0-indexed timeline days — marker starts at the left edge on the day of acceptance.
     const timelineDays       = isActive ? currentDay - project.startedDay : 0;
     const lockedTimelineDays = (project.finishedDay !== null && project.startedDay !== null)
       ? project.finishedDay - project.startedDay
       : null;
     const displayTimelineDays = lockedTimelineDays ?? timelineDays;
     const fillFrac            = isActive ? Math.min(1, displayTimelineDays / total) : 0;
+
+    // True-scale marker pixel position — used for the dot and bright fill endpoint.
+    const markerX = Math.round(fillFrac * sliderW);
 
     const segments = [
       { key: 'ahead',    label: ML.ahead,    from: 0,                  to: milestones.ahead,    color: MC.ahead },
@@ -357,30 +362,46 @@ export class ProjectsPanel extends Container {
       { key: 'critical', label: ML.critical, from: milestones.delayed, to: milestones.critical, color: MC.critical },
     ];
 
-    // Dark track background
+    // Compute display widths: clamp each segment to MIN_SEG_W, fall back to equal
+    // widths if the total would overflow the bar.
+    const clampedWidths = segments.map((seg) =>
+      Math.max(MIN_SEG_W, Math.max(1, Math.round(((seg.to - seg.from) / total) * sliderW))),
+    );
+    const useWidths = clampedWidths.reduce((s, w) => s + w, 0) > sliderW
+      ? segments.map(() => Math.floor(sliderW / segments.length))
+      : clampedWidths;
+
+    // Cumulative display x positions.
+    const dispX = [];
+    let cursor = 0;
+    for (const w of useWidths) {
+      dispX.push(cursor);
+      cursor += w;
+    }
+
+    // Dark track background.
     const trackBg = new Graphics()
       .roundRect(0, 0, sliderW, SLIDER_BAR_H, 3)
       .fill({ color: 0x0d1526 });
     trackBg.position.set(startX, barY);
     dest.addChild(trackBg);
 
-    // Coloured segments
-    for (const seg of segments) {
-      const segX    = Math.round((seg.from / total) * sliderW);
-      const segEndX = Math.round((seg.to   / total) * sliderW);
-      const segW    = segEndX - segX;
-      if (segW <= 0) continue;
+    // Coloured segments.
+    segments.forEach((seg, i) => {
+      const segX    = dispX[i];
+      const segW    = useWidths[i];
+      const segEndX = segX + segW;
 
-      // Dim background fill
+      // Dim background fill.
       const dimBg = new Graphics()
         .roundRect(segX, 0, segW, SLIDER_BAR_H, 2)
         .fill({ color: seg.color, alpha: 0.18 });
       dimBg.position.set(startX, barY);
       dest.addChild(dimBg);
 
-      // Bright fill — only for the elapsed portion
+      // Bright fill — elapsed portion clipped to this segment's display boundary.
       if (isActive && fillFrac > 0) {
-        const fillEndX = Math.min(Math.round(fillFrac * sliderW), segEndX);
+        const fillEndX = Math.min(markerX, segEndX);
         if (fillEndX > segX) {
           const brightFill = new Graphics()
             .roundRect(segX, 0, fillEndX - segX, SLIDER_BAR_H, 2)
@@ -390,8 +411,7 @@ export class ProjectsPanel extends Container {
         }
       }
 
-      // Tier label below the bar — centred in the segment
-      const segMidX = segX + segW / 2;
+      // Tier label below the bar — centred in the display segment.
       const isPast  = isActive && displayElapsed > seg.from;
       const tierTxt = new Text({
         text: seg.label,
@@ -403,17 +423,19 @@ export class ProjectsPanel extends Container {
         },
       });
       tierTxt.anchor.set(0.5, 0);
-      tierTxt.position.set(startX + segMidX, barY + SLIDER_BAR_H + 4);
+      tierTxt.position.set(startX + segX + segW / 2, barY + SLIDER_BAR_H + 4);
       dest.addChild(tierTxt);
-    }
+    });
 
-    // Day tick marks + number labels at each segment boundary (top of bar)
+    // Day tick marks + labels at each boundary on the true day scale.
+    // Labels are skipped when they would overlap the previous one.
     const boundaries = [
       milestones.ahead,
       milestones.onTrack,
       milestones.delayed,
       milestones.critical,
     ];
+    let lastTickLabelX = -TICK_LABEL_MIN_GAP;
     for (const day of boundaries) {
       const tickX = Math.round((day / total) * sliderW);
 
@@ -423,35 +445,34 @@ export class ProjectsPanel extends Container {
       tick.position.set(startX + tickX, barY - 1);
       dest.addChild(tick);
 
-      const dayTxt = new Text({
-        text: `${day}d`,
-        style: {
-          fill:       TEXT_DIM,
-          fontFamily: 'Inter, system-ui, sans-serif',
-          fontSize:   9,
-        },
-      });
-      dayTxt.anchor.set(0.5, 1);
-      dayTxt.position.set(startX + tickX, barY - 2);
-      dest.addChild(dayTxt);
+      if (tickX - lastTickLabelX >= TICK_LABEL_MIN_GAP) {
+        const dayTxt = new Text({
+          text: `${day}d`,
+          style: {
+            fill:       TEXT_DIM,
+            fontFamily: 'Inter, system-ui, sans-serif',
+            fontSize:   9,
+          },
+        });
+        dayTxt.anchor.set(0.5, 1);
+        dayTxt.position.set(startX + tickX, barY - 2);
+        dest.addChild(dayTxt);
+        lastTickLabelX = tickX;
+      }
     }
 
-    // Position marker (dot + short vertical stem) for active projects
+    // Position marker (dot + short vertical stem) at the true-scale elapsed position.
     if (isActive) {
-      const markerFrac  = Math.min(displayTimelineDays / total, 1);
-      const markerX     = Math.round(markerFrac * sliderW);
       const markerColor = lockedTimelineDays !== null
         ? (MC[project.milestoneTier] ?? 0xffffff)
         : 0xffffff;
 
-      // Vertical stem
       const stem = new Graphics()
         .rect(-1, 0, 2, SLIDER_BAR_H + 6)
         .fill({ color: markerColor });
       stem.position.set(startX + markerX, barY - 3);
       dest.addChild(stem);
 
-      // Dot on top of the stem
       const dot = new Graphics()
         .circle(0, 0, 4)
         .fill({ color: markerColor });

@@ -6,7 +6,7 @@
  *   - Salary    = sum(dailySP per skill) × spValue × salaryRatio   (normal market)
  *   - Payout    = totalSp × spValue                                (normal market)
  *   - Insurance = totalSp × insuranceSpFactor
- *   - Timing    = ceil(totalSp / (milestoneSpPerDayBase + tier × milestoneSpPerDayTierBonus))
+ *   - Timing    = ceil(totalSp / teamOutput)  → onTrack ≈ spMultiplier days by design
  *
  * These are pure functions; no side effects and no imports from game state.
  */
@@ -18,7 +18,7 @@ const {
   workPeriodsPerDay,
   skillSpTable,
   insuranceSpFactor,
-  projectGeneration: { milestoneSpPerDayBase, milestoneSpPerDayTierBonus, milestoneMinOnTrackDays },
+  projectGeneration: { milestoneMinOnTrackDays },
   projectDifficulty,
 } = balance;
 
@@ -58,18 +58,19 @@ export function computeMedianPayout(totalSp) {
 }
 
 /**
- * Derive milestone deadlines (in elapsed days) and insurance cost from total SP and tier.
- * Mirrors the original buildProjectTiming() from projectTemplates.js but reads
- * factors from economyBalance.json instead of hard-coded magic numbers.
+ * Derive milestone deadlines (in elapsed days) and insurance cost from total SP and
+ * the team's raw daily output. Deadlines are expressed as multiples of team throughput,
+ * so Common (~1.2× output) takes ~1–2 days on track and Rare (~2.0×) takes ~2 days.
  *
- * @param {number} totalSp
- * @param {number} tier  1–4
+ * @param {number} totalSp     Sum of all requirement points.
+ * @param {number} teamOutput  Raw SP/day produced by the team (from computeTeamOutput).
  * @returns {{ milestones: { ahead: number, onTrack: number, delayed: number, critical: number }, insurance: number }}
  */
-export function computeProjectTiming(totalSp, tier) {
+export function computeProjectTiming(totalSp, teamOutput) {
+  const effectiveOutput = Math.max(1, teamOutput);
   const onTrack = Math.max(
     milestoneMinOnTrackDays,
-    Math.ceil(totalSp / (milestoneSpPerDayBase + tier * milestoneSpPerDayTierBonus)),
+    Math.ceil(totalSp / effectiveOutput),
   );
   return {
     milestones: {

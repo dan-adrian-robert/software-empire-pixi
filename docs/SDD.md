@@ -293,7 +293,7 @@ Pure balance helpers used by both generators. No side effects, no game state.
 || `dailySpForSkill(level)` | SP per WORK period for a given skill level |
 || `computeMedianSalary(skills)` | Median daily salary for an employee's skill set |
 || `computeMedianPayout(totalSp)` | Base project payout for a given total SP |
-|| `computeProjectTiming(totalSp, tier)` | Milestone deadlines and insurance amount |
+|| `computeProjectTiming(totalSp, teamOutput)` | Milestone deadlines and insurance amount — onTrack = ceil(totalSp / teamOutput) |
 || `computeTeamOutput(employees)` | Sum of daily SP across all employee skills (defaults to 16 if no team) |
 || `pickDifficulty(rng?)` | Weighted random difficulty key: `'common'` (3), `'uncommon'` (2), `'rare'` (1) |
 || `getDifficultyConfig(key)` | `{ label, spMultiplier, weight }` for a difficulty key |
@@ -749,7 +749,7 @@ finalPayout = round(basePayout × payoutMultipliers[tier])
 collected   = finalPayout + insurance  (insurance is a full refund)
 ```
 
-Milestone deadlines are expressed in elapsed days from the acceptance day (inclusive). A project accepted on day 5 with `milestones.onTrack = 4` must have all SP requirements met by day 8 (elapsed ≤ 4) to count as On Track.
+Milestone deadlines are expressed in elapsed days from the acceptance day (inclusive). Deadlines are derived from team output: `onTrack = ceil(totalSp / teamOutput)`, so a Common project (1.2× output) takes ~2 days on track and a Rare project (2.0× output) takes ~2 days on track. The offsets `ahead = onTrack − 2`, `delayed = onTrack + 2`, `critical = onTrack + 4` apply in all cases, with a floor of 2 on `onTrack` and 1 on `ahead`.
 
 ---
 

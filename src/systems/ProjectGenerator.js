@@ -54,7 +54,7 @@ export function generateFromCatalog(entry, teamOutput, difficulty, rng = Math.ra
   });
 
   const basePayout = computeMedianPayout(totalSp);
-  const { milestones, insurance } = computeProjectTiming(totalSp, entry.tier);
+  const { milestones, insurance } = computeProjectTiming(totalSp, teamOutput);
 
   return createProject({
     id: entry.id,
