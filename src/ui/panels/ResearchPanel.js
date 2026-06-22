@@ -16,8 +16,8 @@ import { Container, Graphics, Text } from 'pixi.js';
 import { RESEARCH_NODES } from '../../data/researchNodes.js';
 
 const NODE_W = 158;
-const NODE_H = 60;
-const ROW_GAP = 56;
+const NODE_H = 76;
+const ROW_GAP = 40;
 const COL_GAP = 14;
 const PADDING = 12;
 
@@ -27,16 +27,19 @@ const ROW_H = NODE_H + ROW_GAP;
 const C_LOCKED_BG = 0x0d1222;
 const C_LOCKED_BORDER = 0x1a2236;
 const C_LOCKED_NAME = 0x3d4d64;
+const C_LOCKED_DESC = 0x2a3852;
 const C_LOCKED_COST = 0x2a3a50;
 
 const C_AVAIL_BG = 0x0d1a2e;
 const C_AVAIL_BORDER = 0x1e3a60;
 const C_AVAIL_NAME = 0x8090b0;
+const C_AVAIL_DESC = 0x506070;
 const C_AVAIL_COST = 0x4a6a90;
 
 const C_READY_BG = 0x0d2a4a;
 const C_READY_BORDER = 0x2a6aaa;
 const C_READY_NAME = 0xe6e8ef;
+const C_READY_DESC = 0x8aaace;
 const C_READY_COST = 0x4a9eff;
 const C_READY_HOVER_BG = 0x153a6a;
 const C_READY_HOVER_BORDER = 0x4a8acc;
@@ -44,6 +47,7 @@ const C_READY_HOVER_BORDER = 0x4a8acc;
 const C_DONE_BG = 0x0a2a1a;
 const C_DONE_BORDER = 0x2ade80;
 const C_DONE_NAME = 0xe6e8ef;
+const C_DONE_DESC = 0x6abf8a;
 const C_DONE_COST = 0x4ade80;
 
 // Connection line colours
@@ -225,30 +229,34 @@ export class ResearchPanel extends Container {
   }
 
   _drawNode(node, x, y, isUnlocked, depsReady, canAfford) {
-    let bgColor, borderColor, nameColor, costColor, borderW;
+    let bgColor, borderColor, nameColor, descColor, costColor, borderW;
 
     if (isUnlocked) {
       bgColor = C_DONE_BG;
       borderColor = C_DONE_BORDER;
       nameColor = C_DONE_NAME;
+      descColor = C_DONE_DESC;
       costColor = C_DONE_COST;
       borderW = 1.5;
     } else if (depsReady && canAfford) {
       bgColor = C_READY_BG;
       borderColor = C_READY_BORDER;
       nameColor = C_READY_NAME;
+      descColor = C_READY_DESC;
       costColor = C_READY_COST;
       borderW = 1.5;
     } else if (depsReady) {
       bgColor = C_AVAIL_BG;
       borderColor = C_AVAIL_BORDER;
       nameColor = C_AVAIL_NAME;
+      descColor = C_AVAIL_DESC;
       costColor = C_AVAIL_COST;
       borderW = 1;
     } else {
       bgColor = C_LOCKED_BG;
       borderColor = C_LOCKED_BORDER;
       nameColor = C_LOCKED_NAME;
+      descColor = C_LOCKED_DESC;
       costColor = C_LOCKED_COST;
       borderW = 1;
     }
@@ -300,6 +308,22 @@ export class ResearchPanel extends Container {
     });
     name.position.set(8, 7);
     container.addChild(name);
+
+    if (node.description) {
+      const desc = new Text({
+        text: node.description,
+        style: {
+          fill: descColor,
+          fontFamily: 'Inter, system-ui, sans-serif',
+          fontSize: 9,
+          fontWeight: '400',
+          wordWrap: true,
+          wordWrapWidth: NODE_W - 16,
+        },
+      });
+      desc.position.set(8, 24);
+      container.addChild(desc);
+    }
 
     const costStr = isUnlocked ? 'Researched' : `${node.cost} R&D`;
     const cost = new Text({

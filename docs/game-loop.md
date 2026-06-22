@@ -74,7 +74,7 @@ At **1× speed**, one full in-game day takes **180 real seconds** (3 minutes).
 Day progress is stored as `dayProgress` from **0** (start) to **1** (end). The in-game clock shown in the top bar is derived from:
 
 - `company.schedule.startHour` — when the work day begins (default 9 AM, configurable 6 AM–4 PM after Schedule research)
-- `company.schedule.workHours` — shift length (default 12 h / 9 AM–9 PM, configurable 8 / 10 / 12 / 14 after Schedule research)
+- `company.schedule.workHours` — shift length (default 8 h / 9 AM–5 PM, configurable 8 / 10 / 12 / 14 after Schedule research)
 - `dayProgress` — how far through the shift you are
 
 The displayed clock snaps to **:00, :15, :30, :45**.

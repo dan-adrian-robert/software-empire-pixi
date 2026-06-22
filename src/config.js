@@ -108,8 +108,8 @@ export const GameConfig = Object.freeze({
   schedule: Object.freeze({
     // Research node that must be unlocked before the player can edit the schedule.
     researchNodeId: 'work_schedule',
-    // Fixed shift applied until that research is purchased: 9 AM–9 PM (12 hours).
-    locked: Object.freeze({ startHour: 9, workHours: 12 }),
+    // Fixed shift applied until that research is purchased: 9 AM–5 PM (8 hours).
+    locked: Object.freeze({ startHour: 9, workHours: 8 }),
   }),
 
   events: Object.freeze({

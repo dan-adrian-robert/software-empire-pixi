@@ -1,7 +1,8 @@
 /**
  * Research tree nodes.
- * Each node has an id, display name, emoji icon, R&D point cost, and dependency ids
- * that must be unlocked before this node becomes available.
+ * Each node has an id, display name, emoji icon, R&D point cost, dependency ids
+ * that must be unlocked before this node becomes available, and a short
+ * description of the benefit it grants (shown inline on the tree).
  */
 export const RESEARCH_NODES = [
   // ---- Skill unlocks ----
@@ -11,6 +12,7 @@ export const RESEARCH_NODES = [
     icon: '🖥️',
     cost: 40,
     dependencies: [],
+    description: 'Unlock Frontend skill & projects',
   },
   {
     id: 'skill_backend_dev',
@@ -18,6 +20,7 @@ export const RESEARCH_NODES = [
     icon: '🔧',
     cost: 90,
     dependencies: ['skill_frontend_dev'],
+    description: 'Unlock Backend skill & projects',
   },
   {
     id: 'skill_mobile_dev',
@@ -25,6 +28,7 @@ export const RESEARCH_NODES = [
     icon: '📱',
     cost: 90,
     dependencies: ['skill_frontend_dev'],
+    description: 'Unlock Mobile skill & projects',
   },
   {
     id: 'skill_devops',
@@ -32,6 +36,7 @@ export const RESEARCH_NODES = [
     icon: '🛠️',
     cost: 160,
     dependencies: ['skill_backend_dev'],
+    description: 'Unlock DevOps skill & projects',
   },
   // ---- Team management ----
   {
@@ -40,6 +45,7 @@ export const RESEARCH_NODES = [
     icon: '🧑‍🤝‍🧑',
     cost: 80,
     dependencies: [],
+    description: 'Hire Team Leads; unlock Teams panel',
   },
   {
     id: 'project_management',
@@ -47,6 +53,7 @@ export const RESEARCH_NODES = [
     icon: '📋',
     cost: 90,
     dependencies: [],
+    description: 'Hire PMs; auto-assign idle programmers',
   },
   // ---- HR ----
   {
@@ -55,6 +62,7 @@ export const RESEARCH_NODES = [
     icon: '👥',
     cost: 60,
     dependencies: [],
+    description: 'Split hiring into Programmers & Other tabs',
   },
   {
     id: 'hr_organised',
@@ -62,6 +70,7 @@ export const RESEARCH_NODES = [
     icon: '🗂️',
     cost: 100,
     dependencies: ['hr_basics'],
+    description: 'Separate Team Lead & PM hiring tabs',
   },
   {
     id: 'hr_leads_1',
@@ -69,6 +78,7 @@ export const RESEARCH_NODES = [
     icon: '📈',
     cost: 120,
     dependencies: ['hr_organised'],
+    description: '4 candidates per hiring tab',
   },
   {
     id: 'hr_leads_2',
@@ -76,6 +86,7 @@ export const RESEARCH_NODES = [
     icon: '📊',
     cost: 150,
     dependencies: ['hr_leads_1'],
+    description: '5 candidates per hiring tab',
   },
   // ---- General research ----
   {
@@ -84,6 +95,7 @@ export const RESEARCH_NODES = [
     icon: '🔄',
     cost: 50,
     dependencies: [],
+    description: 'Prerequisite for Refresh & Schedule',
   },
   {
     id: 'project_refresh',
@@ -91,6 +103,7 @@ export const RESEARCH_NODES = [
     icon: '🔃',
     cost: 100,
     dependencies: ['agile_workflow'],
+    description: 'Spend $500 to reroll project pool',
   },
   {
     id: 'hire_refresh',
@@ -98,6 +111,7 @@ export const RESEARCH_NODES = [
     icon: '🔃',
     cost: 100,
     dependencies: ['hr_basics'],
+    description: 'Spend $500 to reroll candidate pool',
   },
   {
     id: 'work_schedule',
@@ -105,6 +119,7 @@ export const RESEARCH_NODES = [
     icon: '🕐',
     cost: 60,
     dependencies: ['agile_workflow'],
+    description: 'Set workday start & length (8–14 hrs)',
   },
   // ---- Company events ----
   {
@@ -113,6 +128,7 @@ export const RESEARCH_NODES = [
     icon: '📅',
     cost: 60,
     dependencies: ['work_schedule'],
+    description: 'Unlock Calendar sidebar & event scheduling',
   },
   {
     id: 'event_frequency_1',
@@ -120,6 +136,7 @@ export const RESEARCH_NODES = [
     icon: '🎉',
     cost: 80,
     dependencies: ['calendar_unlock'],
+    description: 'Event cooldown 10 → 8 days',
   },
   {
     id: 'event_frequency_2',
@@ -127,6 +144,7 @@ export const RESEARCH_NODES = [
     icon: '🎊',
     cost: 120,
     dependencies: ['event_frequency_1'],
+    description: 'Event cooldown 8 → 6 days',
   },
   // ---- Survival / lives ----
   {
@@ -135,6 +153,7 @@ export const RESEARCH_NODES = [
     icon: '🩷',
     cost: 70,
     dependencies: [],
+    description: '+1 insolvency grace day',
   },
   {
     id: 'life_reserve_2',
@@ -142,6 +161,7 @@ export const RESEARCH_NODES = [
     icon: '❤️',
     cost: 110,
     dependencies: ['life_reserve_1'],
+    description: '+2 insolvency grace days',
   },
   {
     id: 'life_reserve_3',
@@ -149,6 +169,7 @@ export const RESEARCH_NODES = [
     icon: '💖',
     cost: 150,
     dependencies: ['life_reserve_2'],
+    description: '+3 insolvency grace days',
   },
   {
     id: 'life_reserve_4',
@@ -156,5 +177,6 @@ export const RESEARCH_NODES = [
     icon: '💎',
     cost: 200,
     dependencies: ['life_reserve_3'],
+    description: '+4 insolvency grace days',
   },
 ];

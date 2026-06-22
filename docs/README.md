@@ -25,7 +25,7 @@ npm run format    # Prettier format
 - Each in-game day runs for 180 real seconds at 1× speed.
 - Speed controls: **Pause / 1× / 2× / 4× / 8×**; "End Day" button fast-forwards to midnight.
 - The day **auto-pauses** at the start of each new day so you can plan before unpausing.
-- By default the work day runs from **9 AM to 9 PM** (a fixed 12-hour shift). Once the **Schedule** research node is unlocked (after Agile Workflow), a configurable work schedule editor becomes available to set the start hour (6 AM–4 PM) and shift length (8, 10, 12, or 14 hours).
+- By default the work day runs from **9 AM to 5 PM** (a fixed 8-hour shift). Once the **Schedule** research node is unlocked (after Agile Workflow), a configurable work schedule editor becomes available to set the start hour (6 AM–4 PM) and shift length (8, 10, 12, or 14 hours).
 - Every employee follows a repeating 15-minute schedule cycle: **WORK → BATHROOM_BREAK → WORK → TALK**. Skill points only accrue during WORK slots.
 - An in-game clock (snapped to :00 :15 :30 :45) shows the current time of day.
 

@@ -107,7 +107,7 @@ Skill Matching — an employee's skill must match an open (incomplete) requireme
 
 R&D Points — you earn +10 R&D points automatically at the end of every day. Points are spent to unlock individual research nodes.
 
-Dependencies — most nodes require one or more other nodes to be unlocked first. Hover over a node to see what it requires.
+Dependencies — most nodes require one or more other nodes to be unlocked first. Each node shows a short benefit subtitle so you can plan your research path at a glance.
 
 Key research chains:
 
@@ -117,7 +117,7 @@ Team Management — unlocks the Team Lead hire pool and the Teams panel. Require
 
 Project Management — unlocks the Project Manager hire pool and PM auto-assignment.
 
-HR Chain — HR Basics → HR Organised → HR Leads 1 → HR Leads 2. Each step improves the Hiring panel UI and increases the number of daily candidates.
+HR Chain — HR Basics → HR Organised → HR Leads 1 → HR Leads 2. Each step improves the Hiring panel UI and increases the number of daily candidates (3 → 4 → 5 per tab).
 
 Agile Workflow — a prerequisite node that unlocks both Project Refresh and Work Schedule research.
 
@@ -126,6 +126,10 @@ Project Refresh — spend $500 to reroll the project pool on demand.
 Hire Refresh — spend $500 to reroll the candidate pool on demand (requires HR Basics).
 
 Work Schedule — unlocks the Schedule popup where you can configure your work day start hour and duration (8, 10, 12, or 14 hours).
+
+Company Calendar — unlocks the Calendar sidebar, which shows upcoming days on a monthly sheet and lets you schedule company events on eligible future days.
+
+Event Planning I & II — each node reduces the minimum cooldown between company events by 2 days (default 10 days → 8 → 6). More frequent events means more EXP and morale opportunities for your team.
 
 Reserve Fund Chain — Reserve Fund I → II → III → IV. Each node cumulatively extends your insolvency grace period: +1, +2, +3, and +4 extra days respectively. With all four unlocked your company can survive up to 13 consecutive days in the red before game over.`,
   },
@@ -156,7 +160,7 @@ Team Info Popup — click the team card in the world view or Teams panel to see 
     title: 'Work Schedule',
     body: `The workday is divided into 15-minute activity slots. Employees cycle through activities automatically as time passes.
 
-Default Schedule — before unlocking Work Schedule research, all employees follow a fixed 9 AM–9 PM schedule (12 hours of activities).
+Default Schedule — before unlocking Work Schedule research, all employees follow a fixed 9 AM–5 PM schedule (8 hours of activities).
 
 Configurable Schedule — once Work Schedule (under Agile Workflow) is researched, the Schedule button appears in the left sidebar. You can set:
   • Start Hour: 6 AM through 4 PM

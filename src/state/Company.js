@@ -86,11 +86,11 @@ export function createCompany() {
      * startHour: 6–16 (hour the day begins, 24h clock)
      * workHours: 8 | 10 | 12 | 14
      * Before the work_schedule research node is unlocked this is fixed at
-     * 9 AM–9 PM (startHour: 9, workHours: 12) and cannot be changed by the player.
+     * 9 AM–5 PM (startHour: 9, workHours: 8) and cannot be changed by the player.
      */
     schedule: {
       startHour: 9,
-      workHours: 12,
+      workHours: 8,
     },
 
     /** Cumulative totals for statistics. */
