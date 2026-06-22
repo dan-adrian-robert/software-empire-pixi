@@ -11,9 +11,8 @@
  *     has no matching skill for it.
  *
  * Per-frame budget (per skill):
- *   spPerPeriod     = SKILL_SP_TABLE[skill.level]
- *   workPeriodSec   = DAY_DURATION_SECONDS * 15 / (workHours * 60)
- *   contribution    = spPerPeriod * (dt * speed / workPeriodSec) * totalProductivity
+ *   contribution = SKILL_SP_TABLE[skill.level] × workPeriodFraction × totalProductivity
+ *   totalProductivity is computed by ProductivitySystem.getTotalProductivity — see docs/PRODUCTIVITY.md
  *
  * Points are buffered during the WORK period and flushed to the project
  * when the period ends (see flushWorkPeriod).

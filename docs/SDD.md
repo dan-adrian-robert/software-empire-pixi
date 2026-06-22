@@ -34,11 +34,11 @@ This document describes the internal design of *Software Empire* — a browser-b
 - The responsibilities and interfaces of every module.
 - The shape of all mutable game state.
 - The EventBus contract (all events, emitters, listeners, payloads).
-- The core gameplay algorithms (skill-point accrual, economy pipeline, weather modifier).
+- The core gameplay algorithms (skill-point accrual, economy pipeline).
 - A full configuration reference.
 - Known deficiencies and planned work.
 
-This document is intended for developers working on the codebase. For player-facing feature documentation see `README.md`; for a visual architecture overview see `ARCHITECTURE.md`.
+This document is intended for developers working on the codebase. For player-facing feature documentation see `README.md`; for a visual architecture overview see `ARCHITECTURE.md`; for the productivity formula and modifier model see `PRODUCTIVITY.md`.
 
 ---
 
@@ -127,7 +127,7 @@ Returns the root aggregate. See [Data Models — Company](#company) for field ta
 
 #### `src/state/Employee.js` — `createEmployee(opts)`
 
-Returns an employee with randomised `baseProductivity` in `[BASE_PRODUCTIVITY_MIN, BASE_PRODUCTIVITY_MAX]`.
+Returns an employee with a randomised `baseProductivity` trait sampled from the config range (see [`PRODUCTIVITY.md §6`](PRODUCTIVITY.md#6-configuration)).
 
 Exports:
 - `SCHEDULE_CYCLE` — re-exported from `src/data/scheduleActivities.js`; the repeating 15-minute activity pattern.
@@ -314,7 +314,7 @@ Pure balance helpers used by both generators. No side effects, no game state.
 
 **`rollDailyWeather(company)`** — Picks a random entry from `WEATHER_TYPES` and assigns it to `company.currentWeather`.
 
-**`getTotalProductivity(employee, company)`** — Returns `employee.baseProductivity × company.currentWeather.modifier`.
+**`getTotalProductivity(employee, company)`** — Returns the combined productivity multiplier for one employee on the current day. For the canonical formula, modifier catalog, and stacking rules see [`PRODUCTIVITY.md`](PRODUCTIVITY.md).
 
 ---
 
@@ -679,19 +679,7 @@ for each employee:
 
 ### Total Productivity
 
-```
-totalProductivity = employee.baseProductivity × company.currentWeather.modifier
-```
-
-`baseProductivity` is fixed per employee. `currentWeather.modifier` is rolled once per day from:
-
-| Weather | Modifier |
-|---|---|
-| Stormy | 0.950 (−5%) |
-| Overcast | 0.975 (−2.5%) |
-| Cloudy | 1.000 (±0%) |
-| Sunny | 1.025 (+2.5%) |
-| Perfect | 1.050 (+5%) |
+`totalProductivity` is computed by `ProductivitySystem.getTotalProductivity(employee, company)` and multiplied into each `contribution` above. For the canonical formula, full modifier table, stacking rules, and planned future modifiers see [`PRODUCTIVITY.md`](PRODUCTIVITY.md).
 
 ### End-of-Day Economy Pipeline
 
@@ -769,8 +757,8 @@ All tunables live in `src/config.js` under `GameConfig.gameplay`. The object is 
 | `NEGATIVE_CASH_GRACE_DAYS` | `3` | Consecutive negative-cash EODs allowed before insolvency (base; extended by Reserve Fund research via `getNegativeCashGraceDays`) |
 | `BANKRUPTCY_THRESHOLD` | `0` | *Legacy — unused.* Kept in config for reference; the active insolvency logic uses `daysInDeficit` + `NEGATIVE_CASH_GRACE_DAYS` instead. |
 | `ACTIVITY_LOG_MAX` | `100` | Max notifications retained in the activity feed |
-| `BASE_PRODUCTIVITY_MIN` | `0.85` | Lower bound of random productivity trait |
-| `BASE_PRODUCTIVITY_MAX` | `1.05` | Upper bound of random productivity trait |
+| `BASE_PRODUCTIVITY_MIN` | `0.85` | Lower bound of innate productivity trait — see [`PRODUCTIVITY.md §6`](PRODUCTIVITY.md#6-configuration) |
+| `BASE_PRODUCTIVITY_MAX` | `1.05` | Upper bound of innate productivity trait — see [`PRODUCTIVITY.md §6`](PRODUCTIVITY.md#6-configuration) |
 
 Renderer and loop tunables:
 
@@ -793,7 +781,7 @@ Renderer and loop tunables:
 | Office tier upgrade | `OFFICE_TIERS` defines five tiers with upgrade costs, and `getNextOfficeTier` is exported, but no upgrade action exists in `Simulation` and no upgrade button exists in the UI. | Add `Simulation.upgradeOffice()`, deduct cost, increment `tierIndex`, update `desks`, and add a UI trigger. |
 | ~~`economy:bankrupt` / game over~~ | ~~`EconomySystem` emits this event but no listener exists. The game continues running after bankruptcy — only a notification is shown.~~ | Resolved: replaced with a 3-consecutive-day negative-cash grace period. `EconomySystem.runEndOfDay` tracks `company.daysInDeficit`, emits `economy:gameover`, and returns `{ gameOver }`. `Simulation._wireDayCycle` skips `beginNextDay` on game over, sets `isGameOver = true`, and the day report routes to `GameOverPopup` (reload autosave / new game / main menu). |
 | `project:completed` naming | The same event name covers both "project ready to collect" (mid-day) and "payout collected" (player action), making it impossible to distinguish between the two in a listener. | Rename the mid-day ready event to `project:ready` to eliminate ambiguity. |
-| Research tree content | The current 18 nodes implement effects for skills, teams/PMs, HR pool sizing, pool/hire refresh, schedule, and insolvency grace (Reserve Fund I–IV). `agile_workflow` only gates child nodes (no direct effect). No late-game nodes (e.g. productivity bonuses, global offices) are implemented yet. | Add effect handlers for remaining node categories as gameplay scope expands. |
+| Research tree content | The current 18 nodes implement effects for skills, teams/PMs, HR pool sizing, pool/hire refresh, schedule, and insolvency grace (Reserve Fund I–IV). `agile_workflow` only gates child nodes (no direct effect). No late-game nodes (e.g. productivity bonuses, global offices) are implemented yet. Planned productivity-related research nodes are listed in [`PRODUCTIVITY.md §8`](PRODUCTIVITY.md#8-planned-modifiers). | Add effect handlers for remaining node categories as gameplay scope expands. |
 | Archetype UI stubs | `EmployeeStatsPopup` and `TeamInfoPopup` render `/TODO` placeholders for personality summary, likes/dislikes, and effect bonuses. | Implement personality summary and likes/dislikes rendering from the archetype/communication profile data. |
 | ~~`BottomControlBar.js`~~ | ~~The file exists with speed buttons and an End Day button but is not imported anywhere.~~ | Resolved: file deleted. |
 | ~~`ProgressBar.js`~~ | ~~`src/ui/ProgressBar.js` was a standalone horizontal bar widget not referenced by any other file.~~ | Resolved: orphaned file deleted; use `widgets/ProgressBar` from the framework instead. |

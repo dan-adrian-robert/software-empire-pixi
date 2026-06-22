@@ -1,8 +1,8 @@
 /**
  * Weather type definitions for the daily productivity modifier.
  *
- * Five equally-probable states span from -5% to +5%.
- * The modifier is multiplied into each employee's Total_Productivity.
+ * Five equally-probable states; modifier values are the source of truth for
+ * the weather factor in Total_Productivity (see docs/PRODUCTIVITY.md §3).
  *
  * sentiment: 'bad' | 'neutral' | 'good'
  */

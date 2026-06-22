@@ -144,7 +144,7 @@ Runs every frame when `speed > 0`. For each employee in a WORK slot with a valid
 
 1. Find the pinned project in `activeProjects` (must not be completed or ready).
 2. Compute `workPeriodFraction = (dt × speed) / workPeriodSec`.
-3. For each matching skill: `contribution = SKILL_SP_TABLE[level] × workPeriodFraction × totalProductivity`.
+3. For each matching skill: `contribution = SKILL_SP_TABLE[level] × workPeriodFraction × totalProductivity` (see [`PRODUCTIVITY.md`](PRODUCTIVITY.md) for the full formula).
 4. Buffer the contribution into `employee.workBuffer[projectId][skill]`.
 
 Points are **not written to the project directly** — they sit in `workBuffer` until `flushWorkPeriod` is called at the end of each WORK slot (detected by `OfficeScene` via slot index change).
@@ -312,8 +312,8 @@ Balance helpers and generators live outside `src/data/`:
 || `NEGATIVE_CASH_GRACE_DAYS` | 3 | Base consecutive negative-cash EODs before insolvency; extended by Reserve Fund research via `getNegativeCashGraceDays` in `src/data/lifeResearch.js` |
 || `BANKRUPTCY_THRESHOLD` | 0 | *Legacy — unused.* Active insolvency logic uses `daysInDeficit` instead. |
 || `ACTIVITY_LOG_MAX` | 100 | Notification ring buffer capacity |
-|| `BASE_PRODUCTIVITY_MIN` | 0.85 | Min innate productivity trait |
-|| `BASE_PRODUCTIVITY_MAX` | 1.05 | Max innate productivity trait |
+|| `BASE_PRODUCTIVITY_MIN` | 0.85 | Min innate productivity trait — see [`PRODUCTIVITY.md §6`](PRODUCTIVITY.md#6-configuration) |
+|| `BASE_PRODUCTIVITY_MAX` | 1.05 | Max innate productivity trait — see [`PRODUCTIVITY.md §6`](PRODUCTIVITY.md#6-configuration) |
 
 ---
 

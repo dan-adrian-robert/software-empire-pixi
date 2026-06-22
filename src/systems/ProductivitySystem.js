@@ -1,15 +1,10 @@
 /**
  * ProductivitySystem
  *
- * Manages the two inputs to Total_Productivity:
- *   - baseProductivity: a per-employee innate trait [0.85, 1.05] (set at creation)
- *   - weatherModifier:  a global daily multiplier from one of 5 weather states
+ * Computes the combined productivity multiplier applied to each employee's SP
+ * output each frame, and rolls the daily weather state.
  *
- * Formula applied by ProjectSystem each frame:
- *   contribution = Base_SP × baseProductivity × weatherModifier
- *
- * Call rollDailyWeather(company) once per day (at day:ended) to pick a new
- * weather state for the coming day.
+ * Canonical formula and modifier model: docs/PRODUCTIVITY.md
  */
 import { WEATHER_TYPES } from '../data/weatherTypes.js';
 

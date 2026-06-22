@@ -134,11 +134,10 @@ Additional rules:
 During each frame in a WORK slot, the **ProjectSystem** calculates contribution per matching skill:
 
 ```
-contribution = SKILL_SP_TABLE[skillLevel]
-             × (dt × gameSpeed / workPeriodSeconds)
-             × baseProductivity
-             × weatherModifier
+contribution = SKILL_SP_TABLE[skillLevel] × workPeriodFraction × totalProductivity
 ```
+
+`totalProductivity` is computed by `ProductivitySystem.getTotalProductivity(employee, company)`. For the canonical formula and full modifier breakdown see [`PRODUCTIVITY.md`](PRODUCTIVITY.md).
 
 Points are **buffered** on the employee (`workBuffer`)—they are not applied to the project immediately.
 
@@ -164,9 +163,7 @@ flowchart LR
 
 ### Productivity modifiers
 
-Each employee has a permanent **base productivity** trait (roughly 0.85–1.05), rolled at hire.
-
-Each day also rolls a **weather** state with a global modifier. Weather is re-rolled at the start of the end-of-day pipeline (before the next playable day).
+Productivity is the combined multiplier applied to each employee's SP output each frame. It is computed from per-employee and daily weather inputs. For the full formula, modifier catalog, stacking rules, and planned future mechanics see [`PRODUCTIVITY.md`](PRODUCTIVITY.md).
 
 ### Collecting finished projects
 

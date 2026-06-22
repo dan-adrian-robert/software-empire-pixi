@@ -164,7 +164,7 @@ NOT:
 This table represents project difficulty scaling based only on the **raw SP/day output of the entire team**.
 
 The calculations intentionally ignore:
-- Productivity modifiers
+- Productivity modifiers (see [`PRODUCTIVITY.md`](PRODUCTIVITY.md) for the full model)
 - Stress
 - Weather
 - Office bonuses

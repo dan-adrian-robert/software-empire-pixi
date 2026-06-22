@@ -48,7 +48,7 @@ npm run format    # Prettier format
 
 ### Employees & Assignment
 - Employees have up to two skills, each ranked level 1–10. Skill-point output per 15-minute WORK period scales non-linearly (levels 1–10 produce 1–36 points).
-- Each employee has an innate **base productivity trait** (0.85–1.05×) rolled once on creation.
+- Each employee has an innate **base productivity trait** rolled once on creation.
 - Manually assign employees to projects via the **Assignment panel** (chip-based drag-assign UI). Unassigned employees display a **⚠ warning icon** above their head in the office view.
 - A floating **+N pts** label animates above an employee when a WORK period ends and they contributed points.
 - Click any employee in the office to open their **stats popup**: skills, salary, productivity, current project. When a skill point is available, upgrade buttons appear in both the stats popup and the **Staff panel**.
@@ -90,9 +90,9 @@ npm run format    # Prettier format
 - Locked skills cannot be assigned to projects or hired for.
 
 ### Weather & Productivity
-- A **daily weather roll** picks from five states: Stormy (−5%), Overcast (−2.5%), Cloudy (±0%), Sunny (+2.5%), Perfect (+5%).
-- The weather modifier multiplies every employee's total productivity for the day.
+- A **daily weather roll** picks from five states and applies a global productivity modifier to all SP output for the day.
 - Click the weather chip in the top bar to open a **weather popup** with the full modifier table.
+- For the complete formula and modifier model see [`PRODUCTIVITY.md`](PRODUCTIVITY.md).
 
 ### Office & Build Mode
 - The office floor is a tile grid. Employee desks are tile-placed objects, each occupying a 2×2 tile area.

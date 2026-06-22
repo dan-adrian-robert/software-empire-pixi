@@ -59,7 +59,7 @@ Project Managers require the Project Management research node. After every WORK 
 
 Skills & EXP — programmers earn EXP after any WORK period in which they produced SP. Each level requires more EXP than the last (starting at 100, growing ~25% per level). On level-up they receive one pending skill point. Visit the Staff panel to spend pending skill points, raising one of their existing skills by +1. Each skill has a personal potential cap (1–10) set at hire — the skill bar shows filled cells for current level, outlined cells for the attainable range up to potential, and dim cells beyond it.
 
-Base Productivity — each employee has an innate productivity multiplier (roughly 0.85–1.05) set at hire. This is factored into their SP output.
+Base Productivity — each employee has an innate productivity multiplier set at hire. It is visible as a percentage in their stats popup and is factored into their SP output.
 
 Archetypes — each employee is randomly assigned one or two personality archetypes that influence team chemistry. Archetypes are visible in the employee stats popup (click an employee sprite in the office).
 
@@ -203,11 +203,11 @@ Stats Tracking — the game tracks total revenue earned, total salaries paid, an
     title: 'Weather',
     body: `Each day begins with a random weather condition that applies a global productivity modifier to all SP output for the entire day.
 
-Weather types range from Stormy (−5% productivity) through Cloudy, Neutral, Partly Cloudy, Sunny, and up to Perfect (+5% productivity).
+Five weather states are possible — from Stormy (worst) through Overcast, Cloudy, Sunny, and up to Perfect (best). Each has an equal chance of occurring.
 
-The modifier is applied on top of each employee's base productivity, so a −5% day meaningfully reduces the SP your team produces.
+The modifier stacks with each employee's innate productivity trait, so a bad-weather day meaningfully reduces the SP your entire team produces.
 
-Weather Popup — the current weather is shown as a chip in the top bar. Click it to open a small popup with the weather name, modifier percentage, and a short description of the conditions.
+Weather Popup — the current weather is shown as a chip in the top bar. Click it to open a small popup with the weather name, modifier percentage, and the full table of all five conditions.
 
 Because the weather is rolled at the start of each day, you cannot plan around it in advance — it is a small random variance layer on top of your staffing decisions.`,
   },
@@ -243,7 +243,7 @@ Communication Log — the right sidebar has a Communication widget showing the l
 
 Employee Relationships — open an employee's stats popup (click their sprite in the office or in the Staff panel) to see their current friendship score with each coworker, displayed as a relationship tier.
 
-Note: friendship scores and team stress are currently tracked and displayed but do not yet apply modifiers to productivity or story point output. This is a foundation for future mechanics.`,
+Note: friendship scores and team stress are currently tracked and displayed but do not yet affect SP output. They are planned as future productivity modifiers.`,
   },
   {
     id: 'ui_navigation',
